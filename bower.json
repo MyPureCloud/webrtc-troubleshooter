@@ -1,5 +1,5 @@
 {
-  "name": "webrtc-troubleshoot-tests",
+  "name": "webrtc-troubleshooter",
   "dependencies": {
     "lodash": "^4.6.1",
     "webrtc-adapter": "gh-pages",
