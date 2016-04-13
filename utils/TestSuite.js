@@ -1,12 +1,14 @@
 /* global _ */
-
-import Ember from 'ember';
-
 class TestSuite {
-  constructor () {
+  constructor (options) {
     this.allTestsComplete = false;
     this.running = false;
     this.queue = [];
+    if (options) {
+        this.logger = options.logger;
+    } else {
+        this.logger = console;
+    }
   }
 
   addTest (test) {
@@ -25,7 +27,7 @@ class TestSuite {
     test.start().then(() => {
       test.callback(null, test.log);
     }).catch((err) => {
-      Ember.Logger.warn('WebRTC Diagnostic test failure: ', err, test.log);
+      logger.warn('WebRTC Diagnostic test failure: ', err, test.log);
       test.callback(err, test.log);
     }).finally(() => {
       test.running = false;

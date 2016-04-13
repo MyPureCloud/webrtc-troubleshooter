@@ -8,9 +8,6 @@
 
 import WebrtcCall from '../WebrtcCall';
 import { Test } from '../TestSuite';
-import Ember from 'ember';
-
-const { RSVP } = Ember;
 
 class DataChannelThroughputTest extends Test {
   constructor () {
@@ -42,7 +39,7 @@ class DataChannelThroughputTest extends Test {
   }
   start () {
     super.start();
-    this.deferred = RSVP.defer();
+    this.deferred = new $.Deferred();
     this.log = this.results = {log: []};
     this.addLog('info', 'DataChannelThroughputTest starting');
 

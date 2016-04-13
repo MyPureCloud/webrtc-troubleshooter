@@ -1,9 +1,5 @@
 /* global localMedia */
-
-import Ember from 'ember';
 import { Test } from '../TestSuite';
-
-const Promise = Ember.RSVP.Promise;
 
 class VideoTest extends Test {
   constructor () {

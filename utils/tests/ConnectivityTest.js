@@ -1,8 +1,7 @@
 /* global PeerConnection, _ */
 
 import { Test } from '../TestSuite';
-import Ember from 'ember';
-const Promise = Ember.RSVP.Promise;
+// const Promise = RSVP.Promise;
 
 class ConnectivityTest extends Test {
   constructor () {

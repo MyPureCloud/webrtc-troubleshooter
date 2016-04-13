@@ -5,7 +5,7 @@ import Ember from 'ember';
 import VideoFrameChecker from '../VideoFrameChecker';
 import WebrtcCall from '../WebrtcCall';
 
-const {RSVP, run} = Ember;
+const { run } = Ember;
 
 class AdvancedCameraTest extends Test {
   constructor () {
@@ -24,7 +24,7 @@ class AdvancedCameraTest extends Test {
   start () {
     super.start();
 
-    this.defer = RSVP.defer();
+    this.defer = new $.Deferred();
     this.runNextTest();
 
     return this.defer.promise;

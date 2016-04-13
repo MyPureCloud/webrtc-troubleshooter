@@ -1,8 +1,7 @@
 /* global localMedia */
 
 import { Test } from '../TestSuite';
-import Ember from 'ember';
-const Promise = Ember.RSVP.Promise;
+// const Promise = RSVP.Promise;
 
 class AudioTest extends Test {
   constructor () {
