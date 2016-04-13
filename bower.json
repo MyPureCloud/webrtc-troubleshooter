@@ -1,0 +1,9 @@
+{
+  "name": "webrtc-troubleshoot-tests",
+  "dependencies": {
+    "lodash": "^4.6.1",
+    "webrtc-adapter": "gh-pages",
+    "localmedia": "https://github.com/xdumaine/localmedia.git",
+    "rtcpeerconnection": "https://github.com/otalk/RTCPeerConnection.git"
+  }
+}
