@@ -1,0 +1,14 @@
+{
+  "name": "rtcpeerconnection",
+  "homepage": "https://github.com/otalk/RTCPeerConnection",
+  "version": "4.0.0",
+  "_release": "4.0.0",
+  "_resolution": {
+    "type": "version",
+    "tag": "v4.0.0",
+    "commit": "5a2e5830c0fdcc53c3904b139c37f51683b9ac9d"
+  },
+  "_source": "https://github.com/otalk/RTCPeerConnection.git",
+  "_target": "*",
+  "_originalSource": "https://github.com/otalk/RTCPeerConnection.git"
+}
