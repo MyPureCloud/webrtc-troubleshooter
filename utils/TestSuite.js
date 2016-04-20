@@ -15,7 +15,8 @@ class TestSuite {
     this.queue.push(test);
   }
 
-  runNextTest (done) {
+  runNextTest (done, troubleshootingLog) {
+    console.log(troubleshootingLog); 
     this.running = true;
     var test = this.queue.shift();
     if (!test) {
@@ -30,6 +31,7 @@ class TestSuite {
       logger.warn('WebRTC Diagnostic test failure: ', err, test.log);
       test.callback(err, test.log);
     }).finally(() => {
+      logger.info('WebRTC Troubleshooting results', this.get('troubleshootingLog'));
       test.running = false;
       test.destroy();
       this.runNextTest(done);
