@@ -1,7 +1,13 @@
+// const TestSuite = require('../utils/TestSuite');
+// const AudioTest = require('../utils/tests/AudioTest');
+// const VideoTest = require('../utils/tests/VideoTest');
+// const ConnectivityTest = require('../utils/tests/ConnectivityTest');
+// const AdvancedCameraTest = require('../utils/tests/AdvancedCameraTest');
+// const ThroughputTest = require('../utils/tests/ThroughputTest');
+// const VideoBandwidthTest = require('../utils/tests/VideoBandwidthTest');
 
-import { TestSuite } from '../../utils/TestSuite';
-import { AudioTest, VideoTest, ConnectivityTest, AdvancedCameraTest, ThroughputTest, VideoBandwidthTest } from '../../utils/tests/defaultTests';
-// import webrtc-troubleshooter.utils.TestSuite;
+import { TestSuite } from '../utils/TestSuite';
+import { AudioTest, VideoTest, ConnectivityTest, AdvancedCameraTest, ThroughputTest, VideoBandwidthTest } from '../utils/tests/defaultTests';
 
 var checkingMicrophone = true;
 var checkMicrophoneSuccess = false;
@@ -24,7 +30,6 @@ var audio = true;
 var iceServers = null;
 
 function init () {
-  // this._super(...arguments);
   troubleshootingLog = [];
   this.startTroubleshooter();
 }
@@ -33,8 +38,6 @@ function startTroubleshooter () {
   if (!navigator.mediaDevices) {
     this.video = false;
     this.audio = false;
-    // this.set('video', false);
-    // this.set('audio', false);
   }
   var iceConfig = {
     iceServers: this.iceServers || [],
@@ -109,11 +112,7 @@ function startTroubleshooter () {
     testSuite.addTest(throughputTest);
   }
 
-  // testSuite.runNextTest();
   testSuite.runNextTest(troubleshootingLog);
-  // testSuite.runNextTest(troubleshootingLog) => {
-  //   this.sendAction('results', troubleshootingLog));
-  // });
 
   this.testSuite = testSuite;
 }

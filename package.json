@@ -1,13 +1,17 @@
 {
   "name": "webrtc-troubleshooter",
-  "version": "",
+  "version": "0.0.0",
   "description": "A way to add webrtc troubleshooting to your app",
   "directories": {
-    "doc": "doc",
     "test": "tests"
   },
   "repository": "https://github.com/adflynn/webrtc-troubleshooter",
   "engines": {
     "node": ">= 4.4.0"
+  },
+  "devDependencies": {
+    "babel-cli": "^6.7.7",
+    "babelify": "^7.2.0",
+    "grunt-browserify": "^3.8.0"
   }
 }

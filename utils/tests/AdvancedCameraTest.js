@@ -1,11 +1,10 @@
 /* global attachMediaStream, _ */
 
 import { Test } from '../TestSuite';
-import Ember from 'ember';
 import VideoFrameChecker from '../VideoFrameChecker';
 import WebrtcCall from '../WebrtcCall';
 
-const { run } = Ember;
+const $ = require('jQuery'); 
 
 class AdvancedCameraTest extends Test {
   constructor () {

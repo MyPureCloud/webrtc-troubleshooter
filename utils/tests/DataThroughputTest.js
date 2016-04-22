@@ -9,6 +9,8 @@
 import WebrtcCall from '../WebrtcCall';
 import { Test } from '../TestSuite';
 
+const $ = require('jQuery'); 
+
 class DataChannelThroughputTest extends Test {
   constructor () {
     super(...arguments);

@@ -5,6 +5,8 @@
 import WebrtcCall from '../WebrtcCall';
 import { Test } from '../TestSuite';
 
+const $ = require('jQuery');
+
 class VideoBandwidthTest extends Test {
   constructor () {
     super(...arguments);
@@ -39,7 +41,7 @@ class VideoBandwidthTest extends Test {
   start () {
     super.start();
 
-    this.deferred = new $.Deferred(); 
+    this.deferred = new $.Deferred();
     this.log = this.results = {log: []};
     this.addLog('info', 'VideoBandwidthTest starting');
 

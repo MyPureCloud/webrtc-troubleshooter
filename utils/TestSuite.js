@@ -16,7 +16,7 @@ class TestSuite {
   }
 
   runNextTest (done, troubleshootingLog) {
-    console.log(troubleshootingLog); 
+    console.log(troubleshootingLog);
     this.running = true;
     var test = this.queue.shift();
     if (!test) {

@@ -29,11 +29,11 @@
     "Shim"
   ],
   "homepage": "https://github.com/webrtc/adapter",
-  "_release": "4676b8ece8",
+  "_release": "7b74abddd4",
   "_resolution": {
     "type": "branch",
     "branch": "gh-pages",
-    "commit": "4676b8ece84f50c009e31ee216d2a414737f90fc"
+    "commit": "7b74abddd4df286af8f5e91fe8199623f9f456ec"
   },
   "_source": "https://github.com/webrtc/adapter.git",
   "_target": "gh-pages",
