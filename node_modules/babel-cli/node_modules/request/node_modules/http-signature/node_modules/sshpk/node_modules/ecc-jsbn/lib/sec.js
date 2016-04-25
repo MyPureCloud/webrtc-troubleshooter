@@ -1,7 +1,7 @@
 // Named EC curves
 
 // Requires ec.js, jsbn.js, and jsbn2.js
-var BigInteger = require('jsbn')
+var BigInteger = require('jsbn').BigInteger
 var ECCurveFp = require('./ec.js').ECCurveFp
 
 

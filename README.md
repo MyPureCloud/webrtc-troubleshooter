@@ -20,4 +20,4 @@ TODO:
 # Test Page
 
 test-page/index.html
-for console output 
+for console output of 6 tests to ensure webrtc is properly functioning 

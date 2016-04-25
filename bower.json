@@ -2,7 +2,6 @@
   "name": "webrtc-troubleshooter",
   "dependencies": {
     "lodash": "^4.6.1",
-    "jquery": "^1.11.1",
     "webrtc-adapter": "gh-pages",
     "localmedia": "https://github.com/xdumaine/localmedia.git",
     "rtcpeerconnection": "https://github.com/otalk/RTCPeerConnection.git"
