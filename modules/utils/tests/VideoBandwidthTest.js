@@ -75,7 +75,6 @@ class VideoBandwidthTest extends Test {
     if (_.isObject(msg)) {
       msg = JSON.stringify(msg);
     }
-    // this.log.push(`${level} - ${msg}`);
     this.results.log.push(`${level} - ${msg}`);
   }
   doGetUserMedia (constraints, onSuccess, onFail) {
