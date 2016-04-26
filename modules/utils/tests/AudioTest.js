@@ -1,41 +1,49 @@
 /* global localMedia */
 
 import { Test } from '../TestSuite';
+const localMedia = require('localMedia');
 // const Promise = RSVP.Promise;
 
 class AudioTest extends Test {
   constructor () {
     super(...arguments);
-    name = 'Audio Test';
+    this.name = 'Audio Test';
   }
+
   start () {
     super.start();
-    localMedia = new localMedia({detectSpeakingEvents: true}); // eslint-disable-line
+
+    this.localMedia = new localMedia({detectSpeakingEvents: true}); // eslint-disable-line
     return new Promise((resolve, reject) => {
-      reject = reject;
+      this.reject = reject;
       var volumeCheckFailure = window.setTimeout(() => {
-        log.push('warn: no change in mic volume');
+        this.log.push('WARN - no change in mic volume');
+        console.log('warn');
         reject('audio timeout');
       }, 5000);
-      localMedia.start(options, (err) => {
+      this.localMedia.start(this.options, (err) => {
         if (err) {
-          log.push('Error: Audio Local media start failed');
+          this.log.push('ERROR - Audio Local media start failed');
+          console.log('error');
           reject(err);
         } else {
-          log.push('Success: Audio Local media started');
+          this.log.push('SUCCESS - Audio Local media started');
+          console.log('succcess');
         }
       });
-      localMedia.on('volumeChange', () => {
+      this.localMedia.on('volumeChange', () => {
         window.clearTimeout(volumeCheckFailure);
         resolve();
       });
-      localMedia.on('localStream', (stream) => {
+      this.localMedia.on('localStream', (stream) => {
         if (stream.getAudioTracks().length) {
           var audioTrack = stream.getAudioTracks()[0];
           if (audioTrack) {
-            log.push('Success: Audio stream passed');
+            this.log.push('SUCCESS - Audio stream passed');
+            console.log('succcess');
           } else {
-            log.push('Error: Audio stream failed');
+            this.log.push('ERROR - Audio stream failed');
+            console.log('error');
             reject('no audio tracks available');
           }
         }
@@ -44,7 +52,7 @@ class AudioTest extends Test {
   }
   destroy () {
     super.destroy();
-    localMedia.stop();
+    this.localMedia.stop();
   }
 }
 

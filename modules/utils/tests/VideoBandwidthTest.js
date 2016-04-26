@@ -6,10 +6,12 @@ import WebrtcCall from '../WebrtcCall';
 import { Test } from '../TestSuite';
 
 const $ = require('jQuery');
+const _ = require('lodash');
 
 class VideoBandwidthTest extends Test {
   constructor () {
     super(...arguments);
+    this.name = 'Bandwidth Test';
     this.maxVideoBitrateKbps = 2000;
     this.durationMs = 40000;
     this.statStepMs = 100;
@@ -36,17 +38,19 @@ class VideoBandwidthTest extends Test {
         }
       }
     };
-    this.logs = [];
+    this.log = [];
   }
+
   start () {
     super.start();
 
     this.deferred = new $.Deferred();
     this.log = this.results = {log: []};
-    this.addLog('info', 'VideoBandwidthTest starting');
+
+    this.addLog( 'INFO', 'VideoBandwidthTest starting');
 
     if (!this.options.iceConfig.iceServers.length) {
-      this.addLog('fatal', 'No ice servers were provided');
+      this.addLog('FATAL', 'No ice servers were provided');
       this.fail();
     } else {
       this.call = new WebrtcCall(this.options.iceConfig);
@@ -62,7 +66,7 @@ class VideoBandwidthTest extends Test {
     return this.deferred.promise;
   }
   fail () {
-    this.deferred.reject(_.last(this.results.log));
+    this.deferred.reject(_.last(this.log));
   }
   done () {
     this.deferred.resolve();
@@ -71,32 +75,33 @@ class VideoBandwidthTest extends Test {
     if (_.isObject(msg)) {
       msg = JSON.stringify(msg);
     }
+    // this.log.push(`${level} - ${msg}`);
     this.results.log.push(`${level} - ${msg}`);
   }
   doGetUserMedia (constraints, onSuccess, onFail) {
     var failFunc = (error) => {
-      this.addLog('error', {'status': 'fail', 'error': error});
+      this.addLog('ERROR', {'status': 'fail', 'error': error});
       if (onFail) {
         onFail.apply(this, arguments);
       } else {
-        this.addLog('fatal', `Failed to get access to local media due to error: ${error.name}`);
+        this.addLog('FATAL', `Failed to get access to local media due to error: ${error.name}`);
         return this.fail();
       }
     };
     try {
-      this.addLog('info', {'status': 'pending', 'constraints': constraints});
+      this.addLog('INFO', {'status': 'pending', 'constraints': constraints});
       var locMedia = new localMedia(); // eslint-disable-line
       locMedia.start(constraints, (err, stream) => {
         if (err) {
           return failFunc(err);
         }
         const cam = this.getDeviceName_(stream.getVideoTracks());
-        this.results.camera = cam;
-        this.addLog('info', {'status': 'success', 'camera': cam});
+        // this.results.camera = cam;
+        this.addLog('INFO', {'status': 'success', 'camera': cam});
         onSuccess(stream);
       });
     } catch (e) {
-      this.addLog('fatal', {'status': 'exception', 'error': e.message});
+      this.addLog('FATAL', {'status': 'exception', 'error': e.message});
       this.fail();
     }
   }
@@ -121,7 +126,7 @@ class VideoBandwidthTest extends Test {
       this.call.pc1.getStats(this.localStream)
         .then(_.bind(this.gotStats, this))
         .catch((error) => {
-          this.addLog('error', 'Failed to getStats: ' + error);
+          this.addLog('ERROR', 'Failed to getStats: ' + error);
         });
     }
   }
@@ -156,7 +161,7 @@ class VideoBandwidthTest extends Test {
         }
       }
     } else {
-      this.addLog('error', 'Only Firefox and Chrome getStats implementations are supported.');
+      this.addLog('ERROR', 'Only Firefox and Chrome getStats implementations are supported.');
     }
     this.nextTimeout = setTimeout(this.gatherStats.bind(this), this.statStepMs);
   }
@@ -171,38 +176,38 @@ class VideoBandwidthTest extends Test {
     if (webrtcsupport.prefix === 'webkit') {
       // Checking if greater than 2 because Chrome sometimes reports 2x2 when a camera starts but fails to deliver frames.
       if (this.videoStats[0] < 2 && this.videoStats[1] < 2) {
-        this.addLog('error', `Camera failure: ${this.videoStats[0]}x${this.videoStats[1]}. Cannot test bandwidth without a working camera.`);
+        this.addLog('ERROR', `Camera failure: ${this.videoStats[0]}x${this.videoStats[1]}. Cannot test bandwidth without a working camera.`);
       } else {
         stats.resolution = `${this.videoStats[0]}x${this.videoStats[1]}`;
         stats.bpsAvg = this.bweStats.getAverage();
         stats.bpsMax = this.bweStats.getMax();
         stats.rampUpTimeMs = this.bweStats.getRampUpTime();
 
-        this.addLog('info', `Video resolution: ${stats.resolution}`);
-        this.addLog('info', `Send bandwidth estimate average: ${stats.bpsAvg} bps`);
-        this.addLog('info', `Send bandwidth estimate max: ${stats.bpsMax} bps`);
-        this.addLog('info', `Send bandwidth ramp-up time: ${stats.rampUpTimeMs} ms`);
+        this.addLog('INFO', `Video resolution: ${stats.resolution}`);
+        this.addLog('INFO', `Send bandwidth estimate average: ${stats.bpsAvg} bps`);
+        this.addLog('INFO', `Send bandwidth estimate max: ${stats.bpsMax} bps`);
+        this.addLog('INFO', `Send bandwidth ramp-up time: ${stats.rampUpTimeMs} ms`);
       }
     } else if (webrtcsupport.prefix === 'moz') {
       if (parseInt(this.framerateMean, 10) > 0) {
-        this.addLog('success', `Frame rate mean: ${parseInt(this.framerateMean, 10)}`);
+        this.addLog('SUCCESS', `Frame rate mean: ${parseInt(this.framerateMean, 10)}`);
       } else {
-        this.addLog('error', 'Frame rate mean is 0, cannot test bandwidth without a working camera.');
+        this.addLog('ERROR', 'Frame rate mean is 0, cannot test bandwidth without a working camera.');
       }
       stats.framerateMean = this.framerateMean || null;
 
       stats.bitrateMean = this.bitrateMean;
       stats.bitrateStdDev = this.bitrateStdDev;
-      this.addLog('info', `Send bitrate mean: ${stats.bitrateMean} bps`);
-      this.addLog('info', `Send bitrate standard deviation: ${stats.bitrateStdDev} bps`);
+      this.addLog('INFO', `Send bitrate mean: ${stats.bitrateMean} bps`);
+      this.addLog('INFO', `Send bitrate standard deviation: ${stats.bitrateStdDev} bps`);
     }
     stats.rttAverage = this.rttStats.getAverage();
     stats.rttMax = this.rttStats.getMax();
     stats.lostPackets = parseInt(this.packetsLost, 10);
 
-    this.addLog('info', `RTT average: ${stats.rttAverage} ms`);
-    this.addLog('info', `RTT max: ${stats.rttMax} ms`);
-    this.addLog('info', `Lost packets: ${stats.lostPackets}`);
+    this.addLog('INFO', `RTT average: ${stats.rttAverage} ms`);
+    this.addLog('INFO', `RTT max: ${stats.rttMax} ms`);
+    this.addLog('INFO', `Lost packets: ${stats.lostPackets}`);
 
     this.done();
   }
