@@ -1,32 +1,36 @@
 /* global localMedia */
 import { Test } from '../TestSuite';
+const localMedia = require('localMedia');
 
 class VideoTest extends Test {
   constructor () {
     super(...arguments);
     this.name = 'Video Test';
+
+    this.localMedia = new localMedia({detectSpeakingEvents: true}); // eslint-disable-line
   }
   start () {
     super.start();
-    localMedia = new localMedia(); // eslint-disable-line
+
+    // this.localMedia = new localMedia(); // eslint-disable-line
     return new Promise((resolve, reject) => {
-      reject = reject;
-      localMedia.start(options, (err) => {
+      this.reject = reject;
+      this.localMedia.start(this.options, (err) => {
         if (err) {
-          log.push(`Error: Video Local media start failed ${err.name}`);
+          this.log.push(`Error: Video Local media start failed ${err.name}`);
           reject(err);
         } else {
-          log.push('Success: Video Local media started');
+          this.log.push('Success: Video Local media started');
         }
       });
-      localMedia.on('localStream', (stream) => {
+      this.localMedia.on('localStream', (stream) => {
         if (stream.getVideoTracks().length) {
           var videoTrack = stream.getVideoTracks()[0];
           if (videoTrack) {
-            log.push('Success: Video stream passed');
+            this.log.push('Success: Video stream passed');
             resolve();
           } else {
-            log.push('Error: Video stream failed');
+            this.log.push('Error: Video stream failed');
             reject('no video track available');
           }
         }
@@ -35,7 +39,7 @@ class VideoTest extends Test {
   }
   destroy () {
     super.destroy();
-    localMedia.stop();
+    this.localMedia.stop();
   }
 }
 

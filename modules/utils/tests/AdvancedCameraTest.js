@@ -9,14 +9,14 @@ const $ = require('jQuery');
 class AdvancedCameraTest extends Test {
   constructor () {
     super(...arguments);
-    name = 'Video Test';
-    tests = [];
+    this.name = 'Advanced Video Test';
+    this.tests = [];
 
     // default tests
-    tests.push(new CameraResolutionTest([[320, 240]]));
-    tests.push(new CameraResolutionTest([[640, 480]]));
-    tests.push(new CameraResolutionTest([[1280, 720]]));
-    tests.push(new CameraResolutionTest([[160, 120], [320, 180], [320, 240], [640, 360], [640, 480], [768, 576],
+    this.tests.push(new CameraResolutionTest([[320, 240]]));
+    this.tests.push(new CameraResolutionTest([[640, 480]]));
+    this.tests.push(new CameraResolutionTest([[1280, 720]]));
+    this.tests.push(new CameraResolutionTest([[160, 120], [320, 180], [320, 240], [640, 360], [640, 480], [768, 576],
       [1024, 576], [1280, 720], [1280, 768], [1280, 800], [1920, 1080],
       [1920, 1200], [3840, 2160], [4096, 2160]]));
   }
@@ -26,16 +26,18 @@ class AdvancedCameraTest extends Test {
     defer = new $.Deferred();
     runNextTest();
 
-    return defer.promise;
+    this.runNextTest();
+
+    return this.defer.promise;
   }
   runNextTest (testNum = 0) {
-    if (testNum >= tests.length) {
-      return defer.resolve(log);
+    if (testNum >= this.tests.length) {
+      return this.defer.resolve(this.log);
     }
 
-    tests[testNum].run((results) => {
-      log.push(results);
-      runNextTest(++testNum);
+    this.tests[testNum].run((results) => {
+      this.log.push(results);
+      this.runNextTest(++testNum);
     });
   }
   destroy () {
@@ -47,39 +49,39 @@ class AdvancedCameraTest extends Test {
 
 class CameraResolutionTest {
   constructor (resolutions, duration = 8000) {
-    resolutions = resolutions;
-    duration = duration;
-    log = [];
-    currentResolution = 0;
-    isMuted = false;
-    isShuttingDown = false;
+    this.resolutions = resolutions;
+    this.duration = duration;
+    this.log = [];
+    this.currentResolution = 0;
+    this.isMuted = false;
+    this.isShuttingDown = false;
   }
   run (cb) {
-    cb = cb || function () {};
+    this.cb = cb || function () {};
     const settings = {
-      resolutions: resolutions,
-      duration: duration
+      resolutions: this.resolutions,
+      duration: this.duration
     };
-    log.push(`Starting camera test with settings: ${JSON.stringify(settings)}`);
-    startGetUserMedia(resolutions[currentResolution]);
+    this.log.push(`Starting camera test with settings: ${JSON.stringify(settings)}`);
+    this.startGetUserMedia(this.resolutions[this.currentResolution]);
   }
   done () {
     const results = {
-      log: log,
-      stats: stats,
-      resolutions: resolutions,
-      duration: duration
+      log: this.log,
+      stats: this.stats,
+      resolutions: this.resolutions,
+      duration: this.duration
     };
-    cb(results);
+    this.cb(results);
   }
   reportSuccess (str) {
-    log.push(`SUCCESS: ${str}`);
+    this.log.push(`SUCCESS: ${str}`);
   }
   reportError (str) {
-    log.push(`ERROR: ${str}`);
+    this.log.push(`ERROR: ${str}`);
   }
   reportInfo (str) {
-    log.push(`INFO: ${str}`);
+    this.log.push(`INFO: ${str}`);
   }
   startGetUserMedia (resolution) {
     const constraints = {
@@ -91,35 +93,35 @@ class CameraResolutionTest {
     };
     navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
       // Do not check actual video frames when more than one resolution is provided.
-      if (resolutions.length > 1) {
-        reportSuccess('Supported: ' + resolution[0] + 'x' + resolution[1]);
+      if (this.resolutions.length > 1) {
+        this.reportSuccess('Supported: ' + resolution[0] + 'x' + resolution[1]);
         stream.getTracks().forEach((track) => {
           track.stop();
         });
-        maybeContinueGetUserMedia();
+        this.maybeContinueGetUserMedia();
       } else {
-        collectAndAnalyzeStats_(stream, resolution);
+        this.collectAndAnalyzeStats_(stream, resolution);
       }
     }).catch((error) => {
-      if (resolutions.length > 1) {
-        reportInfo(resolution[0] + 'x' + resolution[1] + ' not supported');
+      if (this.resolutions.length > 1) {
+        this.reportInfo(resolution[0] + 'x' + resolution[1] + ' not supported');
       } else {
-        reportError('getUserMedia failed with error: ' + error);
+        this.reportError('getUserMedia failed with error: ' + error);
       }
-      maybeContinueGetUserMedia();
+      this.maybeContinueGetUserMedia();
     });
   }
   maybeContinueGetUserMedia () {
-    if (currentResolution === resolutions.length) {
-      return done();
+    if (this.currentResolution === this.resolutions.length) {
+      return this.done();
     }
-    startGetUserMedia(resolutions[currentResolution++]);
+    this.startGetUserMedia(this.resolutions[this.currentResolution++]);
   }
   collectAndAnalyzeStats_ (stream, resolution) {
     const tracks = stream.getVideoTracks();
     if (tracks.length < 1) {
-      reportError('No video track in returned stream.');
-      maybeContinueGetUserMedia();
+      this.reportError('No video track in returned stream.');
+      this.maybeContinueGetUserMedia();
       return;
     }
 
@@ -131,28 +133,28 @@ class CameraResolutionTest {
       // Register events.
       videoTrack.addEventListener('ended', () => {
         // Ignore events when shutting down the
-        if (isShuttingDown) {
+        if (this.isShuttingDown) {
           return;
         }
-        reportError('Video track ended, camera stopped working');
+        this.reportError('Video track ended, camera stopped working');
       });
       videoTrack.addEventListener('mute', () => {
         // Ignore events when shutting down the test.
-        if (isShuttingDown) {
+        if (this.isShuttingDown) {
           return;
         }
-        reportError('Your camera reported itself as muted.');
+        this.reportError('Your camera reported itself as muted.');
         // MediaStreamTrack.muted property is not wired up in Chrome yet,
         // checking isMuted local state.
-        isMuted = true;
+        this.isMuted = true;
       });
       videoTrack.addEventListener('unmute', () => {
         // Ignore events when shutting down the test.
-        if (isShuttingDown) {
+        if (this.isShuttingDown) {
           return;
         }
-        reportInfo('Your camera reported itself as unmuted.');
-        isMuted = false;
+        this.reportInfo('Your camera reported itself as unmuted.');
+        this.isMuted = false;
       });
     }
 
@@ -166,15 +168,15 @@ class CameraResolutionTest {
     const call = new WebrtcCall();
     call.pc1.addStream(stream);
     call.establishConnection();
-    call.gatherStats(call.pc1, onCallEnded_.bind(this, resolution, video, stream, frameChecker), 100);
-    run.later(this, endCall_, call, stream, 8000);
+    call.gatherStats(call.pc1, this.onCallEnded_.bind(this, resolution, video, stream, frameChecker), 100);
+    run.later(this, this.endCall_, call, stream, 8000);
   }
   onCallEnded_ (resolution, videoElement, stream, frameChecker, stats, statsTime) {
-    analyzeStats_(resolution, videoElement, stream, frameChecker, stats, statsTime);
+    this.analyzeStats_(resolution, videoElement, stream, frameChecker, stats, statsTime);
 
     frameChecker.stop();
 
-    done();
+    this.done();
   }
   analyzeStats_ (resolution, videoElement, stream, frameChecker, stats, statsTime) {
     const googAvgEncodeTime = [];
@@ -202,26 +204,26 @@ class CameraResolutionTest {
     statsReport.actualVideoHeight = videoElement.videoHeight;
     statsReport.mandatoryWidth = resolution[0];
     statsReport.mandatoryHeight = resolution[1];
-    statsReport.encodeSetupTimeMs = extractEncoderSetupTime_(stats, statsTime);
-    statsReport.avgEncodeTimeMs = arrayAverage(googAvgEncodeTime);
+    statsReport.encodeSetupTimeMs = this.extractEncoderSetupTime_(stats, statsTime);
+    statsReport.avgEncodeTimeMs = this.arrayAverage(googAvgEncodeTime);
     statsReport.minEncodeTimeMs = _.min(googAvgEncodeTime);
     statsReport.maxEncodeTimeMs = _.max(googAvgEncodeTime);
-    statsReport.avgInputFps = arrayAverage(googAvgFrameRateInput);
+    statsReport.avgInputFps = this.arrayAverage(googAvgFrameRateInput);
     statsReport.minInputFps = _.min(googAvgFrameRateInput);
     statsReport.maxInputFps = _.max(googAvgFrameRateInput);
-    statsReport.avgSentFps = arrayAverage(googAvgFrameRateSent);
+    statsReport.avgSentFps = this.arrayAverage(googAvgFrameRateSent);
     statsReport.minSentFps = _.min(googAvgFrameRateSent);
     statsReport.maxSentFps = _.max(googAvgFrameRateSent);
-    statsReport.isMuted = isMuted;
+    statsReport.isMuted = this.isMuted;
     statsReport.testedFrames = frameStats.numFrames;
     statsReport.blackFrames = frameStats.numBlackFrames;
     statsReport.frozenFrames = frameStats.numFrozenFrames;
 
-    testExpectations_(statsReport);
-    stats = statsReport;
+    this.testExpectations_(statsReport);
+    this.stats = statsReport;
   }
   endCall_ (callObject, stream) {
-    isShuttingDown = true;
+    this.isShuttingDown = true;
     stream.getTracks().forEach((track) => {
       track.stop();
     });
@@ -254,33 +256,33 @@ class CameraResolutionTest {
 
     if (notAvailableStats.length !== 0) {
       report.notAvailableStatus = notAvailableStats;
-      reportInfo('Not available: ' + notAvailableStats.join(', '));
+      this.reportInfo('Not available: ' + notAvailableStats.join(', '));
     }
 
     if (isNaN(report.avgSentFps)) {
-      reportInfo('Cannot verify sent FPS.');
+      this.reportInfo('Cannot verify sent FPS.');
     } else if (report.avgSentFps < 5) {
-      reportError('Low average sent FPS: ' + report.avgSentFps);
+      this.reportError('Low average sent FPS: ' + report.avgSentFps);
     } else {
-      reportSuccess('Average FPS above threshold');
+      this.reportSuccess('Average FPS above threshold');
     }
 
-    if (!resolutionMatchesIndependentOfRotationOrCrop_(
+    if (!this.resolutionMatchesIndependentOfRotationOrCrop_(
         report.actualVideoWidth, report.actualVideoHeight, report.mandatoryWidth,
         report.mandatoryHeight)) {
-      reportError('Incorrect captured resolution.');
+      this.reportError('Incorrect captured resolution.');
     } else {
-      reportSuccess('Captured video using expected resolution.');
+      this.reportSuccess('Captured video using expected resolution.');
     }
 
     if (report.testedFrames === 0) {
-      reportError('Could not analyze any video frame.');
+      this.reportError('Could not analyze any video frame.');
     } else {
       if (report.blackFrames > report.testedFrames / 3) {
-        reportError('Camera delivering lots of black frames.');
+        this.reportError('Camera delivering lots of black frames.');
       }
       if (report.frozenFrames > report.testedFrames / 3) {
-        reportError('Camera delivering lots of frozen frames.');
+        this.reportError('Camera delivering lots of frozen frames.');
       }
     }
   }

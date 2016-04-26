@@ -2,63 +2,63 @@
 
 class VideoFrameChecker {
   constructor (videoElement) {
-    frameStats = {
+    this.frameStats = {
       numFrozenFrames: 0,
       numBlackFrames: 0,
       numFrames: 0
     };
 
-    running_ = true;
+    this.running_ = true;
 
-    nonBlackPixelLumaThreshold = 20;
-    previousFrame_ = [];
-    identicalFrameSsimThreshold = 0.985;
-    frameComparator = new Ssim();
+    this.nonBlackPixelLumaThreshold = 20;
+    this.previousFrame_ = [];
+    this.identicalFrameSsimThreshold = 0.985;
+    this.frameComparator = new Ssim();
 
-    canvas_ = document.createElement('canvas');
-    videoElement_ = videoElement;
-    listener_ = checkVideoFrame_.bind(this);
-    videoElement_.addEventListener('play', listener_, false);
+    this.canvas_ = document.createElement('canvas');
+    this.videoElement_ = videoElement;
+    this.listener_ = this.checkVideoFrame_.bind(this);
+    this.videoElement_.addEventListener('play', this.listener_, false);
   }
   stop () {
-    videoElement_.removeEventListener('play', listener_);
-    running_ = false;
+    this.videoElement_.removeEventListener('play', this.listener_);
+    this.running_ = false;
   }
   getCurrentImageData_ () {
-    canvas_.width = videoElement_.width;
-    canvas_.height = videoElement_.height;
+    this.canvas_.width = this.videoElement_.width;
+    this.canvas_.height = this.videoElement_.height;
 
-    var context = canvas_.getContext('2d');
-    context.drawImage(videoElement_, 0, 0, canvas_.width,
-      canvas_.height);
-    return context.getImageData(0, 0, canvas_.width, canvas_.height);
+    var context = this.canvas_.getContext('2d');
+    context.drawImage(this.videoElement_, 0, 0, this.canvas_.width,
+      this.canvas_.height);
+    return context.getImageData(0, 0, this.canvas_.width, this.canvas_.height);
   }
   checkVideoFrame_ () {
-    if (!running_) {
+    if (!this.running_) {
       return;
     }
-    if (videoElement_.ended) {
+    if (this.videoElement_.ended) {
       return;
     }
 
-    var imageData = getCurrentImageData_();
+    var imageData = this.getCurrentImageData_();
 
-    if (isBlackFrame_(imageData.data, imageData.data.length)) {
-      frameStats.numBlackFrames++;
+    if (this.isBlackFrame_(imageData.data, imageData.data.length)) {
+      this.frameStats.numBlackFrames++;
     }
 
-    if (frameComparator.calculate(previousFrame_, imageData.data) >
-      identicalFrameSsimThreshold) {
-      frameStats.numFrozenFrames++;
+    if (this.frameComparator.calculate(this.previousFrame_, imageData.data) >
+      this.identicalFrameSsimThreshold) {
+      this.frameStats.numFrozenFrames++;
     }
-    previousFrame_ = imageData.data;
+    this.previousFrame_ = imageData.data;
 
-    frameStats.numFrames++;
-    setTimeout(checkVideoFrame_.bind(this), 20);
+    this.frameStats.numFrames++;
+    setTimeout(this.checkVideoFrame_.bind(this), 20);
   }
   isBlackFrame_ (data, length) {
     // TODO: Use a statistical, histogram-based detection.
-    var thresh = nonBlackPixelLumaThreshold;
+    var thresh = this.nonBlackPixelLumaThreshold;
     var accuLuma = 0;
     for (var i = 4; i < length; i += 4) {
       // Use Luma as in Rec. 709: Y′709 = 0.21R + 0.72G + 0.07B
@@ -74,47 +74,47 @@ class VideoFrameChecker {
 
 VideoFrameChecker.prototype = {
   stop: function () {
-    videoElement_.removeEventListener('play', listener_);
-    running_ = false;
+    this.videoElement_.removeEventListener('play', this.listener_);
+    this.running_ = false;
   },
 
   getCurrentImageData_: function () {
-    canvas_.width = videoElement_.width;
-    canvas_.height = videoElement_.height;
+    this.canvas_.width = this.videoElement_.width;
+    this.canvas_.height = this.videoElement_.height;
 
-    var context = canvas_.getContext('2d');
-    context.drawImage(videoElement_, 0, 0, canvas_.width,
-      canvas_.height);
-    return context.getImageData(0, 0, canvas_.width, canvas_.height);
+    var context = this.canvas_.getContext('2d');
+    context.drawImage(this.videoElement_, 0, 0, this.canvas_.width,
+      this.canvas_.height);
+    return context.getImageData(0, 0, this.canvas_.width, this.canvas_.height);
   },
 
   checkVideoFrame_: function () {
-    if (!running_) {
+    if (!this.running_) {
       return;
     }
-    if (videoElement_.ended) {
+    if (this.videoElement_.ended) {
       return;
     }
 
-    var imageData = getCurrentImageData_();
+    var imageData = this.getCurrentImageData_();
 
-    if (isBlackFrame_(imageData.data, imageData.data.length)) {
-      frameStats.numBlackFrames++;
+    if (this.isBlackFrame_(imageData.data, imageData.data.length)) {
+      this.frameStats.numBlackFrames++;
     }
 
-    if (frameComparator.calculate(previousFrame_, imageData.data) >
-      identicalFrameSsimThreshold) {
-      frameStats.numFrozenFrames++;
+    if (this.frameComparator.calculate(this.previousFrame_, imageData.data) >
+      this.identicalFrameSsimThreshold) {
+      this.frameStats.numFrozenFrames++;
     }
-    previousFrame_ = imageData.data;
+    this.previousFrame_ = imageData.data;
 
-    frameStats.numFrames++;
-    setTimeout(checkVideoFrame_.bind(this), 20);
+    this.frameStats.numFrames++;
+    setTimeout(this.checkVideoFrame_.bind(this), 20);
   },
 
   isBlackFrame_: function (data, length) {
     // TODO: Use a statistical, histogram-based detection.
-    var thresh = nonBlackPixelLumaThreshold;
+    var thresh = this.nonBlackPixelLumaThreshold;
     var accuLuma = 0;
     for (var i = 4; i < length; i += 4) {
       // Use Luma as in Rec. 709: Y′709 = 0.21R + 0.72G + 0.07B
@@ -182,15 +182,15 @@ class Ssim {
     var C2 = (K2 * L) * (K2 * L);
     var C3 = C2 / 2;
 
-    var statsX = statistics(x);
+    var statsX = this.statistics(x);
     var muX = statsX.mean;
     var sigmaX2 = statsX.variance;
     var sigmaX = Math.sqrt(sigmaX2);
-    var statsY = statistics(y);
+    var statsY = this.statistics(y);
     var muY = statsY.mean;
     var sigmaY2 = statsY.variance;
     var sigmaY = Math.sqrt(sigmaY2);
-    var sigmaXy = covariance(x, y, muX, muY);
+    var sigmaXy = this.covariance(x, y, muX, muY);
 
     // Implementation of Eq.6.
     var luminance = (2 * muX * muY + C1) /

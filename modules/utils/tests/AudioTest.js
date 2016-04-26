@@ -2,18 +2,18 @@
 
 import { Test } from '../TestSuite';
 const localMedia = require('localMedia');
-// const Promise = RSVP.Promise;
 
 class AudioTest extends Test {
   constructor () {
     super(...arguments);
     this.name = 'Audio Test';
+
+    this.localMedia = new localMedia({detectSpeakingEvents: true}); // eslint-disable-line
   }
 
   start () {
     super.start();
 
-    this.localMedia = new localMedia({detectSpeakingEvents: true}); // eslint-disable-line
     return new Promise((resolve, reject) => {
       this.reject = reject;
       var volumeCheckFailure = window.setTimeout(() => {

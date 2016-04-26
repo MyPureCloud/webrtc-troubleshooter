@@ -15,27 +15,57 @@ class TestSuite {
     this.queue.push(test);
   }
 
-  runNextTest (done, troubleshootingLog) {
-    console.log(troubleshootingLog);
+  runNextTest (troubleshootingLog) {
     this.running = true;
     var test = this.queue.shift();
     if (!test) {
       this.running = false;
       this.allTestsComplete = true;
-      return done();
+      return;
     }
     this.activeTest = test;
-    test.start().then(() => {
+
+    // test.start().then(() => {
+    //   test.callback(null, test.log);
+    // }).catch((err) => {
+    //   Ember.Logger.warn('WebRTC Diagnostic test failure: ', err, test.log);
+    //   test.callback(err, test.log);
+    // }).finally(() => {
+    //   test.running = false;
+    //   test.destroy();
+    //   this.runNextTest(done);
+    // });
+    //
+    // var testResults = new Promise((resolve, reject) => {
+    //   test.start();
+    // });
+    //
+    // testResults.then(function(result) {
+    //   alert('okay');
+    //   test.callback(null, test.log);
+    //   logger.info('WebRTC Troubleshooting results for ' + test.name, JSON.stringify(test.log, null, " "));
+    //   test.running = false;
+    //   test.destroy();
+    //   troubleshootingLog.push(test.log);
+    //   runNextTest(troubleshootingLog);
+    // });
+
+
+    try {
+      test.start();
       test.callback(null, test.log);
-    }).catch((err) => {
-      logger.warn('WebRTC Diagnostic test failure: ', err, test.log);
+    }
+    catch(err) {
+      this.logger.warn('WebRTC Diagnostic test failure: ', err, test.log);
       test.callback(err, test.log);
-    }).finally(() => {
-      logger.info('WebRTC Troubleshooting results', this.get('troubleshootingLog'));
+    }
+    finally {
+      this.logger.info('WebRTC Troubleshooting results for ' + test.name, JSON.stringify(test.log, null, " "));
       test.running = false;
       test.destroy();
-      this.runNextTest(done);
-    });
+      troubleshootingLog.push(test.log);
+      this.runNextTest(troubleshootingLog);
+    }
   }
 
   stopAllTests () {
