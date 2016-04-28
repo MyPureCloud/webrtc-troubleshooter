@@ -1,11 +1,15 @@
 /* global PeerConnection, _ */
 
 import { Test } from '../TestSuite';
+const PeerConnection = require('rtcpeerconnection');
 
 class ConnectivityTest extends Test {
   constructor () {
     super(...arguments);
     this.name = 'Connectivity Test';
+
+    this.pc1 = new PeerConnection(this.options);
+    this.pc2 = new PeerConnection(this.options);
   }
 
   logIceServers () {
@@ -20,8 +24,6 @@ class ConnectivityTest extends Test {
 
   start () {
     super.start();
-    this.pc1 = new PeerConnection(this.options);
-    this.pc2 = new PeerConnection(this.options);
 
     return new Promise((resolve, reject) => {
       this.reject = reject;
