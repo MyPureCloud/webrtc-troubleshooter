@@ -36,37 +36,37 @@ function startTroubleshooter() {
 
     testSuite.addTest(audioTest);
   }
-
-  if (video) {
-    var videoTest = new _defaultTests.VideoTest(mediaOptions, function (err, logs) {
-      // troubleshootingLog.push(logs);
-    });
-
-    var advancedCameraTest = new _defaultTests.AdvancedCameraTest(mediaOptions, function (err, logs) {
-      // troubleshootingLog.push(logs);
-    });
-
-    var bandwidthTest = new _defaultTests.VideoBandwidthTest({ iceConfig: iceConfig, mediaOptions: mediaOptions }, function (err, log) {
-      // troubleshootingLog.push(logs);
-    });
-
-    testSuite.addTest(videoTest);
-    testSuite.addTest(advancedCameraTest);
-    testSuite.addTest(bandwidthTest);
-  }
-
-  if (window.RTCPeerConnection) {
-    var connectivityTest = new _defaultTests.ConnectivityTest(iceConfig, function (err, logs) {
-      // troubleshootingLog.push(logs);
-    });
-
-    var throughputTest = new _defaultTests.ThroughputTest(iceConfig, function (err, logs) {
-      // troubleshootingLog.push(logs);
-    });
-
-    testSuite.addTest(connectivityTest);
-    testSuite.addTest(throughputTest);
-  }
+  //
+  // if (video) {
+  //   var videoTest = new VideoTest(mediaOptions, (err, logs) => {
+  //     // troubleshootingLog.push(logs);
+  //   });
+  //
+  //   var advancedCameraTest = new AdvancedCameraTest(mediaOptions, (err, logs) => {
+  //     // troubleshootingLog.push(logs);
+  //   });
+  //
+  //   var bandwidthTest = new VideoBandwidthTest({iceConfig, mediaOptions}, (err, log) => {
+  //     // troubleshootingLog.push(logs);
+  //   });
+  //
+  //   testSuite.addTest(videoTest);
+  //   testSuite.addTest(advancedCameraTest);
+  //   testSuite.addTest(bandwidthTest);
+  // }
+  //
+  // if (window.RTCPeerConnection) {
+  //   var connectivityTest = new ConnectivityTest(iceConfig, (err, logs) => {
+  //     // troubleshootingLog.push(logs);
+  //   });
+  //
+  //   var throughputTest = new ThroughputTest(iceConfig, (err, logs) => {
+  //     // troubleshootingLog.push(logs);
+  //   });
+  //
+  //   testSuite.addTest(connectivityTest);
+  //   testSuite.addTest(throughputTest);
+  // }
 
   testSuite.runNextTest(troubleshootingLog);
 }
@@ -116,6 +116,8 @@ var TestSuite = function () {
   }, {
     key: 'runNextTest',
     value: function runNextTest(troubleshootingLog) {
+      var _this = this;
+
       this.running = true;
       var test = this.queue.shift();
       if (!test) {
@@ -125,16 +127,16 @@ var TestSuite = function () {
       }
       this.activeTest = test;
 
-      // test.start().then(() => {
-      //   test.callback(null, test.log);
-      // }).catch((err) => {
-      //   Ember.Logger.warn('WebRTC Diagnostic test failure: ', err, test.log);
-      //   test.callback(err, test.log);
-      // }).finally(() => {
-      //   test.running = false;
-      //   test.destroy();
-      //   this.runNextTest(done);
-      // });
+      test.start().then(function () {
+        test.callback(null, test.log);
+      }).catch(function (err) {
+        Ember.Logger.warn('WebRTC Diagnostic test failure: ', err, test.log);
+        test.callback(err, test.log);
+      }).finally(function () {
+        test.running = false;
+        test.destroy();
+        _this.runNextTest(done);
+      });
       //
       // var testResults = new Promise((resolve, reject) => {
       //   test.start();
@@ -150,19 +152,21 @@ var TestSuite = function () {
       //   runNextTest(troubleshootingLog);
       // });
 
-      try {
-        test.start();
-        test.callback(null, test.log);
-      } catch (err) {
-        this.logger.warn('WebRTC Diagnostic test failure: ', err, test.log);
-        test.callback(err, test.log);
-      } finally {
-        this.logger.info('WebRTC Troubleshooting results for ' + test.name, JSON.stringify(test.log, null, " "));
-        test.running = false;
-        test.destroy();
-        troubleshootingLog.push(test.log);
-        this.runNextTest(troubleshootingLog);
-      }
+      // try {
+      //   test.start();
+      //   test.callback(null, test.log);
+      // }
+      // catch(err) {
+      //   this.logger.warn('WebRTC Diagnostic test failure: ', err, test.log);
+      //   test.callback(err, test.log);
+      // }
+      // finally {
+      //   this.logger.info('WebRTC Troubleshooting results for ' + test.name, JSON.stringify(test.log, null, " "));
+      //   test.running = false;
+      //   test.destroy();
+      //   troubleshootingLog.push(test.log);
+      //   this.runNextTest(troubleshootingLog);
+      // }
     }
   }, {
     key: 'stopAllTests',
@@ -187,11 +191,11 @@ var Test = function () {
   _createClass(Test, [{
     key: 'start',
     value: function start() {
-      var _this = this;
+      var _this2 = this;
 
       this.timeout = window.setTimeout(function () {
-        if (_this.reject) {
-          _this.reject('timeout', _this.log);
+        if (_this2.reject) {
+          _this2.reject('timeout', _this2.log);
         }
       }, 30000);
     }

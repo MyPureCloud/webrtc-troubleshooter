@@ -25,16 +25,18 @@ class TestSuite {
     }
     this.activeTest = test;
 
-    // test.start().then(() => {
-    //   test.callback(null, test.log);
-    // }).catch((err) => {
-    //   Ember.Logger.warn('WebRTC Diagnostic test failure: ', err, test.log);
-    //   test.callback(err, test.log);
-    // }).finally(() => {
-    //   test.running = false;
-    //   test.destroy();
-    //   this.runNextTest(done);
-    // });
+
+
+    test.start().then(() => {
+      test.callback(null, test.log);
+    }).catch((err) => {
+      Ember.Logger.warn('WebRTC Diagnostic test failure: ', err, test.log);
+      test.callback(err, test.log);
+    }).finally(() => {
+      test.running = false;
+      test.destroy();
+      this.runNextTest(done);
+    });
     //
     // var testResults = new Promise((resolve, reject) => {
     //   test.start();
@@ -51,21 +53,21 @@ class TestSuite {
     // });
 
 
-    try {
-      test.start();
-      test.callback(null, test.log);
-    }
-    catch(err) {
-      this.logger.warn('WebRTC Diagnostic test failure: ', err, test.log);
-      test.callback(err, test.log);
-    }
-    finally {
-      this.logger.info('WebRTC Troubleshooting results for ' + test.name, JSON.stringify(test.log, null, " "));
-      test.running = false;
-      test.destroy();
-      troubleshootingLog.push(test.log);
-      this.runNextTest(troubleshootingLog);
-    }
+    // try {
+    //   test.start();
+    //   test.callback(null, test.log);
+    // }
+    // catch(err) {
+    //   this.logger.warn('WebRTC Diagnostic test failure: ', err, test.log);
+    //   test.callback(err, test.log);
+    // }
+    // finally {
+    //   this.logger.info('WebRTC Troubleshooting results for ' + test.name, JSON.stringify(test.log, null, " "));
+    //   test.running = false;
+    //   test.destroy();
+    //   troubleshootingLog.push(test.log);
+    //   this.runNextTest(troubleshootingLog);
+    // }
   }
 
   stopAllTests () {

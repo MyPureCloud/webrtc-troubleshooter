@@ -32,37 +32,37 @@ function startTroubleshooter () {
 
     testSuite.addTest(audioTest);
   }
-
-  if (video) {
-    var videoTest = new VideoTest(mediaOptions, (err, logs) => {
-      // troubleshootingLog.push(logs);
-    });
-
-    var advancedCameraTest = new AdvancedCameraTest(mediaOptions, (err, logs) => {
-      // troubleshootingLog.push(logs);
-    });
-
-    var bandwidthTest = new VideoBandwidthTest({iceConfig, mediaOptions}, (err, log) => {
-      // troubleshootingLog.push(logs);
-    });
-
-    testSuite.addTest(videoTest);
-    testSuite.addTest(advancedCameraTest);
-    testSuite.addTest(bandwidthTest);
-  }
-
-  if (window.RTCPeerConnection) {
-    var connectivityTest = new ConnectivityTest(iceConfig, (err, logs) => {
-      // troubleshootingLog.push(logs);
-    });
-
-    var throughputTest = new ThroughputTest(iceConfig, (err, logs) => {
-      // troubleshootingLog.push(logs);
-    });
-
-    testSuite.addTest(connectivityTest);
-    testSuite.addTest(throughputTest);
-  }
+  //
+  // if (video) {
+  //   var videoTest = new VideoTest(mediaOptions, (err, logs) => {
+  //     // troubleshootingLog.push(logs);
+  //   });
+  //
+  //   var advancedCameraTest = new AdvancedCameraTest(mediaOptions, (err, logs) => {
+  //     // troubleshootingLog.push(logs);
+  //   });
+  //
+  //   var bandwidthTest = new VideoBandwidthTest({iceConfig, mediaOptions}, (err, log) => {
+  //     // troubleshootingLog.push(logs);
+  //   });
+  //
+  //   testSuite.addTest(videoTest);
+  //   testSuite.addTest(advancedCameraTest);
+  //   testSuite.addTest(bandwidthTest);
+  // }
+  //
+  // if (window.RTCPeerConnection) {
+  //   var connectivityTest = new ConnectivityTest(iceConfig, (err, logs) => {
+  //     // troubleshootingLog.push(logs);
+  //   });
+  //
+  //   var throughputTest = new ThroughputTest(iceConfig, (err, logs) => {
+  //     // troubleshootingLog.push(logs);
+  //   });
+  //
+  //   testSuite.addTest(connectivityTest);
+  //   testSuite.addTest(throughputTest);
+  // }
 
   testSuite.runNextTest(troubleshootingLog);
 }
