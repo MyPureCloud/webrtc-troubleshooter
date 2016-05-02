@@ -9,12 +9,9 @@ var audio = true;
 var iceServers = null;
 var testSuite = new TestSuite();
 
-function init () {
-  troubleshootingLog = [];
-  startTroubleshooter();
-}
-
 function startTroubleshooter () {
+  troubleshootingLog = [];
+
   if (!navigator.mediaDevices) {
     video = false;
     audio = false;
@@ -26,43 +23,28 @@ function startTroubleshooter () {
   var mediaOptions = mediaOptions || { audio: true, video: true };
 
   if (audio) {
-    var audioTest = new AudioTest(mediaOptions, (err, logs) => {
-      // troubleshootingLog.push(logs);
-    });
+    var audioTest = new AudioTest(mediaOptions);
 
     testSuite.addTest(audioTest);
   }
-  //
-  // if (video) {
-  //   var videoTest = new VideoTest(mediaOptions, (err, logs) => {
-  //     // troubleshootingLog.push(logs);
-  //   });
-  //
-  //   var advancedCameraTest = new AdvancedCameraTest(mediaOptions, (err, logs) => {
-  //     // troubleshootingLog.push(logs);
-  //   });
-  //
-  //   var bandwidthTest = new VideoBandwidthTest({iceConfig, mediaOptions}, (err, log) => {
-  //     // troubleshootingLog.push(logs);
-  //   });
-  //
-  //   testSuite.addTest(videoTest);
-  //   testSuite.addTest(advancedCameraTest);
-  //   testSuite.addTest(bandwidthTest);
-  // }
-  //
-  // if (window.RTCPeerConnection) {
-  //   var connectivityTest = new ConnectivityTest(iceConfig, (err, logs) => {
-  //     // troubleshootingLog.push(logs);
-  //   });
-  //
-  //   var throughputTest = new ThroughputTest(iceConfig, (err, logs) => {
-  //     // troubleshootingLog.push(logs);
-  //   });
-  //
-  //   testSuite.addTest(connectivityTest);
-  //   testSuite.addTest(throughputTest);
-  // }
+
+  if (video) {
+    var videoTest = new VideoTest(mediaOptions);
+    var advancedCameraTest = new AdvancedCameraTest(mediaOptions);
+    var bandwidthTest = new VideoBandwidthTest({iceConfig, mediaOptions});
+
+    testSuite.addTest(videoTest);
+    testSuite.addTest(advancedCameraTest);
+    testSuite.addTest(bandwidthTest);
+  }
+
+  if (window.RTCPeerConnection) {
+    var connectivityTest = new ConnectivityTest(iceConfig);
+    var throughputTest = new ThroughputTest(iceConfig);
+
+    testSuite.addTest(connectivityTest);
+    testSuite.addTest(throughputTest);
+  }
 
   testSuite.runNextTest(troubleshootingLog);
 }
@@ -75,4 +57,4 @@ function willDestroyElement () {
   } catch (e) { /* don't care - just want to destroy */ }
 }
 
-init();
+startTroubleshooter();

@@ -14,21 +14,20 @@ class AudioTest extends Test {
   start () {
     super.start();
 
+    this.log.push('INFO: Audio Test starting');
+
     return new Promise((resolve, reject) => {
       this.reject = reject;
       var volumeCheckFailure = window.setTimeout(() => {
-        this.log.push('WARN - no change in mic volume');
-        console.log('warn');
+        this.log.push('WARN: no change in mic volume');
         reject('audio timeout');
       }, 5000);
       this.localMedia.start(this.options, (err) => {
         if (err) {
-          this.log.push('ERROR - Audio Local media start failed');
-          console.log('error');
+          this.log.push('ERROR: Audio Local media start failed');
           reject(err);
         } else {
-          this.log.push('SUCCESS - Audio Local media started');
-          console.log('succcess');
+          this.log.push('SUCCESS: Audio Local media started');
         }
       });
       this.localMedia.on('volumeChange', () => {
@@ -39,11 +38,9 @@ class AudioTest extends Test {
         if (stream.getAudioTracks().length) {
           var audioTrack = stream.getAudioTracks()[0];
           if (audioTrack) {
-            this.log.push('SUCCESS - Audio stream passed');
-            console.log('succcess');
+            this.log.push('SUCCESS: Audio stream passed');
           } else {
-            this.log.push('ERROR - Audio stream failed');
-            console.log('error');
+            this.log.push('ERROR: Audio stream failed');
             reject('no audio tracks available');
           }
         }

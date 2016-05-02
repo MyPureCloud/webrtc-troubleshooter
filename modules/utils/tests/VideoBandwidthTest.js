@@ -5,8 +5,9 @@
 import WebrtcCall from '../WebrtcCall';
 import { Test } from '../TestSuite';
 
-const $ = require('jQuery');
+// const $ = require('jQuery');
 const _ = require('lodash');
+// const
 
 class VideoBandwidthTest extends Test {
   constructor () {
@@ -44,38 +45,49 @@ class VideoBandwidthTest extends Test {
   start () {
     super.start();
 
-    this.deferred = new $.Deferred();
     this.log = this.results = {log: []};
 
-    this.addLog( 'INFO', 'VideoBandwidthTest starting');
+    return new Promise((resolve, reject) => {
+      this.reject = reject;
 
-    if (!this.options.iceConfig.iceServers.length) {
-      this.addLog('FATAL', 'No ice servers were provided');
-      this.fail();
-    } else {
-      this.call = new WebrtcCall(this.options.iceConfig);
-      this.call.setIceCandidateFilter(WebrtcCall.isRelay);
-      // FEC makes it hard to study bandwidth estimation since there seems to be
-      // a spike when it is enabled and disabled. Disable it for now. FEC issue
-      // tracked on: https://code.google.com/p/webrtc/issues/detail?id=3050
-      this.call.disableVideoFec();
-      this.call.constrainVideoBitrate(this.maxVideoBitrateKbps);
-      this.doGetUserMedia(this.constraints, this.gotStream.bind(this));
-    }
+      this.addLog( 'INFO', 'Video Bandwidth Test starting');
 
-    return this.deferred.promise;
+      if (!this.options.iceConfig.iceServers.length) {
+        this.addLog('FATAL', 'No ice servers were provided');
+        reject(this.log);
+      } else {
+        this.call = new WebrtcCall(this.options.iceConfig);
+        this.call.setIceCandidateFilter(WebrtcCall.isRelay);
+        // FEC makes it hard to study bandwidth estimation since there seems to be
+        // a spike when it is enabled and disabled. Disable it for now. FEC issue
+        // tracked on: https://code.google.com/p/webrtc/issues/detail?id=3050
+        this.call.disableVideoFec();
+        this.call.constrainVideoBitrate(this.maxVideoBitrateKbps);
+
+
+
+
+
+        this.doGetUserMedia(this.constraints, this.gotStream.bind(this)); // returns fail in two cases
+
+        // completed returns resolve
+      }
+
+    });
   }
   fail () {
-    this.deferred.reject(_.last(this.log));
+    // this.deferred.reject(_.last(this.log));
+    console.log('stuff got rejected bandwidth');
   }
   done () {
-    this.deferred.resolve();
+    // this.deferred.resolve();
+    console.log('stuff got resolved bandwidth')
   }
   addLog (level, msg) {
     if (_.isObject(msg)) {
       msg = JSON.stringify(msg);
     }
-    this.results.log.push(`${level} - ${msg}`);
+    this.results.log.push(`${level}: ${msg}`);
   }
   doGetUserMedia (constraints, onSuccess, onFail) {
     var failFunc = (error) => {

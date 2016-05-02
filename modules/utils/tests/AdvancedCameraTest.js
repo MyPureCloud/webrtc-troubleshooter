@@ -1,10 +1,8 @@
-/* global attachMediaStream, _ */
-
 import { Test } from '../TestSuite';
 import VideoFrameChecker from '../VideoFrameChecker';
 import WebrtcCall from '../WebrtcCall';
 
-const $ = require('jQuery');
+var attachMediaStream = require('attachmediastream');
 
 class AdvancedCameraTest extends Test {
   constructor () {
@@ -12,7 +10,6 @@ class AdvancedCameraTest extends Test {
     this.name = 'Advanced Video Test';
     this.tests = [];
 
-    // default tests
     this.tests.push(new CameraResolutionTest([[320, 240]]));
     this.tests.push(new CameraResolutionTest([[640, 480]]));
     this.tests.push(new CameraResolutionTest([[1280, 720]]));
@@ -23,23 +20,23 @@ class AdvancedCameraTest extends Test {
   start () {
     super.start();
 
-    defer = new $.Deferred();
-    runNextTest();
+    return new Promise((resolve, reject) => {
+      this.reject = reject;
+      var testNum = 0;
 
-    this.runNextTest();
-
-    return this.defer.promise;
-  }
-  runNextTest (testNum = 0) {
-    if (testNum >= this.tests.length) {
-      return this.defer.resolve(this.log);
-    }
-
-    this.tests[testNum].run((results) => {
-      this.log.push(results);
-      this.runNextTest(++testNum);
+      while (testNum < this.tests.length) {
+        this.tests[testNum].run((results) => {
+          this.log.push(results.log);
+          this.log.push(results.stats);
+          if (testNum == this.tests.length) {
+            resolve(this.log);
+          }
+        });
+        testNum++;
+      }
     });
   }
+
   destroy () {
     super.destroy();
   }
@@ -62,7 +59,7 @@ class CameraResolutionTest {
       resolutions: this.resolutions,
       duration: this.duration
     };
-    this.log.push(`Starting camera test with settings: ${JSON.stringify(settings)}`);
+    this.log.push(`Advanced Camera Test starting with settings: ${JSON.stringify(settings)}`);
     this.startGetUserMedia(this.resolutions[this.currentResolution]);
   }
   done () {
@@ -91,6 +88,7 @@ class CameraResolutionTest {
         height: {exact: resolution[1]}
       }
     };
+
     navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
       // Do not check actual video frames when more than one resolution is provided.
       if (this.resolutions.length > 1) {
