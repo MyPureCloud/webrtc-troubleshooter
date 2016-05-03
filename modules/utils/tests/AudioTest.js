@@ -14,7 +14,7 @@ class AudioTest extends Test {
   start () {
     super.start();
 
-    this.log.push('INFO: Audio Test starting');
+    this.log.push('INFO: Audio Test');
 
     return new Promise((resolve, reject) => {
       this.reject = reject;

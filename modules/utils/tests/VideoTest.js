@@ -12,7 +12,7 @@ class VideoTest extends Test {
   start () {
     super.start();
 
-    this.log.push('INFO: Video Test starting');
+    this.log.push('INFO: Video Test');
 
     return new Promise((resolve, reject) => {
       this.reject = reject;

@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html>
   <head>
+
     <meta charset="utf-8">
     <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <title>Test Page</title>
@@ -10,11 +11,13 @@
   </head>
 
   <body>
-      <script src="../bundle.js"></script>
+    <h2> Troubleshooter Settings </h2>
+    Ice Servers (as JSON objects on separate lines):
+    <textarea id="ice-servers" rows="4" cols="50"></textarea>
+    </br>
+    <button id="run-button"> Run troubleshooter to see results in console</button>
 
-     <h1>
-         <b> See log for camera test results </b>
-     </h1>
+    <script type="text/javascript" src="../bundle.js"></script>
 
   </body>
 </html>

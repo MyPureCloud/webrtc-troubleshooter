@@ -21,21 +21,24 @@ class TestSuite {
     if (!test) {
       this.running = false;
       this.allTestsComplete = true;
-      troubleshootingLog.push('All tests complete');
-      console.log('All tests complete');
+      console.log(JSON.stringify(troubleshootingLog, null, " "));
       return;
     }
 
     this.activeTest = test;
+    console.log('Starting ' + test.name);
 
     test.start().catch((err) => {
       test.callback(err, test.log);
     }).then(() => {
       test.callback(null, test.log);
-      this.logger.info('WebRTC Troubleshooting results for ' + test.name, JSON.stringify(test.log, null, " "));
       test.running = false;
       test.destroy();
-      troubleshootingLog.push(test.log);
+      if (test.results) {
+        troubleshootingLog.push(test.results);
+      } else {
+        troubleshootingLog.push(test.log);
+      }
       this.runNextTest(troubleshootingLog);
     });
 

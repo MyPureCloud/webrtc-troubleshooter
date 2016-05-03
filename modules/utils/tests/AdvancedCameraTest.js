@@ -59,7 +59,7 @@ class CameraResolutionTest {
       resolutions: this.resolutions,
       duration: this.duration
     };
-    this.log.push(`Advanced Camera Test starting with settings: ${JSON.stringify(settings)}`);
+    this.log.push(`Advanced Camera Test with resolutions: ${JSON.stringify(settings.resolutions)} and duration ${JSON.stringify(settings.duration)}`);
     this.startGetUserMedia(this.resolutions[this.currentResolution]);
   }
   done () {
@@ -167,7 +167,7 @@ class CameraResolutionTest {
     call.pc1.addStream(stream);
     call.establishConnection();
     call.gatherStats(call.pc1, this.onCallEnded_.bind(this, resolution, video, stream, frameChecker), 100);
-    run.later(this, this.endCall_, call, stream, 8000);
+    setTimeout(this.endCall_(call, stream), 8000);
   }
   onCallEnded_ (resolution, videoElement, stream, frameChecker, stats, statsTime) {
     this.analyzeStats_(resolution, videoElement, stream, frameChecker, stats, statsTime);
@@ -256,7 +256,6 @@ class CameraResolutionTest {
       report.notAvailableStatus = notAvailableStats;
       this.reportInfo('Not available: ' + notAvailableStats.join(', '));
     }
-
     if (isNaN(report.avgSentFps)) {
       this.reportInfo('Cannot verify sent FPS.');
     } else if (report.avgSentFps < 5) {

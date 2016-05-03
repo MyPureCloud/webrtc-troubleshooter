@@ -6,7 +6,6 @@ const PeerConnection = require('rtcpeerconnection');
 class ConnectivityTest extends Test {
   constructor () {
     super(...arguments);
-    console.log('the options are ' + this.options);
     this.name = 'Connectivity Test';
 
     this.pc1 = new PeerConnection(this.options);
@@ -18,6 +17,9 @@ class ConnectivityTest extends Test {
       this.options.iceServers.forEach((iceServer) => {
         this.log.push(`INFO: Using ICE Server: ${iceServer.url}`);
       });
+      if (this.options.iceServers.length == 0) {
+        this.log.push('ERROR: no ice servers provided');
+      }
     } else {
       this.log.push('INFO: Using default ICE Servers');
     }
@@ -25,9 +27,7 @@ class ConnectivityTest extends Test {
 
   start () {
     super.start();
-
-    this.log.push('INFO: Connectivity Test starting');
-
+    this.log.push('INFO: Connectivity Test');
     this.logIceServers();
 
     return new Promise((resolve, reject) => {
@@ -58,7 +58,7 @@ class ConnectivityTest extends Test {
             reject(err);
           }
           this.log.push('SUCCESS: pc2 handle offer');
-          // this.log.push(offer);
+          // this.log.push('Offer: ' + offer);
           this.pc2.answer((err, answer) => {
             if (err) {
               this.log.push('ERROR: pc2 failed answer');

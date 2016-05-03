@@ -5,9 +5,8 @@
 import WebrtcCall from '../WebrtcCall';
 import { Test } from '../TestSuite';
 
-// const $ = require('jQuery');
 const _ = require('lodash');
-// const
+const localMedia = require('localMedia');
 
 class VideoBandwidthTest extends Test {
   constructor () {
@@ -26,7 +25,6 @@ class VideoBandwidthTest extends Test {
     this.constraints = {
       audio: false,
       video: {
-        deviceId: this.options.mediaOptions.video.deviceId,
         width: {
           min: 640,
           ideal: 1280,
@@ -38,19 +36,22 @@ class VideoBandwidthTest extends Test {
           max: 1080
         }
       }
+
     };
+    if (this.options.mediaOptions.video.deviceId) {
+      this.constraints.video.deviceId = this.options.mediaOptions.video.deviceId;
+    }
     this.log = [];
   }
 
   start () {
     super.start();
-
     this.log = this.results = {log: []};
 
     return new Promise((resolve, reject) => {
       this.reject = reject;
 
-      this.addLog( 'INFO', 'Video Bandwidth Test starting');
+      this.addLog( 'INFO', 'Video Bandwidth Test');
 
       if (!this.options.iceConfig.iceServers.length) {
         this.addLog('FATAL', 'No ice servers were provided');
@@ -64,11 +65,32 @@ class VideoBandwidthTest extends Test {
         this.call.disableVideoFec();
         this.call.constrainVideoBitrate(this.maxVideoBitrateKbps);
 
-
-
-
-
-        this.doGetUserMedia(this.constraints, this.gotStream.bind(this)); // returns fail in two cases
+        // this.doGetUserMedia(this.constraints, this.gotStream.bind(this)); // returns fail in two cases
+        var failFunc = (error) => {
+          this.addLog('ERROR', {'status': 'fail', 'error': error});
+          if (onFail) {
+            onFail.apply(this, arguments);
+          } else {
+            this.addLog('FATAL', `Failed to get access to local media due to error: ${error.name}`);
+            reject();
+          }
+        };
+        try {
+          this.addLog('INFO', {'status': 'pending', 'constraints': this.constraints});
+          var locMedia = new localMedia(); // eslint-disable-line
+          locMedia.start(constraints, (err, stream) => {
+            if (err) {
+              return failFunc(err);
+            }
+            const cam = this.getDeviceName_(stream.getVideoTracks());
+            this.results.camera = cam;
+            this.addLog('INFO', {'status': 'success', 'camera': cam});
+            onSuccess(stream);
+          });
+        } catch (e) {
+          this.addLog('FATAL', {'status': 'exception', 'error': e.message});
+          reject();
+        }
 
         // completed returns resolve
       }
