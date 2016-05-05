@@ -7,9 +7,8 @@
     "webrtc-adapter": "gh-pages"
   },
   "ignore": [
-      "**/.*",
-      "node_modules",
-      "bower_components"
-    ]
-  }
+    "**/.*",
+    "node_modules",
+    "bower_components"
+  ]
 }
