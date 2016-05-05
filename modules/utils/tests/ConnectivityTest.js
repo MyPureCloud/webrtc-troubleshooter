@@ -7,9 +7,6 @@ class ConnectivityTest extends Test {
   constructor () {
     super(...arguments);
     this.name = 'Connectivity Test';
-
-    this.pc1 = new PeerConnection(this.options);
-    this.pc2 = new PeerConnection(this.options);
   }
 
   logIceServers () {
@@ -27,46 +24,44 @@ class ConnectivityTest extends Test {
 
   start () {
     super.start();
-    this.log.push('INFO: Connectivity Test');
-    this.logIceServers();
+    this.pc1 = new PeerConnection(this.options);
+    this.pc2 = new PeerConnection(this.options);
 
     return new Promise((resolve, reject) => {
       this.reject = reject;
       var connectivityCheckFailure = window.setTimeout(() => {
-        this.log.push('ERROR: Connectivity timeout error');
+        this.log.push('Error: Connectivity timeout error');
         reject('connectivity timeout');
       }, 10000);
       this.pc2.on('ice', (candidate) => {
-        this.log.push('SUCCESS: pc2 ICE candidate');
+        this.log.push('Success: pc2 ICE candidate');
         this.pc1.processIce(candidate);
       });
       this.pc1.on('ice', (candidate) => {
-        this.log.push('SUCCESS: pc1 ICE candidate');
+        this.log.push('Success: pc1 ICE candidate');
         this.pc2.processIce(candidate);
       });
       this.pc2.on('answer', (answer) => {
-        this.log.push('SUCCESS: pc2 handle answer');
+        this.log.push('Success: pc2 handle answer');
         this.pc1.handleAnswer(answer);
       });
 
       // when pc1 gets the offer, instantly handle the offer by pc2
       this.pc1.on('offer', (offer) => {
-        this.log.push('SUCCESS: pc1 offer');
+        this.log.push('Success: pc1 offer');
         this.pc2.handleOffer(offer, (err) => {
           if (err) {
-            this.log.push('ERROR: pc2 failed to handle offer');
+            this.log.push('Error: pc2 failed to handle offer');
             reject(err);
           }
-          this.log.push('SUCCESS: pc2 handle offer');
-          // this.log.push('Offer: ' + offer);
+          this.log.push('Success: pc2 handle offer');
           this.pc2.answer((err, answer) => {
             if (err) {
-              this.log.push('ERROR: pc2 failed answer');
+              this.log.push('Error: pc2 failed answer');
               reject(err);
             }
-            this.log.push(`SUCCESS: pc2 successful ${answer.type}`);
-            // this.log.push(answer);
-          });
+            this.log.push(`Success: pc2 successful ${answer.type}`);
+           });
         });
       });
       this.dataChannel = this.pc1.createDataChannel('testChannel');
@@ -86,7 +81,7 @@ class ConnectivityTest extends Test {
         // when all messages have been received, we're clear
         if (messageQueue.length === 0) {
           window.clearTimeout(connectivityCheckFailure);
-          this.log.push(`SUCCESS: Received ${messagesReceived} messages`);
+          this.log.push(`Success: Received ${messagesReceived} messages`);
           resolve();
         }
       };
