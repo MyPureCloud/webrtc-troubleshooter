@@ -1,6 +1,15 @@
 {
   "name": "webrtc-troubleshooter",
+  "version": "0.0.1",
+  "description": "A way to add webrtc troubleshooting to your app",
+  "main": "webrtc-troubleshooter.bundle.js",
   "dependencies": {
     "webrtc-adapter": "gh-pages"
+  },
+  "ignore": [
+      "**/.*",
+      "node_modules",
+      "bower_components"
+    ]
   }
 }
