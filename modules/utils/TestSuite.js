@@ -23,7 +23,7 @@ class TestSuite {
     }
 
     this.activeTest = test;
-    this.logger.log('webrtc-troubleshooter: Starting Test ' + test.name);
+    this.logger.log('webrtc-troubleshooter: Starting ' + test.name);
     
     // TODO: There is some repeating functionality here that could be extracted.
     test.start().then(() => {
