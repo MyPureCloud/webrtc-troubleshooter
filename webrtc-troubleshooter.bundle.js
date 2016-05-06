@@ -56,9 +56,7 @@ function drainQueue() {
         currentQueue = queue;
         queue = [];
         while (++queueIndex < len) {
-            if (currentQueue) {
-                currentQueue[queueIndex].run();
-            }
+            currentQueue[queueIndex].run();
         }
         queueIndex = -1;
         len = queue.length;
@@ -110,6 +108,7 @@ process.binding = function (name) {
     throw new Error('process.binding is not supported');
 };
 
+// TODO(shtylman)
 process.cwd = function () { return '/' };
 process.chdir = function (dir) {
     throw new Error('process.chdir is not supported');
@@ -747,14 +746,11 @@ var TestSuite = function () {
   function TestSuite(options) {
     _classCallCheck(this, TestSuite);
 
+    options = options || {};
     this.allTestsComplete = false;
     this.running = false;
     this.queue = [];
-    if (options) {
-      this.logger = options.logger;
-    } else {
-      this.logger = console;
-    }
+    this.logger = options.logger || console;
   }
 
   _createClass(TestSuite, [{
@@ -764,33 +760,32 @@ var TestSuite = function () {
     }
   }, {
     key: 'runNextTest',
-    value: function runNextTest(troubleshootingLog) {
+    value: function runNextTest(done) {
       var _this = this;
 
       this.running = true;
       var test = this.queue.shift();
+
       if (!test) {
         this.running = false;
         this.allTestsComplete = true;
-        console.log(JSON.stringify(troubleshootingLog, null, " "));
-        return;
+        return done();
       }
 
       this.activeTest = test;
-      console.log('Starting ' + test.name);
+      this.logger.log('webrtc-troubleshooter: Starting Test ' + test.name);
 
-      test.start().catch(function (err) {
-        test.callback(err, test.log);
-      }).then(function () {
-        test.callback(null, test.log);
+      // TODO: There is some repeating functionality here that could be extracted.
+      test.start().then(function () {
+        test.callback(null);
         test.running = false;
         test.destroy();
-        if (test.results) {
-          troubleshootingLog.push(test.results);
-        } else {
-          troubleshootingLog.push(test.log);
-        }
-        _this.runNextTest(troubleshootingLog);
+        _this.runNextTest(done);
+      }).catch(function (err) {
+        test.callback(err, test.log);
+        test.running = false;
+        test.destroy();
+        _this.runNextTest(done);
       });
     }
   }, {
@@ -808,9 +803,9 @@ var Test = function () {
   function Test(options, callback) {
     _classCallCheck(this, Test);
 
-    this.log = [];
-    this.options = options;
+    this.options = options || {};
     this.callback = callback || _.noop;
+    this.logger = this.options.logger || console;
   }
 
   _createClass(Test, [{
@@ -820,7 +815,7 @@ var Test = function () {
 
       this.timeout = window.setTimeout(function () {
         if (_this2.reject) {
-          _this2.reject('timeout', _this2.log);
+          _this2.reject('timeout');
         }
       }, 30000);
     }
@@ -1618,9 +1613,9 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
 
 function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
 
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /* global localMedia */
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-var localMedia = require('localMedia');
+var LocalMedia = require('localMedia');
 
 var AudioTest = function (_Test) {
   _inherits(AudioTest, _Test);
@@ -1631,8 +1626,9 @@ var AudioTest = function (_Test) {
     var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(AudioTest).apply(this, arguments));
 
     _this.name = 'Audio Test';
+    _this.volumeTimeout = _this.options.volumeTimeout || 5000;
 
-    _this.localMedia = new localMedia({ detectSpeakingEvents: true }); // eslint-disable-line
+    _this.localMedia = new LocalMedia({ detectSpeakingEvents: true });
     return _this;
   }
 
@@ -1643,33 +1639,35 @@ var AudioTest = function (_Test) {
 
       _get(Object.getPrototypeOf(AudioTest.prototype), 'start', this).call(this);
 
-      this.log.push('INFO: Audio Test');
-
       return new Promise(function (resolve, reject) {
         _this2.reject = reject;
+
         var volumeCheckFailure = window.setTimeout(function () {
-          _this2.log.push('WARN: no change in mic volume');
+          _this2.logger.error('webrtc-troubleshooter: No change in mic volume');
           reject('audio timeout');
-        }, 5000);
+        }, _this2.volumeTimeout);
+
         _this2.localMedia.start(_this2.options, function (err) {
           if (err) {
-            _this2.log.push('ERROR: Audio Local media start failed');
+            _this2.logger.error('webrtc-troubleshooter: Audio Local media start failed');
             reject(err);
           } else {
-            _this2.log.push('SUCCESS: Audio Local media started');
+            _this2.logger.log('webrtc-troubleshooter: Audio Local media started');
           }
         });
+
         _this2.localMedia.on('volumeChange', function () {
           window.clearTimeout(volumeCheckFailure);
           resolve();
         });
+
         _this2.localMedia.on('localStream', function (stream) {
           if (stream.getAudioTracks().length) {
             var audioTrack = stream.getAudioTracks()[0];
             if (audioTrack) {
-              _this2.log.push('SUCCESS: Audio stream passed');
+              _this2.logger.log('webrtc-troubleshooter: Audio stream passed');
             } else {
-              _this2.log.push('ERROR: Audio stream failed');
+              _this2.logger.error('webrtc-troubleshooter: Audio stream failed');
               reject('no audio tracks available');
             }
           }
@@ -1706,9 +1704,10 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
 
 function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
 
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /* global PeerConnection, _ */
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
 var PeerConnection = require('rtcpeerconnection');
+var _ = require('lodash');
 
 var ConnectivityTest = function (_Test) {
   _inherits(ConnectivityTest, _Test);
@@ -1729,13 +1728,13 @@ var ConnectivityTest = function (_Test) {
 
       if (this.options.iceServers) {
         this.options.iceServers.forEach(function (iceServer) {
-          _this2.log.push('INFO: Using ICE Server: ' + iceServer.url);
+          _this2.logger.log('webrtc-troubleshooter: Using ICE Server: ' + iceServer.url);
         });
-        if (this.options.iceServers.length == 0) {
-          this.log.push('ERROR: no ice servers provided');
+        if (this.options.iceServers.length === 0) {
+          this.logger.error('webrtc-troubleshooter: no ice servers provided');
         }
       } else {
-        this.log.push('INFO: Using default ICE Servers');
+        this.logger.log('webrtc-troubleshooter: Using default ICE Servers');
       }
     }
   }, {
@@ -1750,37 +1749,37 @@ var ConnectivityTest = function (_Test) {
       return new Promise(function (resolve, reject) {
         _this3.reject = reject;
         var connectivityCheckFailure = window.setTimeout(function () {
-          _this3.log.push('Error: Connectivity timeout error');
+          _this3.logger.error('webrtc-troubleshooter: Connectivity timeout error');
           reject('connectivity timeout');
         }, 10000);
         _this3.pc2.on('ice', function (candidate) {
-          _this3.log.push('Success: pc2 ICE candidate');
+          _this3.logger.log('webrtc-troubleshooter: pc2 ICE candidate');
           _this3.pc1.processIce(candidate);
         });
         _this3.pc1.on('ice', function (candidate) {
-          _this3.log.push('Success: pc1 ICE candidate');
+          _this3.logger.log('webrtc-troubleshooter: pc1 ICE candidate');
           _this3.pc2.processIce(candidate);
         });
         _this3.pc2.on('answer', function (answer) {
-          _this3.log.push('Success: pc2 handle answer');
+          _this3.logger.log('webrtc-troubleshooter: pc2 handle answer');
           _this3.pc1.handleAnswer(answer);
         });
 
         // when pc1 gets the offer, instantly handle the offer by pc2
         _this3.pc1.on('offer', function (offer) {
-          _this3.log.push('Success: pc1 offer');
+          _this3.logger.log('webrtc-troubleshooter: pc1 offer');
           _this3.pc2.handleOffer(offer, function (err) {
             if (err) {
-              _this3.log.push('Error: pc2 failed to handle offer');
+              _this3.logger.error('webrtc-troubleshooter: pc2 failed to handle offer');
               reject(err);
             }
-            _this3.log.push('Success: pc2 handle offer');
+            _this3.logger.log('webrtc-troubleshooter: pc2 handle offer');
             _this3.pc2.answer(function (err, answer) {
               if (err) {
-                _this3.log.push('Error: pc2 failed answer');
+                _this3.logger.error('webrtc-troubleshooter: pc2 failed answer');
                 reject(err);
               }
-              _this3.log.push('Success: pc2 successful ' + answer.type);
+              _this3.logger.log('webrtc-troubleshooter: pc2 successful ' + answer.type);
             });
           });
         });
@@ -1801,14 +1800,14 @@ var ConnectivityTest = function (_Test) {
           // when all messages have been received, we're clear
           if (messageQueue.length === 0) {
             window.clearTimeout(connectivityCheckFailure);
-            _this3.log.push('Success: Received ' + messagesReceived + ' messages');
+            _this3.logger.log('webrtc-troubleshooter: Received ' + messagesReceived + ' messages');
             resolve();
           }
         };
         // when pc2 gets a data channel, send all messageQueue items on it
         _this3.pc2.on('addChannel', function (channel) {
           channel.onopen = function () {
-            _this3.log.push('Sending ' + messageQueue.length + ' messages');
+            _this3.logger.log('webrtc-troubleshooter: Sending ' + messageQueue.length + ' messages');
             _.each(_.clone(messageQueue), function (message) {
               channel.send(message);
             });
@@ -1833,7 +1832,7 @@ var ConnectivityTest = function (_Test) {
 
 exports.default = ConnectivityTest;
 
-},{"../TestSuite":6,"rtcpeerconnection":41}],12:[function(require,module,exports){
+},{"../TestSuite":6,"lodash":38,"rtcpeerconnection":41}],12:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -1903,13 +1902,10 @@ var DataChannelThroughputTest = function (_Test) {
 
       return new Promise(function (resolve, reject) {
         _this2.reject = reject;
-        _this2.log = _this2.results = { log: [] };
-
-        _this2.addLog('INFO', 'Data Channel Throughput Test');
 
         if (!_this2.options.iceServers.length) {
-          _this2.addLog('FATAL', 'No ice servers were provided');
-          reject(_.last(_this2.results.log));
+          _this2.logger.error('webrtc-troubleshooter: No ice servers were provided');
+          reject('No ice servers');
         } else {
           _this2.call = new _WebrtcCall2.default(_this2.options);
           _this2.call.setIceCandidateFilter(_WebrtcCall2.default.isRelay);
@@ -1929,7 +1925,7 @@ var DataChannelThroughputTest = function (_Test) {
               if (now - _this2.lastBitrateMeasureTime >= 1000) {
                 var bitrate = (_this2.receivedPayloadBytes - _this2.lastReceivedPayloadBytes) / (now - _this2.lastBitrateMeasureTime);
                 bitrate = Math.round(bitrate * 1000 * 8) / 1000;
-                _this2.addLog('INFO', 'Transmitting at ' + bitrate + ' kbps.');
+                _this2.logger.log('webrtc-troubleshooter: Transmitting at ' + bitrate + ' kbps.');
                 _this2.lastReceivedPayloadBytes = _this2.receivedPayloadBytes;
                 _this2.lastBitrateMeasureTime = now;
               }
@@ -1939,7 +1935,7 @@ var DataChannelThroughputTest = function (_Test) {
 
                 var elapsedTime = Math.round((now - _this2.startTime) * 10) / 10000.0;
                 var receivedKBits = _this2.receivedPayloadBytes * 8 / 1000;
-                _this2.addLog('INFO', 'Total transmitted: ' + receivedKBits + ' kilo-bits in ' + elapsedTime + ' seconds.');
+                _this2.logger.log('webrtc-troubleshooter: Total transmitted: ' + receivedKBits + ' kilo-bits in ' + elapsedTime + ' seconds.');
                 _this2.results.stats = {
                   receivedKBits: receivedKBits,
                   elapsedSeconds: elapsedTime
@@ -1951,14 +1947,7 @@ var DataChannelThroughputTest = function (_Test) {
         }
       });
     }
-  }, {
-    key: 'addLog',
-    value: function addLog(level, msg) {
-      if (_.isObject(msg)) {
-        msg = JSON.stringify;
-      }
-      this.results.log.push(level + ': ' + msg);
-    }
+
     // done () {
     //   this.deferred.resolve();
     // }
@@ -1990,13 +1979,14 @@ var DataChannelThroughputTest = function (_Test) {
         this.throughputTimeout = setTimeout(this.sendingStep.bind(this), 1);
       }
     }
+
     // onMessageReceived (event) {
     //   this.receivedPayloadBytes += event.data.length;
     //   const now = new Date();
     //   if (now - this.lastBitrateMeasureTime >= 1000) {
     //     let bitrate = (this.receivedPayloadBytes - this.lastReceivedPayloadBytes) / (now - this.lastBitrateMeasureTime);
     //     bitrate = Math.round(bitrate * 1000 * 8) / 1000;
-    //     this.addLog('INFO', `Transmitting at ${bitrate} kbps.`);
+    //     this.logger.log(`webrtc-troubleshooter: Transmitting at ${bitrate} kbps.`);
     //     this.lastReceivedPayloadBytes = this.receivedPayloadBytes;
     //     this.lastBitrateMeasureTime = now;
     //   }
@@ -2006,7 +1996,7 @@ var DataChannelThroughputTest = function (_Test) {
     //
     //     const elapsedTime = Math.round((now - this.startTime) * 10) / 10000.0;
     //     const receivedKBits = this.receivedPayloadBytes * 8 / 1000;
-    //     this.addLog('INFO', `Total transmitted: ${receivedKBits} kilo-bits in ${elapsedTime} seconds.`);
+    //     this.logger.log(`webrtc-troubleshooter: ${receivedKBits} kilo-bits in ${elapsedTime} seconds.`);
     //     this.results.stats = {
     //       receivedKBits,
     //       elapsedSeconds: elapsedTime
@@ -2412,10 +2402,9 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
 
 function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
 
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /* global localMedia */
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
 
-
-var localMedia = require('localMedia');
+var LocalMedia = require('localMedia');
 
 var VideoTest = function (_Test) {
   _inherits(VideoTest, _Test);
@@ -2427,7 +2416,7 @@ var VideoTest = function (_Test) {
 
     _this.name = 'Video Test';
 
-    _this.localMedia = new localMedia({ detectSpeakingEvents: true }); // eslint-disable-line
+    _this.localMedia = new LocalMedia({ detectSpeakingEvents: true });
     return _this;
   }
 
@@ -2438,26 +2427,26 @@ var VideoTest = function (_Test) {
 
       _get(Object.getPrototypeOf(VideoTest.prototype), 'start', this).call(this);
 
-      this.log.push('INFO: Video Test');
-
       return new Promise(function (resolve, reject) {
         _this2.reject = reject;
+
         _this2.localMedia.start(_this2.options, function (err) {
           if (err) {
-            _this2.log.push('ERROR: Video Local media start failed ' + err.name);
+            _this2.logger.log('webrtc-troubleshooter: Video Local media start failed ' + err.name);
             reject(err);
           } else {
-            _this2.log.push('SUCCESS: Video Local media started');
+            _this2.logger.log('webrtc-troubleshooter: Video Local media started');
           }
         });
+
         _this2.localMedia.on('localStream', function (stream) {
           if (stream.getVideoTracks().length) {
             var videoTrack = stream.getVideoTracks()[0];
             if (videoTrack) {
-              _this2.log.push('SUCCESS: Video stream passed');
+              _this2.logger.log('webrtc-troubleshooter: Video stream passed');
               resolve();
             } else {
-              _this2.log.push('ERROR: Video stream failed');
+              _this2.logger.error('webrtc-troubleshooter: Video stream failed');
               reject('no video track available');
             }
           }
