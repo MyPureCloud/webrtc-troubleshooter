@@ -1,5 +1,4 @@
-var troubleshootingLog = null;
-
+/* global WebRTCTroubleshooter */
 var video = true;
 var audio = true;
 
@@ -7,8 +6,6 @@ var iceServers = [];
 var testSuite = new WebRTCTroubleshooter.TestSuite();
 
 document.getElementById('run-button').onclick = function startTroubleshooter () {
-    troubleshootingLog = [];
-
     if (!navigator.mediaDevices) {
       video = false;
       audio = false;
@@ -51,7 +48,9 @@ document.getElementById('run-button').onclick = function startTroubleshooter () 
       testSuite.addTest(throughputTest);
     }
 
-    testSuite.runNextTest(troubleshootingLog);
+    testSuite.runNextTest(function() {
+        console.log('Finished the tests');
+    });
 };
 
 function willDestroyElement () {

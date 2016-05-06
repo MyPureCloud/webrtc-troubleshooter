@@ -1,47 +1,42 @@
 /* global _ */
 class TestSuite {
   constructor (options) {
+    options = options || {};
     this.allTestsComplete = false;
     this.running = false;
     this.queue = [];
-    if (options) {
-        this.logger = options.logger;
-    } else {
-        this.logger = console;
-    }
+    this.logger = options.logger || console;
   }
 
   addTest (test) {
     this.queue.push(test);
   }
 
-  runNextTest (troubleshootingLog) {
+  runNextTest (done) {
     this.running = true;
     var test = this.queue.shift();
+
     if (!test) {
       this.running = false;
       this.allTestsComplete = true;
-      console.log(JSON.stringify(troubleshootingLog, null, " "));
-      return;
+      return done();
     }
 
     this.activeTest = test;
-    console.log('Starting ' + test.name);
-
-    test.start().catch((err) => {
-      test.callback(err, test.log);
-    }).then(() => {
-      test.callback(null, test.log);
+    this.logger.log('webrtc-troubleshooter: Starting ' + test.name);
+    
+    // TODO: There is some repeating functionality here that could be extracted.
+    test.start().then(() => {
+      test.callback(null);
       test.running = false;
       test.destroy();
-      if (test.results) {
-        troubleshootingLog.push(test.results);
-      } else {
-        troubleshootingLog.push(test.log);
-      }
-      this.runNextTest(troubleshootingLog);
+      this.runNextTest(done);
+    }).catch((err) => {
+      test.callback(err, test.log);
+      test.running = false;
+      test.destroy();
+      this.runNextTest(done);
     });
-
   }
 
   stopAllTests () {
@@ -52,15 +47,15 @@ class TestSuite {
 
 class Test {
   constructor (options, callback) {
-    this.log = [];
-    this.options = options;
+    this.options = options || {};
     this.callback = callback || _.noop;
+    this.logger = this.options.logger || console;
   }
 
   start () {
     this.timeout = window.setTimeout(() => {
       if (this.reject) {
-        this.reject('timeout', this.log);
+        this.reject('timeout');
       }
     }, 30000);
   }
