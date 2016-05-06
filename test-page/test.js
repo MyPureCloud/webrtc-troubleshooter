@@ -13,10 +13,7 @@ document.getElementById('run-button').onclick = function startTroubleshooter () 
 
     var servers = document.getElementById('ice-servers').value;
     if (servers) {
-      var serverList = servers.split('\n');
-      for (var index in serverList) {
-        iceServers.push(JSON.parse(serverList[index]));
-      }
+      iceServers = JSON.parse(servers);
     }
     var iceConfig = {
       iceServers: iceServers,
