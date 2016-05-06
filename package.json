@@ -1,6 +1,6 @@
 {
-  "name": "webrtc-troubleshooter",
-  "version": "0.0.2",
+  "name": "webrtc-troubleshoot",
+  "version": "0.0.1",
   "description": "A way to add webrtc troubleshooting to your app",
   "directories": {
     "test": "tests"
@@ -12,9 +12,6 @@
   "repository": "https://github.com/adflynn/webrtc-troubleshooter",
   "engines": {
     "node": ">= 4.4.0"
-  },
-  "babel": {
-    "presets": ["es2015"]
   },
   "devDependencies": {
     "attachmediastream": "https://github.com/otalk/attachMediaStream",
