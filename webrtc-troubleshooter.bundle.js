@@ -773,7 +773,7 @@ var TestSuite = function () {
       }
 
       this.activeTest = test;
-      this.logger.log('webrtc-troubleshooter: Starting Test ' + test.name);
+      this.logger.log('webrtc-troubleshooter: Starting ' + test.name);
 
       // TODO: There is some repeating functionality here that could be extracted.
       test.start().then(function () {
@@ -1901,6 +1901,7 @@ var DataChannelThroughputTest = function (_Test) {
       _get(Object.getPrototypeOf(DataChannelThroughputTest.prototype), 'start', this).call(this);
 
       return new Promise(function (resolve, reject) {
+        _this2.resolve = resolve;
         _this2.reject = reject;
 
         if (!_this2.options.iceServers.length) {
@@ -1911,51 +1912,53 @@ var DataChannelThroughputTest = function (_Test) {
           _this2.call.setIceCandidateFilter(_WebrtcCall2.default.isRelay);
           _this2.senderChannel = _this2.call.pc1.createDataChannel(null);
           _this2.senderChannel.addEventListener('open', _this2.sendingStep.bind(_this2));
+          _this2.call.pc2.addEventListener('datachannel', _this2.onReceiverChannel.bind(_this2));
 
           _this2.call.establishConnection();
-
           // this.call.pc2.addEventListener('datachannel', this.onReceiverChannel.bind(this));
-          _this2.call.pc2.on('datachannel', function (event) {
-            // this.receiveChannel = event.channel;
-            // this.receiveChannel.addEventListener('message', this.onMessageReceived.bind(this));
-            _this2.receiveChannel = event.channel;
-            _this2.receiveChannel.on('message', function () {
-              _this2.receivedPayloadBytes += event.data.length;
-              var now = new Date();
-              if (now - _this2.lastBitrateMeasureTime >= 1000) {
-                var bitrate = (_this2.receivedPayloadBytes - _this2.lastReceivedPayloadBytes) / (now - _this2.lastBitrateMeasureTime);
-                bitrate = Math.round(bitrate * 1000 * 8) / 1000;
-                _this2.logger.log('webrtc-troubleshooter: Transmitting at ' + bitrate + ' kbps.');
-                _this2.lastReceivedPayloadBytes = _this2.receivedPayloadBytes;
-                _this2.lastBitrateMeasureTime = now;
-              }
-              if (_this2.stopSending && _this2.sentPayloadBytes === _this2.receivedPayloadBytes) {
-                _this2.call.close();
-                _this2.call = null;
-
-                var elapsedTime = Math.round((now - _this2.startTime) * 10) / 10000.0;
-                var receivedKBits = _this2.receivedPayloadBytes * 8 / 1000;
-                _this2.logger.log('webrtc-troubleshooter: Total transmitted: ' + receivedKBits + ' kilo-bits in ' + elapsedTime + ' seconds.');
-                _this2.results.stats = {
-                  receivedKBits: receivedKBits,
-                  elapsedSeconds: elapsedTime
-                };
-                resolve();
-              }
-            });
-          });
+          // this.call.pc2.on('datachannel', (event) => {
+          //   // this.receiveChannel = event.channel;
+          //   // this.receiveChannel.addEventListener('message', this.onMessageReceived.bind(this));
+          //   this.receiveChannel = event.channel;
+          //   this.receiveChannel.on('message', () => {
+          //     this.receivedPayloadBytes += event.data.length;
+          //     const now = new Date();
+          //     if (now - this.lastBitrateMeasureTime >= 1000) {
+          //       let bitrate = (this.receivedPayloadBytes - this.lastReceivedPayloadBytes) / (now - this.lastBitrateMeasureTime);
+          //       bitrate = Math.round(bitrate * 1000 * 8) / 1000;
+          //       this.logger.log(`webrtc-troubleshooter: Transmitting at ${bitrate} kbps.`);
+          //       this.lastReceivedPayloadBytes = this.receivedPayloadBytes;
+          //       this.lastBitrateMeasureTime = now;
+          //     }
+          //     if (this.stopSending && this.sentPayloadBytes === this.receivedPayloadBytes) {
+          //       this.call.close();
+          //       this.call = null;
+          //
+          //       const elapsedTime = Math.round((now - this.startTime) * 10) / 10000.0;
+          //       const receivedKBits = this.receivedPayloadBytes * 8 / 1000;
+          //       this.logger.log(`webrtc-troubleshooter: Total transmitted: ${receivedKBits} kilo-bits in ${elapsedTime} seconds.`);
+          //       this.results.stats = {
+          //         receivedKBits,
+          //         elapsedSeconds: elapsedTime
+          //       };
+          //       resolve();
+          //     }
+          //   });
+          // });
         }
       });
     }
-
-    // done () {
-    //   this.deferred.resolve();
-    // }
-    // onReceiverChannel (event) {
-    //   this.receiveChannel = event.channel;
-    //   this.receiveChannel.addEventListener('message', this.onMessageReceived.bind(this));
-    // }
-
+  }, {
+    key: 'done',
+    value: function done() {
+      this.resolve();
+    }
+  }, {
+    key: 'onReceiverChannel',
+    value: function onReceiverChannel(event) {
+      this.receiveChannel = event.channel;
+      this.receiveChannel.addEventListener('message', this.onMessageReceived.bind(this));
+    }
   }, {
     key: 'sendingStep',
     value: function sendingStep() {
@@ -1979,32 +1982,32 @@ var DataChannelThroughputTest = function (_Test) {
         this.throughputTimeout = setTimeout(this.sendingStep.bind(this), 1);
       }
     }
+  }, {
+    key: 'onMessageReceived',
+    value: function onMessageReceived(event) {
+      this.receivedPayloadBytes += event.data.length;
+      var now = new Date();
+      if (now - this.lastBitrateMeasureTime >= 1000) {
+        var bitrate = (this.receivedPayloadBytes - this.lastReceivedPayloadBytes) / (now - this.lastBitrateMeasureTime);
+        bitrate = Math.round(bitrate * 1000 * 8) / 1000;
+        this.logger.log('webrtc-troubleshooter: Transmitting at ' + bitrate + ' kbps.');
+        this.lastReceivedPayloadBytes = this.receivedPayloadBytes;
+        this.lastBitrateMeasureTime = now;
+      }
+      if (this.stopSending && this.sentPayloadBytes === this.receivedPayloadBytes) {
+        this.call.close();
+        this.call = null;
 
-    // onMessageReceived (event) {
-    //   this.receivedPayloadBytes += event.data.length;
-    //   const now = new Date();
-    //   if (now - this.lastBitrateMeasureTime >= 1000) {
-    //     let bitrate = (this.receivedPayloadBytes - this.lastReceivedPayloadBytes) / (now - this.lastBitrateMeasureTime);
-    //     bitrate = Math.round(bitrate * 1000 * 8) / 1000;
-    //     this.logger.log(`webrtc-troubleshooter: Transmitting at ${bitrate} kbps.`);
-    //     this.lastReceivedPayloadBytes = this.receivedPayloadBytes;
-    //     this.lastBitrateMeasureTime = now;
-    //   }
-    //   if (this.stopSending && this.sentPayloadBytes === this.receivedPayloadBytes) {
-    //     this.call.close();
-    //     this.call = null;
-    //
-    //     const elapsedTime = Math.round((now - this.startTime) * 10) / 10000.0;
-    //     const receivedKBits = this.receivedPayloadBytes * 8 / 1000;
-    //     this.logger.log(`webrtc-troubleshooter: ${receivedKBits} kilo-bits in ${elapsedTime} seconds.`);
-    //     this.results.stats = {
-    //       receivedKBits,
-    //       elapsedSeconds: elapsedTime
-    //     };
-    //     this.done();
-    //   }
-    // }
-
+        var elapsedTime = Math.round((now - this.startTime) * 10) / 10000.0;
+        var receivedKBits = this.receivedPayloadBytes * 8 / 1000;
+        this.logger.log('webrtc-troubleshooter: ' + receivedKBits + ' kilo-bits in ' + elapsedTime + ' seconds.');
+        //   this.results.stats = {
+        //     receivedKBits,
+        //     elapsedSeconds: elapsedTime
+        //   };
+        this.done();
+      }
+    }
   }, {
     key: 'destroy',
     value: function destroy() {
