@@ -1,6 +1,6 @@
 {
   "name": "webrtc-troubleshoot",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "A way to add webrtc troubleshooting to your app",
   "directories": {
     "test": "tests"
