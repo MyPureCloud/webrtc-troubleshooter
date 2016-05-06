@@ -7,7 +7,7 @@
   },
   "main": "index.js",
   "scripts": {
-    "build": "browserify -t [ babelify --presets [ es2015 ] ] --s WebRTCTroubleshooter modules/main.js -o webrtc-troubleshooter.bundle.js"
+    "build": "browserify -t [ babelify --presets [ es2015 ] ] --s WebRTCTroubleshooter index.js -o webrtc-troubleshooter.bundle.js"
   },
   "repository": "https://github.com/adflynn/webrtc-troubleshooter",
   "engines": {

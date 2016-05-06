@@ -1,11 +1,15 @@
 (function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.WebRTCTroubleshooter = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
 'use strict';
 
+Object.defineProperty(exports, "__esModule", {
+    value: true
+});
+
 var _TestSuite = require('./utils/TestSuite');
 
 var _defaultTests = require('./utils/tests/defaultTests');
 
-module.exports = {
+exports.default = {
     TestSuite: _TestSuite.TestSuite,
     AudioTest: _defaultTests.AudioTest,
     VideoTest: _defaultTests.VideoTest,
@@ -15,1754 +19,7 @@ module.exports = {
     VideoBandwidthTest: _defaultTests.VideoBandwidthTest
 };
 
-},{"./utils/TestSuite":2,"./utils/tests/defaultTests":11}],2:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-/* global _ */
-
-var TestSuite = function () {
-  function TestSuite(options) {
-    _classCallCheck(this, TestSuite);
-
-    options = options || {};
-    this.allTestsComplete = false;
-    this.running = false;
-    this.queue = [];
-    this.logger = options.logger || console;
-  }
-
-  _createClass(TestSuite, [{
-    key: 'addTest',
-    value: function addTest(test) {
-      this.queue.push(test);
-    }
-  }, {
-    key: 'runNextTest',
-    value: function runNextTest(done) {
-      var _this = this;
-
-      this.running = true;
-      var test = this.queue.shift();
-
-      if (!test) {
-        this.running = false;
-        this.allTestsComplete = true;
-        return done();
-      }
-
-      this.activeTest = test;
-      this.logger.log('webrtc-troubleshooter: Starting ' + test.name);
-
-      // TODO: There is some repeating functionality here that could be extracted.
-      test.start().then(function () {
-        test.callback(null);
-        test.running = false;
-        test.destroy();
-        _this.runNextTest(done);
-      }).catch(function (err) {
-        test.callback(err, test.log);
-        test.running = false;
-        test.destroy();
-        _this.runNextTest(done);
-      });
-    }
-  }, {
-    key: 'stopAllTests',
-    value: function stopAllTests() {
-      this.activeTest.destroy();
-      this.queue = [];
-    }
-  }]);
-
-  return TestSuite;
-}();
-
-var Test = function () {
-  function Test(options, callback) {
-    _classCallCheck(this, Test);
-
-    this.options = options || {};
-    this.callback = callback || _.noop;
-    this.logger = this.options.logger || console;
-  }
-
-  _createClass(Test, [{
-    key: 'start',
-    value: function start() {
-      var _this2 = this;
-
-      this.timeout = window.setTimeout(function () {
-        if (_this2.reject) {
-          _this2.reject('timeout');
-        }
-      }, 30000);
-    }
-  }, {
-    key: 'destroy',
-    value: function destroy() {
-      window.clearTimeout(this.timeout);
-    }
-  }]);
-
-  return Test;
-}();
-
-exports.TestSuite = TestSuite;
-exports.Test = Test;
-
-},{}],3:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-// adapted from https://github.com/webrtc/testrtc
-
-var VideoFrameChecker = function () {
-  function VideoFrameChecker(videoElement) {
-    _classCallCheck(this, VideoFrameChecker);
-
-    this.frameStats = {
-      numFrozenFrames: 0,
-      numBlackFrames: 0,
-      numFrames: 0
-    };
-
-    this.running_ = true;
-
-    this.nonBlackPixelLumaThreshold = 20;
-    this.previousFrame_ = [];
-    this.identicalFrameSsimThreshold = 0.985;
-    this.frameComparator = new Ssim();
-
-    this.canvas_ = document.createElement('canvas');
-    this.videoElement_ = videoElement;
-    this.listener_ = this.checkVideoFrame_.bind(this);
-    this.videoElement_.addEventListener('play', this.listener_, false);
-  }
-
-  _createClass(VideoFrameChecker, [{
-    key: 'stop',
-    value: function stop() {
-      this.videoElement_.removeEventListener('play', this.listener_);
-      this.running_ = false;
-    }
-  }, {
-    key: 'getCurrentImageData_',
-    value: function getCurrentImageData_() {
-      this.canvas_.width = this.videoElement_.width;
-      this.canvas_.height = this.videoElement_.height;
-
-      var context = this.canvas_.getContext('2d');
-      context.drawImage(this.videoElement_, 0, 0, this.canvas_.width, this.canvas_.height);
-      return context.getImageData(0, 0, this.canvas_.width, this.canvas_.height);
-    }
-  }, {
-    key: 'checkVideoFrame_',
-    value: function checkVideoFrame_() {
-      if (!this.running_) {
-        return;
-      }
-      if (this.videoElement_.ended) {
-        return;
-      }
-
-      var imageData = this.getCurrentImageData_();
-
-      if (this.isBlackFrame_(imageData.data, imageData.data.length)) {
-        this.frameStats.numBlackFrames++;
-      }
-
-      if (this.frameComparator.calculate(this.previousFrame_, imageData.data) > this.identicalFrameSsimThreshold) {
-        this.frameStats.numFrozenFrames++;
-      }
-      this.previousFrame_ = imageData.data;
-
-      this.frameStats.numFrames++;
-      setTimeout(this.checkVideoFrame_.bind(this), 20);
-    }
-  }, {
-    key: 'isBlackFrame_',
-    value: function isBlackFrame_(data, length) {
-      // TODO: Use a statistical, histogram-based detection.
-      var thresh = this.nonBlackPixelLumaThreshold;
-      var accuLuma = 0;
-      for (var i = 4; i < length; i += 4) {
-        // Use Luma as in Rec. 709: Y′709 = 0.21R + 0.72G + 0.07B
-        accuLuma += 0.21 * data[i] + 0.72 * data[i + 1] + 0.07 * data[i + 2];
-        // Early termination if the average Luma so far is bright enough.
-        if (accuLuma > thresh * i / 4) {
-          return false;
-        }
-      }
-      return true;
-    }
-  }]);
-
-  return VideoFrameChecker;
-}();
-
-VideoFrameChecker.prototype = {
-  stop: function stop() {
-    this.videoElement_.removeEventListener('play', this.listener_);
-    this.running_ = false;
-  },
-
-  getCurrentImageData_: function getCurrentImageData_() {
-    this.canvas_.width = this.videoElement_.width;
-    this.canvas_.height = this.videoElement_.height;
-
-    var context = this.canvas_.getContext('2d');
-    context.drawImage(this.videoElement_, 0, 0, this.canvas_.width, this.canvas_.height);
-    return context.getImageData(0, 0, this.canvas_.width, this.canvas_.height);
-  },
-
-  checkVideoFrame_: function checkVideoFrame_() {
-    if (!this.running_) {
-      return;
-    }
-    if (this.videoElement_.ended) {
-      return;
-    }
-
-    var imageData = this.getCurrentImageData_();
-
-    if (this.isBlackFrame_(imageData.data, imageData.data.length)) {
-      this.frameStats.numBlackFrames++;
-    }
-
-    if (this.frameComparator.calculate(this.previousFrame_, imageData.data) > this.identicalFrameSsimThreshold) {
-      this.frameStats.numFrozenFrames++;
-    }
-    this.previousFrame_ = imageData.data;
-
-    this.frameStats.numFrames++;
-    setTimeout(this.checkVideoFrame_.bind(this), 20);
-  },
-
-  isBlackFrame_: function isBlackFrame_(data, length) {
-    // TODO: Use a statistical, histogram-based detection.
-    var thresh = this.nonBlackPixelLumaThreshold;
-    var accuLuma = 0;
-    for (var i = 4; i < length; i += 4) {
-      // Use Luma as in Rec. 709: Y′709 = 0.21R + 0.72G + 0.07B
-      accuLuma += 0.21 * data[i] + 0.72 * data[i + 1] + 0.07 * data[i + 2];
-      // Early termination if the average Luma so far is bright enough.
-      if (accuLuma > thresh * i / 4) {
-        return false;
-      }
-    }
-    return true;
-  }
-};
-
-/* This is an implementation of the algorithm for calculating the Structural
- * SIMilarity (SSIM) index between two images. Please refer to the article [1],
- * the website [2] and/or the Wikipedia article [3]. This code takes the value
- * of the constants C1 and C2 from the Matlab implementation in [4].
- *
- * [1] Z. Wang, A. C. Bovik, H. R. Sheikh, and E. P. Simoncelli, "Image quality
- * assessment: From error measurement to structural similarity",
- * IEEE Transactions on Image Processing, vol. 13, no. 1, Jan. 2004.
- * [2] http://www.cns.nyu.edu/~lcv/ssim/
- * [3] http://en.wikipedia.org/wiki/Structural_similarity
- * [4] http://www.cns.nyu.edu/~lcv/ssim/ssim_index.m
- */
-
-var Ssim = function () {
-  function Ssim() {
-    _classCallCheck(this, Ssim);
-  }
-
-  _createClass(Ssim, [{
-    key: 'statistics',
-
-    // Implementation of Eq.2, a simple average of a vector and Eq.4., except the
-    // square root. The latter is actually an unbiased estimate of the variance,
-    // not the exact variance.
-    value: function statistics(a) {
-      var accu = 0;
-      var i;
-      for (i = 0; i < a.length; ++i) {
-        accu += a[i];
-      }
-      var meanA = accu / (a.length - 1);
-      var diff = 0;
-      for (i = 1; i < a.length; ++i) {
-        diff = a[i - 1] - meanA;
-        accu += a[i] + diff * diff;
-      }
-      return { mean: meanA, variance: accu / a.length };
-    }
-
-    // Implementation of Eq.11., cov(Y, Z) = E((Y - uY), (Z - uZ)).
-
-  }, {
-    key: 'covariance',
-    value: function covariance(a, b, meanA, meanB) {
-      var accu = 0;
-      for (var i = 0; i < a.length; i += 1) {
-        accu += (a[i] - meanA) * (b[i] - meanB);
-      }
-      return accu / a.length;
-    }
-  }, {
-    key: 'calculate',
-    value: function calculate(x, y) {
-      if (x.length !== y.length) {
-        return 0;
-      }
-
-      // Values of the constants come from the Matlab code referred before.
-      var K1 = 0.01;
-      var K2 = 0.03;
-      var L = 255;
-      var C1 = K1 * L * (K1 * L);
-      var C2 = K2 * L * (K2 * L);
-      var C3 = C2 / 2;
-
-      var statsX = this.statistics(x);
-      var muX = statsX.mean;
-      var sigmaX2 = statsX.variance;
-      var sigmaX = Math.sqrt(sigmaX2);
-      var statsY = this.statistics(y);
-      var muY = statsY.mean;
-      var sigmaY2 = statsY.variance;
-      var sigmaY = Math.sqrt(sigmaY2);
-      var sigmaXy = this.covariance(x, y, muX, muY);
-
-      // Implementation of Eq.6.
-      var luminance = (2 * muX * muY + C1) / (muX * muX + muY * muY + C1);
-      // Implementation of Eq.10.
-      var structure = (sigmaXy + C3) / (sigmaX * sigmaY + C3);
-      // Implementation of Eq.9.
-      var contrast = (2 * sigmaX * sigmaY + C2) / (sigmaX2 + sigmaY2 + C2);
-
-      // Implementation of Eq.12.
-      return luminance * contrast * structure;
-    }
-  }]);
-
-  return Ssim;
-}();
-
-exports.default = VideoFrameChecker;
-
-},{}],4:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-/* global RTCPeerConnection, mozRTCPeerConnection */
-// adapted from https://github.com/webrtc/testrtc
-
-var WebrtcCall = function () {
-  function WebrtcCall(config) {
-    _classCallCheck(this, WebrtcCall);
-
-    this.pc1 = new RTCPeerConnection(config);
-    this.pc2 = new RTCPeerConnection(config);
-
-    this.pc1.addEventListener('icecandidate', this.onIceCandidate_.bind(this, this.pc2));
-    this.pc2.addEventListener('icecandidate', this.onIceCandidate_.bind(this, this.pc1));
-
-    this.iceCandidateFilter_ = WebrtcCall.noFilter;
-  }
-
-  _createClass(WebrtcCall, [{
-    key: 'establishConnection',
-    value: function establishConnection() {
-      this.pc1.createOffer(this.gotOffer_.bind(this), console.error.bind(console));
-    }
-  }, {
-    key: 'close',
-    value: function close() {
-      this.pc1.close();
-      this.pc2.close();
-    }
-
-    // When the peerConnection is closed the statsCb is called once with an array
-    // of gathered stats.
-
-  }, {
-    key: 'gatherStats',
-    value: function gatherStats(peerConnection, statsCb, interval) {
-      var stats = [];
-      var statsCollectTime = [];
-      getStats_();
-
-      function getStats_() {
-        if (peerConnection.signalingState === 'closed') {
-          statsCb(stats, statsCollectTime);
-          return;
-        }
-        // Work around for webrtc/testrtc#74
-        if (typeof mozRTCPeerConnection !== 'undefined' && peerConnection instanceof mozRTCPeerConnection) {
-          setTimeout(getStats_, interval);
-        } else {
-          setTimeout(peerConnection.getStats.bind(peerConnection, gotStats_), interval);
-        }
-      }
-
-      function gotStats_(response) {
-        for (var index in response.result()) {
-          stats.push(response.result()[index]);
-          statsCollectTime.push(Date.now());
-        }
-        getStats_();
-      }
-    }
-  }, {
-    key: 'gotOffer_',
-    value: function gotOffer_(offer) {
-      if (this.constrainOfferToRemoveVideoFec_) {
-        offer.sdp = offer.sdp.replace(/(m=video 1 [^\r]+)(116 117)(\r\n)/g, '$1\r\n');
-        offer.sdp = offer.sdp.replace(/a=rtpmap:116 red\/90000\r\n/g, '');
-        offer.sdp = offer.sdp.replace(/a=rtpmap:117 ulpfec\/90000\r\n/g, '');
-      }
-      this.pc1.setLocalDescription(offer);
-      this.pc2.setRemoteDescription(offer);
-      this.pc2.createAnswer(this.gotAnswer_.bind(this), console.error.bind(console));
-    }
-  }, {
-    key: 'gotAnswer_',
-    value: function gotAnswer_(answer) {
-      if (this.constrainVideoBitrateKbps_) {
-        answer.sdp = answer.sdp.replace(/a=mid:video\r\n/g, 'a=mid:video\r\nb=AS:' + this.constrainVideoBitrateKbps_ + '\r\n');
-      }
-      this.pc2.setLocalDescription(answer);
-      this.pc1.setRemoteDescription(answer);
-    }
-  }, {
-    key: 'onIceCandidate_',
-    value: function onIceCandidate_(otherPeer, event) {
-      if (event.candidate) {
-        var parsed = this.parseCandidate(event.candidate.candidate);
-        if (this.iceCandidateFilter_(parsed)) {
-          otherPeer.addIceCandidate(event.candidate);
-        }
-      }
-    }
-  }, {
-    key: 'parseCandidate',
-    value: function parseCandidate(text) {
-      var candidateStr = 'candidate:';
-      var pos = text.indexOf(candidateStr) + candidateStr.length;
-      var fields = text.substr(pos).split(' ');
-      return {
-        'type': fields[7],
-        'protocol': fields[2],
-        'address': fields[4]
-      };
-    }
-  }, {
-    key: 'setIceCandidateFilter',
-    value: function setIceCandidateFilter(filter) {
-      this.iceCandidateFilter_ = filter;
-    }
-
-    // Remove video FEC if available on the offer.
-
-  }, {
-    key: 'disableVideoFec',
-    value: function disableVideoFec() {
-      this.constrainOfferToRemoveVideoFec_ = true;
-    }
-
-    // Constraint max video bitrate by modifying the SDP when creating an answer.
-
-  }, {
-    key: 'constrainVideoBitrate',
-    value: function constrainVideoBitrate(maxVideoBitrateKbps) {
-      this.constrainVideoBitrateKbps_ = maxVideoBitrateKbps;
-    }
-  }], [{
-    key: 'noFilter',
-    value: function noFilter() {
-      return true;
-    }
-  }, {
-    key: 'isRelay',
-    value: function isRelay(candidate) {
-      return candidate.type === 'relay';
-    }
-  }]);
-
-  return WebrtcCall;
-}();
-
-exports.default = WebrtcCall;
-
-},{}],5:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _TestSuite = require('../TestSuite');
-
-var _VideoFrameChecker = require('../VideoFrameChecker');
-
-var _VideoFrameChecker2 = _interopRequireDefault(_VideoFrameChecker);
-
-var _WebrtcCall = require('../WebrtcCall');
-
-var _WebrtcCall2 = _interopRequireDefault(_WebrtcCall);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var attachMediaStream = require('attachmediastream');
-
-var AdvancedCameraTest = function (_Test) {
-  _inherits(AdvancedCameraTest, _Test);
-
-  function AdvancedCameraTest() {
-    _classCallCheck(this, AdvancedCameraTest);
-
-    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(AdvancedCameraTest).apply(this, arguments));
-
-    _this.name = 'Advanced Video Test';
-    _this.tests = [];
-
-    _this.tests.push(new CameraResolutionTest([[320, 240]]));
-    _this.tests.push(new CameraResolutionTest([[640, 480]]));
-    _this.tests.push(new CameraResolutionTest([[1280, 720]]));
-    _this.tests.push(new CameraResolutionTest([[160, 120], [320, 180], [320, 240], [640, 360], [640, 480], [768, 576], [1024, 576], [1280, 720], [1280, 768], [1280, 800], [1920, 1080], [1920, 1200], [3840, 2160], [4096, 2160]]));
-    return _this;
-  }
-
-  _createClass(AdvancedCameraTest, [{
-    key: 'start',
-    value: function start() {
-      var _this2 = this;
-
-      _get(Object.getPrototypeOf(AdvancedCameraTest.prototype), 'start', this).call(this);
-
-      return new Promise(function (resolve, reject) {
-        _this2.reject = reject;
-        var testNum = 0;
-
-        while (testNum < _this2.tests.length) {
-          _this2.tests[testNum].run(function (results) {
-            _this2.logger.log(results.log);
-            _this2.logger.log(results.stats);
-            if (testNum == _this2.tests.length) {
-              resolve(_this2.log);
-            }
-          });
-          testNum++;
-        }
-      });
-    }
-  }, {
-    key: 'destroy',
-    value: function destroy() {
-      _get(Object.getPrototypeOf(AdvancedCameraTest.prototype), 'destroy', this).call(this);
-    }
-  }]);
-
-  return AdvancedCameraTest;
-}(_TestSuite.Test);
-
-// adapted from https://github.com/webrtc/testrtc
-
-var CameraResolutionTest = function () {
-  function CameraResolutionTest(resolutions) {
-    var duration = arguments.length <= 1 || arguments[1] === undefined ? 8000 : arguments[1];
-
-    _classCallCheck(this, CameraResolutionTest);
-
-    this.resolutions = resolutions;
-    this.duration = duration;
-    this.log = [];
-    this.currentResolution = 0;
-    this.isMuted = false;
-    this.isShuttingDown = false;
-  }
-
-  _createClass(CameraResolutionTest, [{
-    key: 'run',
-    value: function run(cb) {
-      this.cb = cb || function () {};
-      var settings = {
-        resolutions: this.resolutions,
-        duration: this.duration
-      };
-      this.logger.log('Advanced Camera Test with resolutions: ' + JSON.stringify(settings.resolutions) + ' and duration ' + JSON.stringify(settings.duration));
-      this.startGetUserMedia(this.resolutions[this.currentResolution]);
-    }
-  }, {
-    key: 'done',
-    value: function done() {
-      var results = {
-        log: this.log,
-        stats: this.stats,
-        resolutions: this.resolutions,
-        duration: this.duration
-      };
-      this.cb(results);
-    }
-  }, {
-    key: 'reportSuccess',
-    value: function reportSuccess(str) {
-      this.logger.log('SUCCESS: ' + str);
-    }
-  }, {
-    key: 'reportError',
-    value: function reportError(str) {
-      this.logger.log('ERROR: ' + str);
-    }
-  }, {
-    key: 'reportInfo',
-    value: function reportInfo(str) {
-      this.logger.log('INFO: ' + str);
-    }
-  }, {
-    key: 'startGetUserMedia',
-    value: function startGetUserMedia(resolution) {
-      var _this3 = this;
-
-      var constraints = {
-        audio: false,
-        video: {
-          width: { exact: resolution[0] },
-          height: { exact: resolution[1] }
-        }
-      };
-
-      navigator.mediaDevices.getUserMedia(constraints).then(function (stream) {
-        // Do not check actual video frames when more than one resolution is provided.
-        if (_this3.resolutions.length > 1) {
-          _this3.reportSuccess('Supported: ' + resolution[0] + 'x' + resolution[1]);
-          stream.getTracks().forEach(function (track) {
-            track.stop();
-          });
-          _this3.maybeContinueGetUserMedia();
-        } else {
-          _this3.collectAndAnalyzeStats_(stream, resolution);
-        }
-      }).catch(function (error) {
-        if (_this3.resolutions.length > 1) {
-          _this3.reportInfo(resolution[0] + 'x' + resolution[1] + ' not supported');
-        } else {
-          _this3.reportError('getUserMedia failed with error: ' + error);
-        }
-        _this3.maybeContinueGetUserMedia();
-      });
-    }
-  }, {
-    key: 'maybeContinueGetUserMedia',
-    value: function maybeContinueGetUserMedia() {
-      if (this.currentResolution === this.resolutions.length) {
-        return this.done();
-      }
-      this.startGetUserMedia(this.resolutions[this.currentResolution++]);
-    }
-  }, {
-    key: 'collectAndAnalyzeStats_',
-    value: function collectAndAnalyzeStats_(stream, resolution) {
-      var _this4 = this;
-
-      var tracks = stream.getVideoTracks();
-      if (tracks.length < 1) {
-        this.reportError('No video track in returned stream.');
-        this.maybeContinueGetUserMedia();
-        return;
-      }
-
-      // Firefox does not support event handlers on mediaStreamTrack yet.
-      // https://developer.mozilla.org/en-US/docs/Web/API/MediaStreamTrack
-      // TODO: remove if (...) when event handlers are supported by Firefox.
-      var videoTrack = tracks[0];
-      if (typeof videoTrack.addEventListener === 'function') {
-        // Register events.
-        videoTrack.addEventListener('ended', function () {
-          // Ignore events when shutting down the
-          if (_this4.isShuttingDown) {
-            return;
-          }
-          _this4.reportError('Video track ended, camera stopped working');
-        });
-        videoTrack.addEventListener('mute', function () {
-          // Ignore events when shutting down the test.
-          if (_this4.isShuttingDown) {
-            return;
-          }
-          _this4.reportError('Your camera reported itself as muted.');
-          // MediaStreamTrack.muted property is not wired up in Chrome yet,
-          // checking isMuted local state.
-          _this4.isMuted = true;
-        });
-        videoTrack.addEventListener('unmute', function () {
-          // Ignore events when shutting down the test.
-          if (_this4.isShuttingDown) {
-            return;
-          }
-          _this4.reportInfo('Your camera reported itself as unmuted.');
-          _this4.isMuted = false;
-        });
-      }
-
-      var video = document.createElement('video');
-      video.setAttribute('autoplay', '');
-      video.setAttribute('muted', '');
-      video.width = resolution[0];
-      video.height = resolution[1];
-      attachMediaStream(stream, video);
-      var frameChecker = new _VideoFrameChecker2.default(video);
-      var call = new _WebrtcCall2.default();
-      call.pc1.addStream(stream);
-      call.establishConnection();
-      call.gatherStats(call.pc1, this.onCallEnded_.bind(this, resolution, video, stream, frameChecker), 100);
-      setTimeout(this.endCall_(call, stream), 8000);
-    }
-  }, {
-    key: 'onCallEnded_',
-    value: function onCallEnded_(resolution, videoElement, stream, frameChecker, stats, statsTime) {
-      this.analyzeStats_(resolution, videoElement, stream, frameChecker, stats, statsTime);
-
-      frameChecker.stop();
-
-      this.done();
-    }
-  }, {
-    key: 'analyzeStats_',
-    value: function analyzeStats_(resolution, videoElement, stream, frameChecker, stats, statsTime) {
-      var googAvgEncodeTime = [];
-      var googAvgFrameRateInput = [];
-      var googAvgFrameRateSent = [];
-      var statsReport = {};
-      var frameStats = frameChecker.frameStats;
-
-      for (var index = 0; index < stats.length - 1; index++) {
-        if (stats[index].type === 'ssrc') {
-          // Make sure to only capture stats after the encoder is setup.
-          if (stats[index].stat('googFrameRateInput') > 0) {
-            googAvgEncodeTime.push(parseInt(stats[index].stat('googAvgEncodeMs'), 10));
-            googAvgFrameRateInput.push(parseInt(stats[index].stat('googFrameRateInput'), 10));
-            googAvgFrameRateSent.push(parseInt(stats[index].stat('googFrameRateSent'), 10));
-          }
-        }
-      }
-
-      statsReport.cameraName = stream.getVideoTracks()[0].label || NaN;
-      statsReport.actualVideoWidth = videoElement.videoWidth;
-      statsReport.actualVideoHeight = videoElement.videoHeight;
-      statsReport.mandatoryWidth = resolution[0];
-      statsReport.mandatoryHeight = resolution[1];
-      statsReport.encodeSetupTimeMs = this.extractEncoderSetupTime_(stats, statsTime);
-      statsReport.avgEncodeTimeMs = this.arrayAverage(googAvgEncodeTime);
-      statsReport.minEncodeTimeMs = _.min(googAvgEncodeTime);
-      statsReport.maxEncodeTimeMs = _.max(googAvgEncodeTime);
-      statsReport.avgInputFps = this.arrayAverage(googAvgFrameRateInput);
-      statsReport.minInputFps = _.min(googAvgFrameRateInput);
-      statsReport.maxInputFps = _.max(googAvgFrameRateInput);
-      statsReport.avgSentFps = this.arrayAverage(googAvgFrameRateSent);
-      statsReport.minSentFps = _.min(googAvgFrameRateSent);
-      statsReport.maxSentFps = _.max(googAvgFrameRateSent);
-      statsReport.isMuted = this.isMuted;
-      statsReport.testedFrames = frameStats.numFrames;
-      statsReport.blackFrames = frameStats.numBlackFrames;
-      statsReport.frozenFrames = frameStats.numFrozenFrames;
-
-      this.testExpectations_(statsReport);
-      this.stats = statsReport;
-    }
-  }, {
-    key: 'endCall_',
-    value: function endCall_(callObject, stream) {
-      this.isShuttingDown = true;
-      stream.getTracks().forEach(function (track) {
-        track.stop();
-      });
-      callObject.close();
-    }
-  }, {
-    key: 'extractEncoderSetupTime_',
-    value: function extractEncoderSetupTime_(stats, statsTime) {
-      for (var index = 0; index !== stats.length; index++) {
-        if (stats[index].type === 'ssrc') {
-          if (stats[index].stat('googFrameRateInput') > 0) {
-            return JSON.stringify(statsTime[index] - statsTime[0]);
-          }
-        }
-      }
-      return NaN;
-    }
-  }, {
-    key: 'resolutionMatchesIndependentOfRotationOrCrop_',
-    value: function resolutionMatchesIndependentOfRotationOrCrop_(aWidth, aHeight, bWidth, bHeight) {
-      var minRes = Math.min(bWidth, bHeight);
-      return aWidth === bWidth && aHeight === bHeight || aWidth === bHeight && aHeight === bWidth || aWidth === minRes && bHeight === minRes;
-    }
-  }, {
-    key: 'testExpectations_',
-    value: function testExpectations_(report) {
-      var notAvailableStats = [];
-
-      _.forEach(report, function (value, key) {
-        if (typeof value === 'number' && isNaN(value)) {
-          notAvailableStats.push(key);
-        }
-      });
-
-      if (notAvailableStats.length !== 0) {
-        report.notAvailableStatus = notAvailableStats;
-        this.reportInfo('Not available: ' + notAvailableStats.join(', '));
-      }
-      if (isNaN(report.avgSentFps)) {
-        this.reportInfo('Cannot verify sent FPS.');
-      } else if (report.avgSentFps < 5) {
-        this.reportError('Low average sent FPS: ' + report.avgSentFps);
-      } else {
-        this.reportSuccess('Average FPS above threshold');
-      }
-
-      if (!this.resolutionMatchesIndependentOfRotationOrCrop_(report.actualVideoWidth, report.actualVideoHeight, report.mandatoryWidth, report.mandatoryHeight)) {
-        this.reportError('Incorrect captured resolution.');
-      } else {
-        this.reportSuccess('Captured video using expected resolution.');
-      }
-
-      if (report.testedFrames === 0) {
-        this.reportError('Could not analyze any video frame.');
-      } else {
-        if (report.blackFrames > report.testedFrames / 3) {
-          this.reportError('Camera delivering lots of black frames.');
-        }
-        if (report.frozenFrames > report.testedFrames / 3) {
-          this.reportError('Camera delivering lots of frozen frames.');
-        }
-      }
-    }
-  }, {
-    key: 'arrayAverage',
-    value: function arrayAverage(array) {
-      var cnt = array.length;
-      var tot = 0;
-      for (var i = 0; i < cnt; i++) {
-        tot += array[i];
-      }
-      return Math.floor(tot / cnt);
-    }
-  }]);
-
-  return CameraResolutionTest;
-}();
-
-exports.default = AdvancedCameraTest;
-
-},{"../TestSuite":2,"../VideoFrameChecker":3,"../WebrtcCall":4,"attachmediastream":12}],6:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _TestSuite = require('../TestSuite');
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var LocalMedia = require('localMedia');
-
-var AudioTest = function (_Test) {
-  _inherits(AudioTest, _Test);
-
-  function AudioTest() {
-    _classCallCheck(this, AudioTest);
-
-    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(AudioTest).apply(this, arguments));
-
-    _this.name = 'Audio Test';
-    _this.volumeTimeout = _this.options.volumeTimeout || 5000;
-
-    _this.localMedia = new LocalMedia({ detectSpeakingEvents: true });
-    return _this;
-  }
-
-  _createClass(AudioTest, [{
-    key: 'start',
-    value: function start() {
-      var _this2 = this;
-
-      _get(Object.getPrototypeOf(AudioTest.prototype), 'start', this).call(this);
-
-      return new Promise(function (resolve, reject) {
-        _this2.reject = reject;
-
-        var volumeCheckFailure = window.setTimeout(function () {
-          _this2.logger.error('webrtc-troubleshooter: No change in mic volume');
-          reject('audio timeout');
-        }, _this2.volumeTimeout);
-
-        _this2.localMedia.start(_this2.options, function (err) {
-          if (err) {
-            _this2.logger.error('webrtc-troubleshooter: Audio Local media start failed');
-            reject(err);
-          } else {
-            _this2.logger.log('webrtc-troubleshooter: Audio Local media started');
-          }
-        });
-
-        _this2.localMedia.on('volumeChange', function () {
-          window.clearTimeout(volumeCheckFailure);
-          resolve();
-        });
-
-        _this2.localMedia.on('localStream', function (stream) {
-          if (stream.getAudioTracks().length) {
-            var audioTrack = stream.getAudioTracks()[0];
-            if (audioTrack) {
-              _this2.logger.log('webrtc-troubleshooter: Audio stream passed');
-            } else {
-              _this2.logger.error('webrtc-troubleshooter: Audio stream failed');
-              reject('no audio tracks available');
-            }
-          }
-        });
-      });
-    }
-  }, {
-    key: 'destroy',
-    value: function destroy() {
-      _get(Object.getPrototypeOf(AudioTest.prototype), 'destroy', this).call(this);
-      this.localMedia.stop();
-    }
-  }]);
-
-  return AudioTest;
-}(_TestSuite.Test);
-
-exports.default = AudioTest;
-
-},{"../TestSuite":2,"localMedia":14}],7:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _TestSuite = require('../TestSuite');
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var PeerConnection = require('rtcpeerconnection');
-var _ = require('lodash');
-
-var ConnectivityTest = function (_Test) {
-  _inherits(ConnectivityTest, _Test);
-
-  function ConnectivityTest() {
-    _classCallCheck(this, ConnectivityTest);
-
-    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(ConnectivityTest).apply(this, arguments));
-
-    _this.name = 'Connectivity Test';
-    return _this;
-  }
-
-  _createClass(ConnectivityTest, [{
-    key: 'logIceServers',
-    value: function logIceServers() {
-      var _this2 = this;
-
-      if (this.options.iceServers) {
-        this.options.iceServers.forEach(function (iceServer) {
-          _this2.logger.log('webrtc-troubleshooter: Using ICE Server: ' + iceServer.url);
-        });
-        if (this.options.iceServers.length === 0) {
-          this.logger.error('webrtc-troubleshooter: no ice servers provided');
-        }
-      } else {
-        this.logger.log('webrtc-troubleshooter: Using default ICE Servers');
-      }
-    }
-  }, {
-    key: 'start',
-    value: function start() {
-      var _this3 = this;
-
-      _get(Object.getPrototypeOf(ConnectivityTest.prototype), 'start', this).call(this);
-      this.pc1 = new PeerConnection(this.options);
-      this.pc2 = new PeerConnection(this.options);
-
-      return new Promise(function (resolve, reject) {
-        _this3.reject = reject;
-        var connectivityCheckFailure = window.setTimeout(function () {
-          _this3.logger.error('webrtc-troubleshooter: Connectivity timeout error');
-          reject('connectivity timeout');
-        }, 10000);
-        _this3.pc2.on('ice', function (candidate) {
-          _this3.logger.log('webrtc-troubleshooter: pc2 ICE candidate');
-          _this3.pc1.processIce(candidate);
-        });
-        _this3.pc1.on('ice', function (candidate) {
-          _this3.logger.log('webrtc-troubleshooter: pc1 ICE candidate');
-          _this3.pc2.processIce(candidate);
-        });
-        _this3.pc2.on('answer', function (answer) {
-          _this3.logger.log('webrtc-troubleshooter: pc2 handle answer');
-          _this3.pc1.handleAnswer(answer);
-        });
-
-        // when pc1 gets the offer, instantly handle the offer by pc2
-        _this3.pc1.on('offer', function (offer) {
-          _this3.logger.log('webrtc-troubleshooter: pc1 offer');
-          _this3.pc2.handleOffer(offer, function (err) {
-            if (err) {
-              _this3.logger.error('webrtc-troubleshooter: pc2 failed to handle offer');
-              reject(err);
-            }
-            _this3.logger.log('webrtc-troubleshooter: pc2 handle offer');
-            _this3.pc2.answer(function (err, answer) {
-              if (err) {
-                _this3.logger.error('webrtc-troubleshooter: pc2 failed answer');
-                reject(err);
-              }
-              _this3.logger.log('webrtc-troubleshooter: pc2 successful ' + answer.type);
-            });
-          });
-        });
-        _this3.dataChannel = _this3.pc1.createDataChannel('testChannel');
-
-        // generate list of messages to send over data channel
-        var messageQueue = _.map(new Array(100), function (n, i) {
-          return 'message ' + i;
-        });
-
-        var messagesReceived = 0;
-        // when the data channel receives a message, remove it from the queue
-        _this3.dataChannel.onmessage = function (msgEvent) {
-          _.remove(messageQueue, function (message) {
-            return message === msgEvent.data;
-          });
-          messagesReceived++;
-          // when all messages have been received, we're clear
-          if (messageQueue.length === 0) {
-            window.clearTimeout(connectivityCheckFailure);
-            _this3.logger.log('webrtc-troubleshooter: Received ' + messagesReceived + ' messages');
-            resolve();
-          }
-        };
-        // when pc2 gets a data channel, send all messageQueue items on it
-        _this3.pc2.on('addChannel', function (channel) {
-          channel.onopen = function () {
-            _this3.logger.log('webrtc-troubleshooter: Sending ' + messageQueue.length + ' messages');
-            _.each(_.clone(messageQueue), function (message) {
-              channel.send(message);
-            });
-          };
-        });
-
-        // kick it off
-        _this3.pc1.offer();
-      });
-    }
-  }, {
-    key: 'destroy',
-    value: function destroy() {
-      _get(Object.getPrototypeOf(ConnectivityTest.prototype), 'destroy', this).call(this);
-      this.pc1.close();
-      this.pc2.close();
-    }
-  }]);
-
-  return ConnectivityTest;
-}(_TestSuite.Test);
-
-exports.default = ConnectivityTest;
-
-},{"../TestSuite":2,"lodash":31,"rtcpeerconnection":71}],8:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _WebrtcCall = require('../WebrtcCall');
-
-var _WebrtcCall2 = _interopRequireDefault(_WebrtcCall);
-
-var _TestSuite = require('../TestSuite');
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var DataChannelThroughputTest = function (_Test) {
-  _inherits(DataChannelThroughputTest, _Test);
-
-  function DataChannelThroughputTest() {
-    _classCallCheck(this, DataChannelThroughputTest);
-
-    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(DataChannelThroughputTest).apply(this, arguments));
-
-    _this.name = 'Data Throughput Test';
-    _this.testDurationSeconds = 5.0;
-    _this.startTime = null;
-    _this.sentPayloadBytes = 0;
-    _this.receivedPayloadBytes = 0;
-
-    _this.stopSending = false;
-
-    var makeString = function makeString() {
-      _this.samplePacket = '';
-
-      for (var i = 0; i !== 1024; ++i) {
-        _this.samplePacket += 'h';
-      }
-    };
-    makeString();
-
-    _this.maxNumberOfPacketsToSend = 1;
-    _this.bytesToKeepBuffered = 1024 * _this.maxNumberOfPacketsToSend;
-    _this.lastBitrateMeasureTime = null;
-    _this.lastReceivedPayloadBytes = 0;
-
-    _this.call = null;
-    _this.senderChannel = null;
-    _this.receiveChannel = null;
-    return _this;
-  }
-
-  _createClass(DataChannelThroughputTest, [{
-    key: 'start',
-    value: function start() {
-      var _this2 = this;
-
-      _get(Object.getPrototypeOf(DataChannelThroughputTest.prototype), 'start', this).call(this);
-
-      return new Promise(function (resolve, reject) {
-        _this2.resolve = resolve;
-        _this2.reject = reject;
-
-        if (!_this2.options.iceServers.length) {
-          _this2.logger.error('webrtc-troubleshooter: No ice servers were provided');
-          reject('No ice servers');
-        } else {
-          _this2.call = new _WebrtcCall2.default(_this2.options);
-          _this2.call.setIceCandidateFilter(_WebrtcCall2.default.isRelay);
-          _this2.senderChannel = _this2.call.pc1.createDataChannel(null);
-          _this2.senderChannel.addEventListener('open', _this2.sendingStep.bind(_this2));
-          _this2.call.pc2.addEventListener('datachannel', _this2.onReceiverChannel.bind(_this2));
-
-          _this2.call.establishConnection();
-        }
-      });
-    }
-  }, {
-    key: 'done',
-    value: function done() {
-      this.resolve();
-    }
-  }, {
-    key: 'onReceiverChannel',
-    value: function onReceiverChannel(event) {
-      this.receiveChannel = event.channel;
-      this.receiveChannel.addEventListener('message', this.onMessageReceived.bind(this));
-    }
-  }, {
-    key: 'sendingStep',
-    value: function sendingStep() {
-      var now = new Date();
-      if (!this.startTime) {
-        this.startTime = now;
-        this.lastBitrateMeasureTime = now;
-      }
-
-      for (var i = 0; i !== this.maxNumberOfPacketsToSend; ++i) {
-        if (this.senderChannel.bufferedAmount >= this.bytesToKeepBuffered) {
-          break;
-        }
-        this.sentPayloadBytes += this.samplePacket.length;
-        this.senderChannel.send(this.samplePacket);
-      }
-
-      if (now - this.startTime >= 1000 * this.testDurationSeconds) {
-        this.stopSending = true;
-      } else {
-        this.throughputTimeout = setTimeout(this.sendingStep.bind(this), 1);
-      }
-    }
-  }, {
-    key: 'onMessageReceived',
-    value: function onMessageReceived(event) {
-      this.receivedPayloadBytes += event.data.length;
-      var now = new Date();
-      if (now - this.lastBitrateMeasureTime >= 1000) {
-        var bitrate = (this.receivedPayloadBytes - this.lastReceivedPayloadBytes) / (now - this.lastBitrateMeasureTime);
-        bitrate = Math.round(bitrate * 1000 * 8) / 1000;
-        this.logger.log('webrtc-troubleshooter: Transmitting at ' + bitrate + ' kbps.');
-        this.lastReceivedPayloadBytes = this.receivedPayloadBytes;
-        this.lastBitrateMeasureTime = now;
-      }
-      if (this.stopSending && this.sentPayloadBytes === this.receivedPayloadBytes) {
-        this.call.close();
-        this.call = null;
-
-        var elapsedTime = Math.round((now - this.startTime) * 10) / 10000.0;
-        var receivedKBits = this.receivedPayloadBytes * 8 / 1000;
-        this.logger.log('webrtc-troubleshooter: ' + receivedKBits + ' kilo-bits in ' + elapsedTime + ' seconds.');
-        this.done();
-      }
-    }
-  }, {
-    key: 'destroy',
-    value: function destroy() {
-      _get(Object.getPrototypeOf(DataChannelThroughputTest.prototype), 'destroy', this).call(this);
-      window.clearTimeout(this.throughputTimeout);
-      if (this.call) {
-        this.call.close();
-        this.call = null;
-      }
-    }
-  }]);
-
-  return DataChannelThroughputTest;
-}(_TestSuite.Test);
-
-exports.default = DataChannelThroughputTest;
-
-},{"../TestSuite":2,"../WebrtcCall":4}],9:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _WebrtcCall = require('../WebrtcCall');
-
-var _WebrtcCall2 = _interopRequireDefault(_WebrtcCall);
-
-var _TestSuite = require('../TestSuite');
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /* global webrtcsupport, localMedia, _ */
-
-// adapted from https://github.com/webrtc/testrtc/blob/master/src/js/bandwidth_test.js
-
-var _ = require('lodash');
-var localMedia = require('localMedia');
-
-var VideoBandwidthTest = function (_Test) {
-  _inherits(VideoBandwidthTest, _Test);
-
-  function VideoBandwidthTest() {
-    _classCallCheck(this, VideoBandwidthTest);
-
-    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(VideoBandwidthTest).apply(this, arguments));
-
-    _this.name = 'Bandwidth Test';
-    _this.maxVideoBitrateKbps = 2000;
-    _this.durationMs = 40000;
-    _this.statStepMs = 100;
-    _this.bweStats = new StatisticsAggregate(0.75 * _this.maxVideoBitrateKbps * 1000);
-    _this.rttStats = new StatisticsAggregate();
-    _this.packetsLost = null;
-    _this.videoStats = [];
-    _this.startTime = null;
-    _this.call = null;
-    // Open the camera with hd resolution specs to get a correct measurement of ramp-up time.
-    _this.constraints = {
-      audio: false,
-      video: {
-        width: {
-          min: 640,
-          ideal: 1280,
-          max: 1920
-        },
-        height: {
-          min: 480,
-          ideal: 720,
-          max: 1080
-        }
-      }
-
-    };
-    if (_this.options.mediaOptions.video.deviceId) {
-      _this.constraints.video.deviceId = _this.options.mediaOptions.video.deviceId;
-    }
-    _this.log = [];
-    return _this;
-  }
-
-  _createClass(VideoBandwidthTest, [{
-    key: 'start',
-    value: function start() {
-      var _this2 = this,
-          _arguments = arguments;
-
-      _get(Object.getPrototypeOf(VideoBandwidthTest.prototype), 'start', this).call(this);
-      this.log = this.results = { log: [] };
-
-      return new Promise(function (resolve, reject) {
-        _this2.reject = reject;
-
-        _this2.addLog('INFO', 'Video Bandwidth Test');
-
-        if (!_this2.options.iceConfig.iceServers.length) {
-          _this2.addLog('FATAL', 'No ice servers were provided');
-          reject(_this2.log);
-        } else {
-          _this2.call = new _WebrtcCall2.default(_this2.options.iceConfig);
-          _this2.call.setIceCandidateFilter(_WebrtcCall2.default.isRelay);
-          // FEC makes it hard to study bandwidth estimation since there seems to be
-          // a spike when it is enabled and disabled. Disable it for now. FEC issue
-          // tracked on: https://code.google.com/p/webrtc/issues/detail?id=3050
-          _this2.call.disableVideoFec();
-          _this2.call.constrainVideoBitrate(_this2.maxVideoBitrateKbps);
-
-          // this.doGetUserMedia(this.constraints, this.gotStream.bind(this)); // returns fail in two cases
-          var failFunc = function failFunc(error) {
-            _this2.addLog('ERROR', { 'status': 'fail', 'error': error });
-            if (onFail) {
-              onFail.apply(_this2, _arguments);
-            } else {
-              _this2.addLog('FATAL', 'Failed to get access to local media due to error: ' + error.name);
-              reject();
-            }
-          };
-          try {
-            _this2.addLog('INFO', { 'status': 'pending', 'constraints': _this2.constraints });
-            var locMedia = new localMedia(); // eslint-disable-line
-            locMedia.start(constraints, function (err, stream) {
-              if (err) {
-                return failFunc(err);
-              }
-              var cam = _this2.getDeviceName_(stream.getVideoTracks());
-              _this2.results.camera = cam;
-              _this2.addLog('INFO', { 'status': 'success', 'camera': cam });
-              onSuccess(stream);
-            });
-          } catch (e) {
-            _this2.addLog('FATAL', { 'status': 'exception', 'error': e.message });
-            reject();
-          }
-
-          // completed returns resolve
-        }
-      });
-    }
-  }, {
-    key: 'fail',
-    value: function fail() {
-      // this.deferred.reject(_.last(this.log));
-      console.log('stuff got rejected bandwidth');
-    }
-  }, {
-    key: 'done',
-    value: function done() {
-      // this.deferred.resolve();
-      console.log('stuff got resolved bandwidth');
-    }
-  }, {
-    key: 'addLog',
-    value: function addLog(level, msg) {
-      if (_.isObject(msg)) {
-        msg = JSON.stringify(msg);
-      }
-      this.results.log.push(level + ': ' + msg);
-    }
-  }, {
-    key: 'doGetUserMedia',
-    value: function doGetUserMedia(constraints, onSuccess, onFail) {
-      var _this3 = this,
-          _arguments2 = arguments;
-
-      var failFunc = function failFunc(error) {
-        _this3.addLog('ERROR', { 'status': 'fail', 'error': error });
-        if (onFail) {
-          onFail.apply(_this3, _arguments2);
-        } else {
-          _this3.addLog('FATAL', 'Failed to get access to local media due to error: ' + error.name);
-          return _this3.fail();
-        }
-      };
-      try {
-        this.addLog('INFO', { 'status': 'pending', 'constraints': constraints });
-        var locMedia = new localMedia(); // eslint-disable-line
-        locMedia.start(constraints, function (err, stream) {
-          if (err) {
-            return failFunc(err);
-          }
-          var cam = _this3.getDeviceName_(stream.getVideoTracks());
-          // this.results.camera = cam;
-          _this3.addLog('INFO', { 'status': 'success', 'camera': cam });
-          onSuccess(stream);
-        });
-      } catch (e) {
-        this.addLog('FATAL', { 'status': 'exception', 'error': e.message });
-        this.fail();
-      }
-    }
-  }, {
-    key: 'getDeviceName_',
-    value: function getDeviceName_(tracks) {
-      if (tracks.length === 0) {
-        return null;
-      }
-      return tracks[0].label;
-    }
-  }, {
-    key: 'gotStream',
-    value: function gotStream(stream) {
-      this.call.pc1.addStream(stream);
-      this.call.establishConnection();
-      this.startTime = new Date();
-      this.localStream = stream.getVideoTracks()[0];
-      this.nextTimeout = setTimeout(this.gatherStats.bind(this), this.statStepMs);
-    }
-  }, {
-    key: 'gatherStats',
-    value: function gatherStats() {
-      var _this4 = this;
-
-      var now = new Date();
-      if (now - this.startTime > this.durationMs) {
-        this.completed();
-      } else {
-        this.call.pc1.getStats(this.localStream).then(_.bind(this.gotStats, this)).catch(function (error) {
-          _this4.addLog('ERROR', 'Failed to getStats: ' + error);
-        });
-      }
-    }
-  }, {
-    key: 'gotStats',
-    value: function gotStats(response) {
-      var _this5 = this;
-
-      if (webrtcsupport.prefix === 'webkit') {
-        _.forEach(response.result(), function (report) {
-          if (report.id === 'bweforvideo') {
-            _this5.bweStats.add(Date.parse(report.timestamp), parseInt(report.stat('googAvailableSendBandwidth'), 10));
-          } else if (report.type === 'ssrc') {
-            _this5.rttStats.add(Date.parse(report.timestamp), parseInt(report.stat('googRtt'), 10));
-            // Grab the last stats.
-            _this5.videoStats[0] = report.stat('googFrameWidthSent');
-            _this5.videoStats[1] = report.stat('googFrameHeightSent');
-            _this5.packetsLost = report.stat('packetsLost');
-          }
-        });
-      } else if (webrtcsupport.prefix === 'moz') {
-        for (var j in response) {
-          var stats = response[j];
-          if (stats.id === 'outbound_rtcp_video_0') {
-            this.rttStats.add(Date.parse(stats.timestamp), parseInt(stats.mozRtt, 10));
-            // Grab the last stats.
-            this.jitter = stats.jitter;
-            this.packetsLost = stats.packetsLost;
-          } else if (stats.id === 'outbound_rtp_video_0') {
-            // TODO: Get dimensions from getStats when supported in FF.
-            this.videoStats[0] = 'Not supported on Firefox';
-            this.videoStats[1] = 'Not supported on Firefox';
-            this.bitrateMean = stats.bitrateMean;
-            this.bitrateStdDev = stats.bitrateStdDev;
-            this.framerateMean = stats.framerateMean;
-          }
-        }
-      } else {
-        this.addLog('ERROR', 'Only Firefox and Chrome getStats implementations are supported.');
-      }
-      this.nextTimeout = setTimeout(this.gatherStats.bind(this), this.statStepMs);
-    }
-  }, {
-    key: 'completed',
-    value: function completed() {
-      this.call.pc1.getLocalStreams()[0].getTracks().forEach(function (track) {
-        track.stop();
-      });
-      this.call.close();
-      this.call = null;
-      var stats = this.results.stats = {};
-
-      if (webrtcsupport.prefix === 'webkit') {
-        // Checking if greater than 2 because Chrome sometimes reports 2x2 when a camera starts but fails to deliver frames.
-        if (this.videoStats[0] < 2 && this.videoStats[1] < 2) {
-          this.addLog('ERROR', 'Camera failure: ' + this.videoStats[0] + 'x' + this.videoStats[1] + '. Cannot test bandwidth without a working camera.');
-        } else {
-          stats.resolution = this.videoStats[0] + 'x' + this.videoStats[1];
-          stats.bpsAvg = this.bweStats.getAverage();
-          stats.bpsMax = this.bweStats.getMax();
-          stats.rampUpTimeMs = this.bweStats.getRampUpTime();
-
-          this.addLog('INFO', 'Video resolution: ' + stats.resolution);
-          this.addLog('INFO', 'Send bandwidth estimate average: ' + stats.bpsAvg + ' bps');
-          this.addLog('INFO', 'Send bandwidth estimate max: ' + stats.bpsMax + ' bps');
-          this.addLog('INFO', 'Send bandwidth ramp-up time: ' + stats.rampUpTimeMs + ' ms');
-        }
-      } else if (webrtcsupport.prefix === 'moz') {
-        if (parseInt(this.framerateMean, 10) > 0) {
-          this.addLog('SUCCESS', 'Frame rate mean: ' + parseInt(this.framerateMean, 10));
-        } else {
-          this.addLog('ERROR', 'Frame rate mean is 0, cannot test bandwidth without a working camera.');
-        }
-        stats.framerateMean = this.framerateMean || null;
-
-        stats.bitrateMean = this.bitrateMean;
-        stats.bitrateStdDev = this.bitrateStdDev;
-        this.addLog('INFO', 'Send bitrate mean: ' + stats.bitrateMean + ' bps');
-        this.addLog('INFO', 'Send bitrate standard deviation: ' + stats.bitrateStdDev + ' bps');
-      }
-      stats.rttAverage = this.rttStats.getAverage();
-      stats.rttMax = this.rttStats.getMax();
-      stats.lostPackets = parseInt(this.packetsLost, 10);
-
-      this.addLog('INFO', 'RTT average: ' + stats.rttAverage + ' ms');
-      this.addLog('INFO', 'RTT max: ' + stats.rttMax + ' ms');
-      this.addLog('INFO', 'Lost packets: ' + stats.lostPackets);
-
-      this.done();
-    }
-  }, {
-    key: 'destroy',
-    value: function destroy() {
-      window.clearTimeout(this.nextTimeout);
-      if (this.call) {
-        this.call.close();
-        this.call = null;
-      }
-    }
-  }]);
-
-  return VideoBandwidthTest;
-}(_TestSuite.Test);
-
-var StatisticsAggregate = function () {
-  function StatisticsAggregate(rampUpThreshold) {
-    _classCallCheck(this, StatisticsAggregate);
-
-    this.startTime_ = 0;
-    this.sum_ = 0;
-    this.count_ = 0;
-    this.max_ = 0;
-    this.rampUpThreshold_ = rampUpThreshold;
-    this.rampUpTime_ = Infinity;
-  }
-
-  _createClass(StatisticsAggregate, [{
-    key: 'add',
-    value: function add(time, datapoint) {
-      if (this.startTime_ === 0) {
-        this.startTime_ = time;
-      }
-      this.sum_ += datapoint;
-      this.max_ = Math.max(this.max_, datapoint);
-      if (this.rampUpTime_ === Infinity && datapoint > this.rampUpThreshold_) {
-        this.rampUpTime_ = time;
-      }
-      this.count_++;
-    }
-  }, {
-    key: 'getAverage',
-    value: function getAverage() {
-      if (this.count_ === 0) {
-        return 0;
-      }
-      return Math.round(this.sum_ / this.count_);
-    }
-  }, {
-    key: 'getMax',
-    value: function getMax() {
-      return this.max_;
-    }
-  }, {
-    key: 'getRampUpTime',
-    value: function getRampUpTime() {
-      return this.rampUpTime_ - this.startTime_;
-    }
-  }]);
-
-  return StatisticsAggregate;
-}();
-
-exports.default = VideoBandwidthTest;
-
-},{"../TestSuite":2,"../WebrtcCall":4,"localMedia":14,"lodash":31}],10:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _TestSuite = require('../TestSuite');
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var LocalMedia = require('localMedia');
-
-var VideoTest = function (_Test) {
-  _inherits(VideoTest, _Test);
-
-  function VideoTest() {
-    _classCallCheck(this, VideoTest);
-
-    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(VideoTest).apply(this, arguments));
-
-    _this.name = 'Video Test';
-
-    _this.localMedia = new LocalMedia({ detectSpeakingEvents: true });
-    return _this;
-  }
-
-  _createClass(VideoTest, [{
-    key: 'start',
-    value: function start() {
-      var _this2 = this;
-
-      _get(Object.getPrototypeOf(VideoTest.prototype), 'start', this).call(this);
-
-      return new Promise(function (resolve, reject) {
-        _this2.reject = reject;
-
-        _this2.localMedia.start(_this2.options, function (err) {
-          if (err) {
-            _this2.logger.log('webrtc-troubleshooter: Video Local media start failed ' + err.name);
-            reject(err);
-          } else {
-            _this2.logger.log('webrtc-troubleshooter: Video Local media started');
-          }
-        });
-
-        _this2.localMedia.on('localStream', function (stream) {
-          if (stream.getVideoTracks().length) {
-            var videoTrack = stream.getVideoTracks()[0];
-            if (videoTrack) {
-              _this2.logger.log('webrtc-troubleshooter: Video stream passed');
-              resolve();
-            } else {
-              _this2.logger.error('webrtc-troubleshooter: Video stream failed');
-              reject('no video track available');
-            }
-          }
-        });
-      });
-    }
-  }, {
-    key: 'destroy',
-    value: function destroy() {
-      _get(Object.getPrototypeOf(VideoTest.prototype), 'destroy', this).call(this);
-      this.localMedia.stop();
-    }
-  }]);
-
-  return VideoTest;
-}(_TestSuite.Test);
-
-exports.default = VideoTest;
-
-},{"../TestSuite":2,"localMedia":14}],11:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.VideoBandwidthTest = exports.ThroughputTest = exports.AdvancedCameraTest = exports.ConnectivityTest = exports.VideoTest = exports.AudioTest = undefined;
-
-var _AudioTest = require('./AudioTest');
-
-var _AudioTest2 = _interopRequireDefault(_AudioTest);
-
-var _VideoTest = require('./VideoTest');
-
-var _VideoTest2 = _interopRequireDefault(_VideoTest);
-
-var _ConnectivityTest = require('./ConnectivityTest');
-
-var _ConnectivityTest2 = _interopRequireDefault(_ConnectivityTest);
-
-var _AdvancedCameraTest = require('./AdvancedCameraTest');
-
-var _AdvancedCameraTest2 = _interopRequireDefault(_AdvancedCameraTest);
-
-var _DataThroughputTest = require('./DataThroughputTest');
-
-var _DataThroughputTest2 = _interopRequireDefault(_DataThroughputTest);
-
-var _VideoBandwidthTest = require('./VideoBandwidthTest');
-
-var _VideoBandwidthTest2 = _interopRequireDefault(_VideoBandwidthTest);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-exports.AudioTest = _AudioTest2.default;
-exports.VideoTest = _VideoTest2.default;
-exports.ConnectivityTest = _ConnectivityTest2.default;
-exports.AdvancedCameraTest = _AdvancedCameraTest2.default;
-exports.ThroughputTest = _DataThroughputTest2.default;
-exports.VideoBandwidthTest = _VideoBandwidthTest2.default;
-
-},{"./AdvancedCameraTest":5,"./AudioTest":6,"./ConnectivityTest":7,"./DataThroughputTest":8,"./VideoBandwidthTest":9,"./VideoTest":10}],12:[function(require,module,exports){
+},{"./utils/TestSuite":62,"./utils/tests/defaultTests":71}],2:[function(require,module,exports){
 var adapter = require('webrtc-adapter-test');
 module.exports = function (stream, el, options) {
     var item;
@@ -1807,7 +64,7 @@ module.exports = function (stream, el, options) {
     return element;
 };
 
-},{"webrtc-adapter-test":13}],13:[function(require,module,exports){
+},{"webrtc-adapter-test":3}],3:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -3584,7 +1841,7 @@ if (typeof module !== 'undefined') {
   });
 }
 
-},{}],14:[function(require,module,exports){
+},{}],4:[function(require,module,exports){
 var util = require('util');
 var hark = require('hark');
 var webrtc = require('webrtcsupport');
@@ -3886,7 +2143,7 @@ Object.defineProperty(LocalMedia.prototype, 'localScreen', {
 
 module.exports = LocalMedia;
 
-},{"getscreenmedia":15,"getusermedia":16,"hark":26,"mediastream-gain":27,"mockconsole":28,"util":75,"webrtcsupport":29,"wildemitter":30}],15:[function(require,module,exports){
+},{"getscreenmedia":5,"getusermedia":6,"hark":16,"mediastream-gain":17,"mockconsole":18,"util":75,"webrtcsupport":19,"wildemitter":20}],5:[function(require,module,exports){
 // getScreenMedia helper by @HenrikJoreteg
 var getUserMedia = require('getusermedia');
 
@@ -4058,7 +2315,7 @@ window.addEventListener('message', function (event) {
     }
 });
 
-},{"getusermedia":16}],16:[function(require,module,exports){
+},{"getusermedia":6}],6:[function(require,module,exports){
 // getUserMedia helper by @HenrikJoreteg used for navigator.getUserMedia shim
 var adapter = require('webrtc-adapter');
 
@@ -4141,7 +2398,7 @@ module.exports = function (constraints, cb) {
     });
 };
 
-},{"webrtc-adapter":17}],17:[function(require,module,exports){
+},{"webrtc-adapter":7}],7:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -4233,7 +2490,7 @@ module.exports = function (constraints, cb) {
   }
 })();
 
-},{"./chrome/chrome_shim":18,"./edge/edge_shim":21,"./firefox/firefox_shim":22,"./safari/safari_shim":24,"./utils":25}],18:[function(require,module,exports){
+},{"./chrome/chrome_shim":8,"./edge/edge_shim":11,"./firefox/firefox_shim":12,"./safari/safari_shim":14,"./utils":15}],8:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -4478,7 +2735,7 @@ module.exports = {
   reattachMediaStream: chromeShim.reattachMediaStream
 };
 
-},{"../utils.js":25,"./getusermedia":19}],19:[function(require,module,exports){
+},{"../utils.js":15,"./getusermedia":9}],9:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -4619,7 +2876,7 @@ module.exports = function() {
   }
 };
 
-},{"../utils.js":25}],20:[function(require,module,exports){
+},{"../utils.js":15}],10:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -5117,7 +3374,7 @@ SDPUtils.getDirection = function(mediaSection, sessionpart) {
 // Expose public methods.
 module.exports = SDPUtils;
 
-},{}],21:[function(require,module,exports){
+},{}],11:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -6073,7 +4330,7 @@ module.exports = {
   reattachMediaStream: edgeShim.reattachMediaStream
 };
 
-},{"../utils":25,"./edge_sdp":20}],22:[function(require,module,exports){
+},{"../utils":15,"./edge_sdp":10}],12:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -6316,7 +4573,7 @@ module.exports = {
   reattachMediaStream: firefoxShim.reattachMediaStream
 };
 
-},{"../utils":25,"./getusermedia":23}],23:[function(require,module,exports){
+},{"../utils":15,"./getusermedia":13}],13:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -6433,7 +4690,7 @@ module.exports = function() {
   }
 };
 
-},{"../utils":25}],24:[function(require,module,exports){
+},{"../utils":15}],14:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -6469,7 +4726,7 @@ module.exports = {
   // reattachMediaStream: safariShim.reattachMediaStream
 };
 
-},{}],25:[function(require,module,exports){
+},{}],15:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -6614,7 +4871,7 @@ module.exports = {
   extractVersion: utils.extractVersion
 };
 
-},{}],26:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
 var WildEmitter = require('wildemitter');
 
 function getMaxVolume (analyser, fftBins) {
@@ -6744,7 +5001,7 @@ module.exports = function(stream, options) {
   return harker;
 }
 
-},{"wildemitter":30}],27:[function(require,module,exports){
+},{"wildemitter":20}],17:[function(require,module,exports){
 var support = require('webrtcsupport');
 
 
@@ -6791,7 +5048,7 @@ GainController.prototype.on = function () {
 
 module.exports = GainController;
 
-},{"webrtcsupport":29}],28:[function(require,module,exports){
+},{"webrtcsupport":19}],18:[function(require,module,exports){
 var methods = "assert,count,debug,dir,dirxml,error,exception,group,groupCollapsed,groupEnd,info,log,markTimeline,profile,profileEnd,time,timeEnd,trace,warn".split(",");
 var l = methods.length;
 var fn = function () {};
@@ -6803,7 +5060,7 @@ while (l--) {
 
 module.exports = mockconsole;
 
-},{}],29:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 // created by @HenrikJoreteg
 var prefix;
 var version;
@@ -6855,7 +5112,7 @@ module.exports = {
     getUserMedia: getUserMedia
 };
 
-},{}],30:[function(require,module,exports){
+},{}],20:[function(require,module,exports){
 /*
 WildEmitter.js is a slim little event emitter by @henrikjoreteg largely based
 on @visionmedia's Emitter from UI Kit.
@@ -7010,7 +5267,7 @@ WildEmitter.mixin = function (constructor) {
 
 WildEmitter.mixin(WildEmitter);
 
-},{}],31:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 (function (global){
 /**
  * @license
@@ -23041,7 +21298,7 @@ WildEmitter.mixin(WildEmitter);
 }.call(this));
 
 }).call(this,typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{}],32:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 /**
  * lodash 3.0.3 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -23105,7 +21362,7 @@ var forEach = createForEach(arrayEach, baseEach);
 
 module.exports = forEach;
 
-},{"lodash._arrayeach":33,"lodash._baseeach":34,"lodash._bindcallback":38,"lodash.isarray":39}],33:[function(require,module,exports){
+},{"lodash._arrayeach":23,"lodash._baseeach":24,"lodash._bindcallback":28,"lodash.isarray":29}],23:[function(require,module,exports){
 /**
  * lodash 3.0.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -23138,7 +21395,7 @@ function arrayEach(array, iteratee) {
 
 module.exports = arrayEach;
 
-},{}],34:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 /**
  * lodash 3.0.4 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -23321,7 +21578,7 @@ function isObject(value) {
 
 module.exports = baseEach;
 
-},{"lodash.keys":35}],35:[function(require,module,exports){
+},{"lodash.keys":25}],25:[function(require,module,exports){
 /**
  * lodash 3.1.2 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -23559,7 +21816,7 @@ function keysIn(object) {
 
 module.exports = keys;
 
-},{"lodash._getnative":36,"lodash.isarguments":37,"lodash.isarray":39}],36:[function(require,module,exports){
+},{"lodash._getnative":26,"lodash.isarguments":27,"lodash.isarray":29}],26:[function(require,module,exports){
 /**
  * lodash 3.9.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -23698,7 +21955,7 @@ function isNative(value) {
 
 module.exports = getNative;
 
-},{}],37:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 /**
  * lodash 3.0.8 (Custom Build) <https://lodash.com/>
  * Build: `lodash modularize exports="npm" -o ./`
@@ -23943,7 +22200,7 @@ function isObjectLike(value) {
 
 module.exports = isArguments;
 
-},{}],38:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 /**
  * lodash 3.0.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -24010,7 +22267,7 @@ function identity(value) {
 
 module.exports = bindCallback;
 
-},{}],39:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 /**
  * lodash 3.0.4 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -24192,7 +22449,7 @@ function isNative(value) {
 
 module.exports = isArray;
 
-},{}],40:[function(require,module,exports){
+},{}],30:[function(require,module,exports){
 /**
  * lodash 3.1.2 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -24351,7 +22608,7 @@ function property(path) {
 
 module.exports = pluck;
 
-},{"lodash._baseget":41,"lodash._topath":42,"lodash.isarray":43,"lodash.map":44}],41:[function(require,module,exports){
+},{"lodash._baseget":31,"lodash._topath":32,"lodash.isarray":33,"lodash.map":34}],31:[function(require,module,exports){
 /**
  * lodash 3.7.2 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -24427,7 +22684,7 @@ function isObject(value) {
 
 module.exports = baseGet;
 
-},{}],42:[function(require,module,exports){
+},{}],32:[function(require,module,exports){
 /**
  * lodash 3.8.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -24476,9 +22733,9 @@ function toPath(value) {
 
 module.exports = toPath;
 
-},{"lodash.isarray":43}],43:[function(require,module,exports){
-arguments[4][39][0].apply(exports,arguments)
-},{"dup":39}],44:[function(require,module,exports){
+},{"lodash.isarray":33}],33:[function(require,module,exports){
+arguments[4][29][0].apply(exports,arguments)
+},{"dup":29}],34:[function(require,module,exports){
 /**
  * lodash 3.1.4 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -24630,7 +22887,7 @@ function map(collection, iteratee, thisArg) {
 
 module.exports = map;
 
-},{"lodash._arraymap":45,"lodash._basecallback":46,"lodash._baseeach":51,"lodash.isarray":43}],45:[function(require,module,exports){
+},{"lodash._arraymap":35,"lodash._basecallback":36,"lodash._baseeach":41,"lodash.isarray":33}],35:[function(require,module,exports){
 /**
  * lodash 3.0.0 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -24662,7 +22919,7 @@ function arrayMap(array, iteratee) {
 
 module.exports = arrayMap;
 
-},{}],46:[function(require,module,exports){
+},{}],36:[function(require,module,exports){
 /**
  * lodash 3.3.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -25086,7 +23343,7 @@ function property(path) {
 
 module.exports = baseCallback;
 
-},{"lodash._baseisequal":47,"lodash._bindcallback":49,"lodash.isarray":43,"lodash.pairs":50}],47:[function(require,module,exports){
+},{"lodash._baseisequal":37,"lodash._bindcallback":39,"lodash.isarray":33,"lodash.pairs":40}],37:[function(require,module,exports){
 /**
  * lodash 3.0.7 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -25430,7 +23687,7 @@ function isObject(value) {
 
 module.exports = baseIsEqual;
 
-},{"lodash.isarray":43,"lodash.istypedarray":48,"lodash.keys":52}],48:[function(require,module,exports){
+},{"lodash.isarray":33,"lodash.istypedarray":38,"lodash.keys":42}],38:[function(require,module,exports){
 /**
  * lodash 3.0.6 (Custom Build) <https://lodash.com/>
  * Build: `lodash modularize exports="npm" -o ./`
@@ -25580,9 +23837,9 @@ function isTypedArray(value) {
 
 module.exports = isTypedArray;
 
-},{}],49:[function(require,module,exports){
-arguments[4][38][0].apply(exports,arguments)
-},{"dup":38}],50:[function(require,module,exports){
+},{}],39:[function(require,module,exports){
+arguments[4][28][0].apply(exports,arguments)
+},{"dup":28}],40:[function(require,module,exports){
 /**
  * lodash 3.0.1 (Custom Build) <https://lodash.com/>
  * Build: `lodash modern modularize exports="npm" -o ./`
@@ -25662,15 +23919,15 @@ function pairs(object) {
 
 module.exports = pairs;
 
-},{"lodash.keys":52}],51:[function(require,module,exports){
-arguments[4][34][0].apply(exports,arguments)
-},{"dup":34,"lodash.keys":52}],52:[function(require,module,exports){
-arguments[4][35][0].apply(exports,arguments)
-},{"dup":35,"lodash._getnative":53,"lodash.isarguments":54,"lodash.isarray":43}],53:[function(require,module,exports){
-arguments[4][36][0].apply(exports,arguments)
-},{"dup":36}],54:[function(require,module,exports){
-arguments[4][37][0].apply(exports,arguments)
-},{"dup":37}],55:[function(require,module,exports){
+},{"lodash.keys":42}],41:[function(require,module,exports){
+arguments[4][24][0].apply(exports,arguments)
+},{"dup":24,"lodash.keys":42}],42:[function(require,module,exports){
+arguments[4][25][0].apply(exports,arguments)
+},{"dup":25,"lodash._getnative":43,"lodash.isarguments":44,"lodash.isarray":33}],43:[function(require,module,exports){
+arguments[4][26][0].apply(exports,arguments)
+},{"dup":26}],44:[function(require,module,exports){
+arguments[4][27][0].apply(exports,arguments)
+},{"dup":27}],45:[function(require,module,exports){
 var toSDP = require('./lib/tosdp');
 var toJSON = require('./lib/tojson');
 
@@ -25792,7 +24049,7 @@ exports.toCandidateJSON = toJSON.toCandidateJSON;
 exports.toMediaJSON = toJSON.toMediaJSON;
 exports.toSessionJSON = toJSON.toSessionJSON;
 
-},{"./lib/tojson":58,"./lib/tosdp":59}],56:[function(require,module,exports){
+},{"./lib/tojson":48,"./lib/tosdp":49}],46:[function(require,module,exports){
 exports.lines = function (sdp) {
     return sdp.split('\r\n').filter(function (line) {
         return line.length > 0;
@@ -26063,7 +24320,7 @@ exports.msid = function (line) {
     };
 };
 
-},{}],57:[function(require,module,exports){
+},{}],47:[function(require,module,exports){
 module.exports = {
     initiator: {
         incoming: {
@@ -26111,7 +24368,7 @@ module.exports = {
     }
 };
 
-},{}],58:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 var SENDERS = require('./senders');
 var parsers = require('./parsers');
 var idCounter = Math.random();
@@ -26335,7 +24592,7 @@ exports.toCandidateJSON = function (line) {
     return candidate;
 };
 
-},{"./parsers":56,"./senders":57}],59:[function(require,module,exports){
+},{"./parsers":46,"./senders":47}],49:[function(require,module,exports){
 var SENDERS = require('./senders');
 
 
@@ -26574,7 +24831,7 @@ exports.toCandidateSDP = function (candidate) {
     return 'a=candidate:' + sdp.join(' ');
 };
 
-},{"./senders":57}],60:[function(require,module,exports){
+},{"./senders":47}],50:[function(require,module,exports){
 // based on https://github.com/ESTOS/strophe.jingle/
 // adds wildemitter support
 var util = require('util');
@@ -26787,27 +25044,27 @@ TraceablePeerConnection.prototype.getStats = function () {
 
 module.exports = TraceablePeerConnection;
 
-},{"util":75,"webrtc-adapter":61,"wildemitter":70}],61:[function(require,module,exports){
-arguments[4][17][0].apply(exports,arguments)
-},{"./chrome/chrome_shim":62,"./edge/edge_shim":65,"./firefox/firefox_shim":66,"./safari/safari_shim":68,"./utils":69,"dup":17}],62:[function(require,module,exports){
-arguments[4][18][0].apply(exports,arguments)
-},{"../utils.js":69,"./getusermedia":63,"dup":18}],63:[function(require,module,exports){
-arguments[4][19][0].apply(exports,arguments)
-},{"../utils.js":69,"dup":19}],64:[function(require,module,exports){
+},{"util":75,"webrtc-adapter":51,"wildemitter":60}],51:[function(require,module,exports){
+arguments[4][7][0].apply(exports,arguments)
+},{"./chrome/chrome_shim":52,"./edge/edge_shim":55,"./firefox/firefox_shim":56,"./safari/safari_shim":58,"./utils":59,"dup":7}],52:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"../utils.js":59,"./getusermedia":53,"dup":8}],53:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"../utils.js":59,"dup":9}],54:[function(require,module,exports){
+arguments[4][10][0].apply(exports,arguments)
+},{"dup":10}],55:[function(require,module,exports){
+arguments[4][11][0].apply(exports,arguments)
+},{"../utils":59,"./edge_sdp":54,"dup":11}],56:[function(require,module,exports){
+arguments[4][12][0].apply(exports,arguments)
+},{"../utils":59,"./getusermedia":57,"dup":12}],57:[function(require,module,exports){
+arguments[4][13][0].apply(exports,arguments)
+},{"../utils":59,"dup":13}],58:[function(require,module,exports){
+arguments[4][14][0].apply(exports,arguments)
+},{"dup":14}],59:[function(require,module,exports){
+arguments[4][15][0].apply(exports,arguments)
+},{"dup":15}],60:[function(require,module,exports){
 arguments[4][20][0].apply(exports,arguments)
-},{"dup":20}],65:[function(require,module,exports){
-arguments[4][21][0].apply(exports,arguments)
-},{"../utils":69,"./edge_sdp":64,"dup":21}],66:[function(require,module,exports){
-arguments[4][22][0].apply(exports,arguments)
-},{"../utils":69,"./getusermedia":67,"dup":22}],67:[function(require,module,exports){
-arguments[4][23][0].apply(exports,arguments)
-},{"../utils":69,"dup":23}],68:[function(require,module,exports){
-arguments[4][24][0].apply(exports,arguments)
-},{"dup":24}],69:[function(require,module,exports){
-arguments[4][25][0].apply(exports,arguments)
-},{"dup":25}],70:[function(require,module,exports){
-arguments[4][30][0].apply(exports,arguments)
-},{"dup":30}],71:[function(require,module,exports){
+},{"dup":20}],61:[function(require,module,exports){
 var util = require('util');
 var each = require('lodash.foreach');
 var pluck = require('lodash.pluck');
@@ -27636,7 +25893,1754 @@ PeerConnection.prototype.getStats = function (cb) {
 
 module.exports = PeerConnection;
 
-},{"lodash.foreach":32,"lodash.pluck":40,"sdp-jingle-json":55,"traceablepeerconnection":60,"util":75,"webrtc-adapter":61,"wildemitter":70}],72:[function(require,module,exports){
+},{"lodash.foreach":22,"lodash.pluck":30,"sdp-jingle-json":45,"traceablepeerconnection":50,"util":75,"webrtc-adapter":51,"wildemitter":60}],62:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+/* global _ */
+
+var TestSuite = function () {
+  function TestSuite(options) {
+    _classCallCheck(this, TestSuite);
+
+    options = options || {};
+    this.allTestsComplete = false;
+    this.running = false;
+    this.queue = [];
+    this.logger = options.logger || console;
+  }
+
+  _createClass(TestSuite, [{
+    key: 'addTest',
+    value: function addTest(test) {
+      this.queue.push(test);
+    }
+  }, {
+    key: 'runNextTest',
+    value: function runNextTest(done) {
+      var _this = this;
+
+      this.running = true;
+      var test = this.queue.shift();
+
+      if (!test) {
+        this.running = false;
+        this.allTestsComplete = true;
+        return done();
+      }
+
+      this.activeTest = test;
+      this.logger.log('webrtc-troubleshooter: Starting ' + test.name);
+
+      // TODO: There is some repeating functionality here that could be extracted.
+      test.start().then(function () {
+        test.callback(null);
+        test.running = false;
+        test.destroy();
+        _this.runNextTest(done);
+      }).catch(function (err) {
+        test.callback(err, test.log);
+        test.running = false;
+        test.destroy();
+        _this.runNextTest(done);
+      });
+    }
+  }, {
+    key: 'stopAllTests',
+    value: function stopAllTests() {
+      this.activeTest.destroy();
+      this.queue = [];
+    }
+  }]);
+
+  return TestSuite;
+}();
+
+var Test = function () {
+  function Test(options, callback) {
+    _classCallCheck(this, Test);
+
+    this.options = options || {};
+    this.callback = callback || _.noop;
+    this.logger = this.options.logger || console;
+  }
+
+  _createClass(Test, [{
+    key: 'start',
+    value: function start() {
+      var _this2 = this;
+
+      this.timeout = window.setTimeout(function () {
+        if (_this2.reject) {
+          _this2.reject('timeout');
+        }
+      }, 30000);
+    }
+  }, {
+    key: 'destroy',
+    value: function destroy() {
+      window.clearTimeout(this.timeout);
+    }
+  }]);
+
+  return Test;
+}();
+
+exports.TestSuite = TestSuite;
+exports.Test = Test;
+
+},{}],63:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+// adapted from https://github.com/webrtc/testrtc
+
+var VideoFrameChecker = function () {
+  function VideoFrameChecker(videoElement) {
+    _classCallCheck(this, VideoFrameChecker);
+
+    this.frameStats = {
+      numFrozenFrames: 0,
+      numBlackFrames: 0,
+      numFrames: 0
+    };
+
+    this.running_ = true;
+
+    this.nonBlackPixelLumaThreshold = 20;
+    this.previousFrame_ = [];
+    this.identicalFrameSsimThreshold = 0.985;
+    this.frameComparator = new Ssim();
+
+    this.canvas_ = document.createElement('canvas');
+    this.videoElement_ = videoElement;
+    this.listener_ = this.checkVideoFrame_.bind(this);
+    this.videoElement_.addEventListener('play', this.listener_, false);
+  }
+
+  _createClass(VideoFrameChecker, [{
+    key: 'stop',
+    value: function stop() {
+      this.videoElement_.removeEventListener('play', this.listener_);
+      this.running_ = false;
+    }
+  }, {
+    key: 'getCurrentImageData_',
+    value: function getCurrentImageData_() {
+      this.canvas_.width = this.videoElement_.width;
+      this.canvas_.height = this.videoElement_.height;
+
+      var context = this.canvas_.getContext('2d');
+      context.drawImage(this.videoElement_, 0, 0, this.canvas_.width, this.canvas_.height);
+      return context.getImageData(0, 0, this.canvas_.width, this.canvas_.height);
+    }
+  }, {
+    key: 'checkVideoFrame_',
+    value: function checkVideoFrame_() {
+      if (!this.running_) {
+        return;
+      }
+      if (this.videoElement_.ended) {
+        return;
+      }
+
+      var imageData = this.getCurrentImageData_();
+
+      if (this.isBlackFrame_(imageData.data, imageData.data.length)) {
+        this.frameStats.numBlackFrames++;
+      }
+
+      if (this.frameComparator.calculate(this.previousFrame_, imageData.data) > this.identicalFrameSsimThreshold) {
+        this.frameStats.numFrozenFrames++;
+      }
+      this.previousFrame_ = imageData.data;
+
+      this.frameStats.numFrames++;
+      setTimeout(this.checkVideoFrame_.bind(this), 20);
+    }
+  }, {
+    key: 'isBlackFrame_',
+    value: function isBlackFrame_(data, length) {
+      // TODO: Use a statistical, histogram-based detection.
+      var thresh = this.nonBlackPixelLumaThreshold;
+      var accuLuma = 0;
+      for (var i = 4; i < length; i += 4) {
+        // Use Luma as in Rec. 709: Y′709 = 0.21R + 0.72G + 0.07B
+        accuLuma += 0.21 * data[i] + 0.72 * data[i + 1] + 0.07 * data[i + 2];
+        // Early termination if the average Luma so far is bright enough.
+        if (accuLuma > thresh * i / 4) {
+          return false;
+        }
+      }
+      return true;
+    }
+  }]);
+
+  return VideoFrameChecker;
+}();
+
+VideoFrameChecker.prototype = {
+  stop: function stop() {
+    this.videoElement_.removeEventListener('play', this.listener_);
+    this.running_ = false;
+  },
+
+  getCurrentImageData_: function getCurrentImageData_() {
+    this.canvas_.width = this.videoElement_.width;
+    this.canvas_.height = this.videoElement_.height;
+
+    var context = this.canvas_.getContext('2d');
+    context.drawImage(this.videoElement_, 0, 0, this.canvas_.width, this.canvas_.height);
+    return context.getImageData(0, 0, this.canvas_.width, this.canvas_.height);
+  },
+
+  checkVideoFrame_: function checkVideoFrame_() {
+    if (!this.running_) {
+      return;
+    }
+    if (this.videoElement_.ended) {
+      return;
+    }
+
+    var imageData = this.getCurrentImageData_();
+
+    if (this.isBlackFrame_(imageData.data, imageData.data.length)) {
+      this.frameStats.numBlackFrames++;
+    }
+
+    if (this.frameComparator.calculate(this.previousFrame_, imageData.data) > this.identicalFrameSsimThreshold) {
+      this.frameStats.numFrozenFrames++;
+    }
+    this.previousFrame_ = imageData.data;
+
+    this.frameStats.numFrames++;
+    setTimeout(this.checkVideoFrame_.bind(this), 20);
+  },
+
+  isBlackFrame_: function isBlackFrame_(data, length) {
+    // TODO: Use a statistical, histogram-based detection.
+    var thresh = this.nonBlackPixelLumaThreshold;
+    var accuLuma = 0;
+    for (var i = 4; i < length; i += 4) {
+      // Use Luma as in Rec. 709: Y′709 = 0.21R + 0.72G + 0.07B
+      accuLuma += 0.21 * data[i] + 0.72 * data[i + 1] + 0.07 * data[i + 2];
+      // Early termination if the average Luma so far is bright enough.
+      if (accuLuma > thresh * i / 4) {
+        return false;
+      }
+    }
+    return true;
+  }
+};
+
+/* This is an implementation of the algorithm for calculating the Structural
+ * SIMilarity (SSIM) index between two images. Please refer to the article [1],
+ * the website [2] and/or the Wikipedia article [3]. This code takes the value
+ * of the constants C1 and C2 from the Matlab implementation in [4].
+ *
+ * [1] Z. Wang, A. C. Bovik, H. R. Sheikh, and E. P. Simoncelli, "Image quality
+ * assessment: From error measurement to structural similarity",
+ * IEEE Transactions on Image Processing, vol. 13, no. 1, Jan. 2004.
+ * [2] http://www.cns.nyu.edu/~lcv/ssim/
+ * [3] http://en.wikipedia.org/wiki/Structural_similarity
+ * [4] http://www.cns.nyu.edu/~lcv/ssim/ssim_index.m
+ */
+
+var Ssim = function () {
+  function Ssim() {
+    _classCallCheck(this, Ssim);
+  }
+
+  _createClass(Ssim, [{
+    key: 'statistics',
+
+    // Implementation of Eq.2, a simple average of a vector and Eq.4., except the
+    // square root. The latter is actually an unbiased estimate of the variance,
+    // not the exact variance.
+    value: function statistics(a) {
+      var accu = 0;
+      var i;
+      for (i = 0; i < a.length; ++i) {
+        accu += a[i];
+      }
+      var meanA = accu / (a.length - 1);
+      var diff = 0;
+      for (i = 1; i < a.length; ++i) {
+        diff = a[i - 1] - meanA;
+        accu += a[i] + diff * diff;
+      }
+      return { mean: meanA, variance: accu / a.length };
+    }
+
+    // Implementation of Eq.11., cov(Y, Z) = E((Y - uY), (Z - uZ)).
+
+  }, {
+    key: 'covariance',
+    value: function covariance(a, b, meanA, meanB) {
+      var accu = 0;
+      for (var i = 0; i < a.length; i += 1) {
+        accu += (a[i] - meanA) * (b[i] - meanB);
+      }
+      return accu / a.length;
+    }
+  }, {
+    key: 'calculate',
+    value: function calculate(x, y) {
+      if (x.length !== y.length) {
+        return 0;
+      }
+
+      // Values of the constants come from the Matlab code referred before.
+      var K1 = 0.01;
+      var K2 = 0.03;
+      var L = 255;
+      var C1 = K1 * L * (K1 * L);
+      var C2 = K2 * L * (K2 * L);
+      var C3 = C2 / 2;
+
+      var statsX = this.statistics(x);
+      var muX = statsX.mean;
+      var sigmaX2 = statsX.variance;
+      var sigmaX = Math.sqrt(sigmaX2);
+      var statsY = this.statistics(y);
+      var muY = statsY.mean;
+      var sigmaY2 = statsY.variance;
+      var sigmaY = Math.sqrt(sigmaY2);
+      var sigmaXy = this.covariance(x, y, muX, muY);
+
+      // Implementation of Eq.6.
+      var luminance = (2 * muX * muY + C1) / (muX * muX + muY * muY + C1);
+      // Implementation of Eq.10.
+      var structure = (sigmaXy + C3) / (sigmaX * sigmaY + C3);
+      // Implementation of Eq.9.
+      var contrast = (2 * sigmaX * sigmaY + C2) / (sigmaX2 + sigmaY2 + C2);
+
+      // Implementation of Eq.12.
+      return luminance * contrast * structure;
+    }
+  }]);
+
+  return Ssim;
+}();
+
+exports.default = VideoFrameChecker;
+
+},{}],64:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+/* global RTCPeerConnection, mozRTCPeerConnection */
+// adapted from https://github.com/webrtc/testrtc
+
+var WebrtcCall = function () {
+  function WebrtcCall(config) {
+    _classCallCheck(this, WebrtcCall);
+
+    this.pc1 = new RTCPeerConnection(config);
+    this.pc2 = new RTCPeerConnection(config);
+
+    this.pc1.addEventListener('icecandidate', this.onIceCandidate_.bind(this, this.pc2));
+    this.pc2.addEventListener('icecandidate', this.onIceCandidate_.bind(this, this.pc1));
+
+    this.iceCandidateFilter_ = WebrtcCall.noFilter;
+  }
+
+  _createClass(WebrtcCall, [{
+    key: 'establishConnection',
+    value: function establishConnection() {
+      this.pc1.createOffer(this.gotOffer_.bind(this), console.error.bind(console));
+    }
+  }, {
+    key: 'close',
+    value: function close() {
+      this.pc1.close();
+      this.pc2.close();
+    }
+
+    // When the peerConnection is closed the statsCb is called once with an array
+    // of gathered stats.
+
+  }, {
+    key: 'gatherStats',
+    value: function gatherStats(peerConnection, statsCb, interval) {
+      var stats = [];
+      var statsCollectTime = [];
+      getStats_();
+
+      function getStats_() {
+        if (peerConnection.signalingState === 'closed') {
+          statsCb(stats, statsCollectTime);
+          return;
+        }
+        // Work around for webrtc/testrtc#74
+        if (typeof mozRTCPeerConnection !== 'undefined' && peerConnection instanceof mozRTCPeerConnection) {
+          setTimeout(getStats_, interval);
+        } else {
+          setTimeout(peerConnection.getStats.bind(peerConnection, gotStats_), interval);
+        }
+      }
+
+      function gotStats_(response) {
+        for (var index in response.result()) {
+          stats.push(response.result()[index]);
+          statsCollectTime.push(Date.now());
+        }
+        getStats_();
+      }
+    }
+  }, {
+    key: 'gotOffer_',
+    value: function gotOffer_(offer) {
+      if (this.constrainOfferToRemoveVideoFec_) {
+        offer.sdp = offer.sdp.replace(/(m=video 1 [^\r]+)(116 117)(\r\n)/g, '$1\r\n');
+        offer.sdp = offer.sdp.replace(/a=rtpmap:116 red\/90000\r\n/g, '');
+        offer.sdp = offer.sdp.replace(/a=rtpmap:117 ulpfec\/90000\r\n/g, '');
+      }
+      this.pc1.setLocalDescription(offer);
+      this.pc2.setRemoteDescription(offer);
+      this.pc2.createAnswer(this.gotAnswer_.bind(this), console.error.bind(console));
+    }
+  }, {
+    key: 'gotAnswer_',
+    value: function gotAnswer_(answer) {
+      if (this.constrainVideoBitrateKbps_) {
+        answer.sdp = answer.sdp.replace(/a=mid:video\r\n/g, 'a=mid:video\r\nb=AS:' + this.constrainVideoBitrateKbps_ + '\r\n');
+      }
+      this.pc2.setLocalDescription(answer);
+      this.pc1.setRemoteDescription(answer);
+    }
+  }, {
+    key: 'onIceCandidate_',
+    value: function onIceCandidate_(otherPeer, event) {
+      if (event.candidate) {
+        var parsed = this.parseCandidate(event.candidate.candidate);
+        if (this.iceCandidateFilter_(parsed)) {
+          otherPeer.addIceCandidate(event.candidate);
+        }
+      }
+    }
+  }, {
+    key: 'parseCandidate',
+    value: function parseCandidate(text) {
+      var candidateStr = 'candidate:';
+      var pos = text.indexOf(candidateStr) + candidateStr.length;
+      var fields = text.substr(pos).split(' ');
+      return {
+        'type': fields[7],
+        'protocol': fields[2],
+        'address': fields[4]
+      };
+    }
+  }, {
+    key: 'setIceCandidateFilter',
+    value: function setIceCandidateFilter(filter) {
+      this.iceCandidateFilter_ = filter;
+    }
+
+    // Remove video FEC if available on the offer.
+
+  }, {
+    key: 'disableVideoFec',
+    value: function disableVideoFec() {
+      this.constrainOfferToRemoveVideoFec_ = true;
+    }
+
+    // Constraint max video bitrate by modifying the SDP when creating an answer.
+
+  }, {
+    key: 'constrainVideoBitrate',
+    value: function constrainVideoBitrate(maxVideoBitrateKbps) {
+      this.constrainVideoBitrateKbps_ = maxVideoBitrateKbps;
+    }
+  }], [{
+    key: 'noFilter',
+    value: function noFilter() {
+      return true;
+    }
+  }, {
+    key: 'isRelay',
+    value: function isRelay(candidate) {
+      return candidate.type === 'relay';
+    }
+  }]);
+
+  return WebrtcCall;
+}();
+
+exports.default = WebrtcCall;
+
+},{}],65:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
+
+var _TestSuite = require('../TestSuite');
+
+var _VideoFrameChecker = require('../VideoFrameChecker');
+
+var _VideoFrameChecker2 = _interopRequireDefault(_VideoFrameChecker);
+
+var _WebrtcCall = require('../WebrtcCall');
+
+var _WebrtcCall2 = _interopRequireDefault(_WebrtcCall);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var attachMediaStream = require('attachmediastream');
+
+var AdvancedCameraTest = function (_Test) {
+  _inherits(AdvancedCameraTest, _Test);
+
+  function AdvancedCameraTest() {
+    _classCallCheck(this, AdvancedCameraTest);
+
+    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(AdvancedCameraTest).apply(this, arguments));
+
+    _this.name = 'Advanced Video Test';
+    _this.tests = [];
+
+    _this.tests.push(new CameraResolutionTest([[320, 240]]));
+    _this.tests.push(new CameraResolutionTest([[640, 480]]));
+    _this.tests.push(new CameraResolutionTest([[1280, 720]]));
+    _this.tests.push(new CameraResolutionTest([[160, 120], [320, 180], [320, 240], [640, 360], [640, 480], [768, 576], [1024, 576], [1280, 720], [1280, 768], [1280, 800], [1920, 1080], [1920, 1200], [3840, 2160], [4096, 2160]]));
+    return _this;
+  }
+
+  _createClass(AdvancedCameraTest, [{
+    key: 'start',
+    value: function start() {
+      var _this2 = this;
+
+      _get(Object.getPrototypeOf(AdvancedCameraTest.prototype), 'start', this).call(this);
+
+      return new Promise(function (resolve, reject) {
+        _this2.reject = reject;
+        var testNum = 0;
+
+        while (testNum < _this2.tests.length) {
+          _this2.tests[testNum].run(function (results) {
+            _this2.logger.log(results.log);
+            _this2.logger.log(results.stats);
+            if (testNum == _this2.tests.length) {
+              resolve(_this2.log);
+            }
+          });
+          testNum++;
+        }
+      });
+    }
+  }, {
+    key: 'destroy',
+    value: function destroy() {
+      _get(Object.getPrototypeOf(AdvancedCameraTest.prototype), 'destroy', this).call(this);
+    }
+  }]);
+
+  return AdvancedCameraTest;
+}(_TestSuite.Test);
+
+// adapted from https://github.com/webrtc/testrtc
+
+var CameraResolutionTest = function () {
+  function CameraResolutionTest(resolutions) {
+    var duration = arguments.length <= 1 || arguments[1] === undefined ? 8000 : arguments[1];
+
+    _classCallCheck(this, CameraResolutionTest);
+
+    this.resolutions = resolutions;
+    this.duration = duration;
+    this.log = [];
+    this.currentResolution = 0;
+    this.isMuted = false;
+    this.isShuttingDown = false;
+  }
+
+  _createClass(CameraResolutionTest, [{
+    key: 'run',
+    value: function run(cb) {
+      this.cb = cb || function () {};
+      var settings = {
+        resolutions: this.resolutions,
+        duration: this.duration
+      };
+      this.logger.log('Advanced Camera Test with resolutions: ' + JSON.stringify(settings.resolutions) + ' and duration ' + JSON.stringify(settings.duration));
+      this.startGetUserMedia(this.resolutions[this.currentResolution]);
+    }
+  }, {
+    key: 'done',
+    value: function done() {
+      var results = {
+        log: this.log,
+        stats: this.stats,
+        resolutions: this.resolutions,
+        duration: this.duration
+      };
+      this.cb(results);
+    }
+  }, {
+    key: 'reportSuccess',
+    value: function reportSuccess(str) {
+      this.logger.log('SUCCESS: ' + str);
+    }
+  }, {
+    key: 'reportError',
+    value: function reportError(str) {
+      this.logger.log('ERROR: ' + str);
+    }
+  }, {
+    key: 'reportInfo',
+    value: function reportInfo(str) {
+      this.logger.log('INFO: ' + str);
+    }
+  }, {
+    key: 'startGetUserMedia',
+    value: function startGetUserMedia(resolution) {
+      var _this3 = this;
+
+      var constraints = {
+        audio: false,
+        video: {
+          width: { exact: resolution[0] },
+          height: { exact: resolution[1] }
+        }
+      };
+
+      navigator.mediaDevices.getUserMedia(constraints).then(function (stream) {
+        // Do not check actual video frames when more than one resolution is provided.
+        if (_this3.resolutions.length > 1) {
+          _this3.reportSuccess('Supported: ' + resolution[0] + 'x' + resolution[1]);
+          stream.getTracks().forEach(function (track) {
+            track.stop();
+          });
+          _this3.maybeContinueGetUserMedia();
+        } else {
+          _this3.collectAndAnalyzeStats_(stream, resolution);
+        }
+      }).catch(function (error) {
+        if (_this3.resolutions.length > 1) {
+          _this3.reportInfo(resolution[0] + 'x' + resolution[1] + ' not supported');
+        } else {
+          _this3.reportError('getUserMedia failed with error: ' + error);
+        }
+        _this3.maybeContinueGetUserMedia();
+      });
+    }
+  }, {
+    key: 'maybeContinueGetUserMedia',
+    value: function maybeContinueGetUserMedia() {
+      if (this.currentResolution === this.resolutions.length) {
+        return this.done();
+      }
+      this.startGetUserMedia(this.resolutions[this.currentResolution++]);
+    }
+  }, {
+    key: 'collectAndAnalyzeStats_',
+    value: function collectAndAnalyzeStats_(stream, resolution) {
+      var _this4 = this;
+
+      var tracks = stream.getVideoTracks();
+      if (tracks.length < 1) {
+        this.reportError('No video track in returned stream.');
+        this.maybeContinueGetUserMedia();
+        return;
+      }
+
+      // Firefox does not support event handlers on mediaStreamTrack yet.
+      // https://developer.mozilla.org/en-US/docs/Web/API/MediaStreamTrack
+      // TODO: remove if (...) when event handlers are supported by Firefox.
+      var videoTrack = tracks[0];
+      if (typeof videoTrack.addEventListener === 'function') {
+        // Register events.
+        videoTrack.addEventListener('ended', function () {
+          // Ignore events when shutting down the
+          if (_this4.isShuttingDown) {
+            return;
+          }
+          _this4.reportError('Video track ended, camera stopped working');
+        });
+        videoTrack.addEventListener('mute', function () {
+          // Ignore events when shutting down the test.
+          if (_this4.isShuttingDown) {
+            return;
+          }
+          _this4.reportError('Your camera reported itself as muted.');
+          // MediaStreamTrack.muted property is not wired up in Chrome yet,
+          // checking isMuted local state.
+          _this4.isMuted = true;
+        });
+        videoTrack.addEventListener('unmute', function () {
+          // Ignore events when shutting down the test.
+          if (_this4.isShuttingDown) {
+            return;
+          }
+          _this4.reportInfo('Your camera reported itself as unmuted.');
+          _this4.isMuted = false;
+        });
+      }
+
+      var video = document.createElement('video');
+      video.setAttribute('autoplay', '');
+      video.setAttribute('muted', '');
+      video.width = resolution[0];
+      video.height = resolution[1];
+      attachMediaStream(stream, video);
+      var frameChecker = new _VideoFrameChecker2.default(video);
+      var call = new _WebrtcCall2.default();
+      call.pc1.addStream(stream);
+      call.establishConnection();
+      call.gatherStats(call.pc1, this.onCallEnded_.bind(this, resolution, video, stream, frameChecker), 100);
+      setTimeout(this.endCall_(call, stream), 8000);
+    }
+  }, {
+    key: 'onCallEnded_',
+    value: function onCallEnded_(resolution, videoElement, stream, frameChecker, stats, statsTime) {
+      this.analyzeStats_(resolution, videoElement, stream, frameChecker, stats, statsTime);
+
+      frameChecker.stop();
+
+      this.done();
+    }
+  }, {
+    key: 'analyzeStats_',
+    value: function analyzeStats_(resolution, videoElement, stream, frameChecker, stats, statsTime) {
+      var googAvgEncodeTime = [];
+      var googAvgFrameRateInput = [];
+      var googAvgFrameRateSent = [];
+      var statsReport = {};
+      var frameStats = frameChecker.frameStats;
+
+      for (var index = 0; index < stats.length - 1; index++) {
+        if (stats[index].type === 'ssrc') {
+          // Make sure to only capture stats after the encoder is setup.
+          if (stats[index].stat('googFrameRateInput') > 0) {
+            googAvgEncodeTime.push(parseInt(stats[index].stat('googAvgEncodeMs'), 10));
+            googAvgFrameRateInput.push(parseInt(stats[index].stat('googFrameRateInput'), 10));
+            googAvgFrameRateSent.push(parseInt(stats[index].stat('googFrameRateSent'), 10));
+          }
+        }
+      }
+
+      statsReport.cameraName = stream.getVideoTracks()[0].label || NaN;
+      statsReport.actualVideoWidth = videoElement.videoWidth;
+      statsReport.actualVideoHeight = videoElement.videoHeight;
+      statsReport.mandatoryWidth = resolution[0];
+      statsReport.mandatoryHeight = resolution[1];
+      statsReport.encodeSetupTimeMs = this.extractEncoderSetupTime_(stats, statsTime);
+      statsReport.avgEncodeTimeMs = this.arrayAverage(googAvgEncodeTime);
+      statsReport.minEncodeTimeMs = _.min(googAvgEncodeTime);
+      statsReport.maxEncodeTimeMs = _.max(googAvgEncodeTime);
+      statsReport.avgInputFps = this.arrayAverage(googAvgFrameRateInput);
+      statsReport.minInputFps = _.min(googAvgFrameRateInput);
+      statsReport.maxInputFps = _.max(googAvgFrameRateInput);
+      statsReport.avgSentFps = this.arrayAverage(googAvgFrameRateSent);
+      statsReport.minSentFps = _.min(googAvgFrameRateSent);
+      statsReport.maxSentFps = _.max(googAvgFrameRateSent);
+      statsReport.isMuted = this.isMuted;
+      statsReport.testedFrames = frameStats.numFrames;
+      statsReport.blackFrames = frameStats.numBlackFrames;
+      statsReport.frozenFrames = frameStats.numFrozenFrames;
+
+      this.testExpectations_(statsReport);
+      this.stats = statsReport;
+    }
+  }, {
+    key: 'endCall_',
+    value: function endCall_(callObject, stream) {
+      this.isShuttingDown = true;
+      stream.getTracks().forEach(function (track) {
+        track.stop();
+      });
+      callObject.close();
+    }
+  }, {
+    key: 'extractEncoderSetupTime_',
+    value: function extractEncoderSetupTime_(stats, statsTime) {
+      for (var index = 0; index !== stats.length; index++) {
+        if (stats[index].type === 'ssrc') {
+          if (stats[index].stat('googFrameRateInput') > 0) {
+            return JSON.stringify(statsTime[index] - statsTime[0]);
+          }
+        }
+      }
+      return NaN;
+    }
+  }, {
+    key: 'resolutionMatchesIndependentOfRotationOrCrop_',
+    value: function resolutionMatchesIndependentOfRotationOrCrop_(aWidth, aHeight, bWidth, bHeight) {
+      var minRes = Math.min(bWidth, bHeight);
+      return aWidth === bWidth && aHeight === bHeight || aWidth === bHeight && aHeight === bWidth || aWidth === minRes && bHeight === minRes;
+    }
+  }, {
+    key: 'testExpectations_',
+    value: function testExpectations_(report) {
+      var notAvailableStats = [];
+
+      _.forEach(report, function (value, key) {
+        if (typeof value === 'number' && isNaN(value)) {
+          notAvailableStats.push(key);
+        }
+      });
+
+      if (notAvailableStats.length !== 0) {
+        report.notAvailableStatus = notAvailableStats;
+        this.reportInfo('Not available: ' + notAvailableStats.join(', '));
+      }
+      if (isNaN(report.avgSentFps)) {
+        this.reportInfo('Cannot verify sent FPS.');
+      } else if (report.avgSentFps < 5) {
+        this.reportError('Low average sent FPS: ' + report.avgSentFps);
+      } else {
+        this.reportSuccess('Average FPS above threshold');
+      }
+
+      if (!this.resolutionMatchesIndependentOfRotationOrCrop_(report.actualVideoWidth, report.actualVideoHeight, report.mandatoryWidth, report.mandatoryHeight)) {
+        this.reportError('Incorrect captured resolution.');
+      } else {
+        this.reportSuccess('Captured video using expected resolution.');
+      }
+
+      if (report.testedFrames === 0) {
+        this.reportError('Could not analyze any video frame.');
+      } else {
+        if (report.blackFrames > report.testedFrames / 3) {
+          this.reportError('Camera delivering lots of black frames.');
+        }
+        if (report.frozenFrames > report.testedFrames / 3) {
+          this.reportError('Camera delivering lots of frozen frames.');
+        }
+      }
+    }
+  }, {
+    key: 'arrayAverage',
+    value: function arrayAverage(array) {
+      var cnt = array.length;
+      var tot = 0;
+      for (var i = 0; i < cnt; i++) {
+        tot += array[i];
+      }
+      return Math.floor(tot / cnt);
+    }
+  }]);
+
+  return CameraResolutionTest;
+}();
+
+exports.default = AdvancedCameraTest;
+
+},{"../TestSuite":62,"../VideoFrameChecker":63,"../WebrtcCall":64,"attachmediastream":2}],66:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
+
+var _TestSuite = require('../TestSuite');
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var LocalMedia = require('localMedia');
+
+var AudioTest = function (_Test) {
+  _inherits(AudioTest, _Test);
+
+  function AudioTest() {
+    _classCallCheck(this, AudioTest);
+
+    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(AudioTest).apply(this, arguments));
+
+    _this.name = 'Audio Test';
+    _this.volumeTimeout = _this.options.volumeTimeout || 5000;
+
+    _this.localMedia = new LocalMedia({ detectSpeakingEvents: true });
+    return _this;
+  }
+
+  _createClass(AudioTest, [{
+    key: 'start',
+    value: function start() {
+      var _this2 = this;
+
+      _get(Object.getPrototypeOf(AudioTest.prototype), 'start', this).call(this);
+
+      return new Promise(function (resolve, reject) {
+        _this2.reject = reject;
+
+        var volumeCheckFailure = window.setTimeout(function () {
+          _this2.logger.error('webrtc-troubleshooter: No change in mic volume');
+          reject('audio timeout');
+        }, _this2.volumeTimeout);
+
+        _this2.localMedia.start(_this2.options, function (err) {
+          if (err) {
+            _this2.logger.error('webrtc-troubleshooter: Audio Local media start failed');
+            reject(err);
+          } else {
+            _this2.logger.log('webrtc-troubleshooter: Audio Local media started');
+          }
+        });
+
+        _this2.localMedia.on('volumeChange', function () {
+          window.clearTimeout(volumeCheckFailure);
+          resolve();
+        });
+
+        _this2.localMedia.on('localStream', function (stream) {
+          if (stream.getAudioTracks().length) {
+            var audioTrack = stream.getAudioTracks()[0];
+            if (audioTrack) {
+              _this2.logger.log('webrtc-troubleshooter: Audio stream passed');
+            } else {
+              _this2.logger.error('webrtc-troubleshooter: Audio stream failed');
+              reject('no audio tracks available');
+            }
+          }
+        });
+      });
+    }
+  }, {
+    key: 'destroy',
+    value: function destroy() {
+      _get(Object.getPrototypeOf(AudioTest.prototype), 'destroy', this).call(this);
+      this.localMedia.stop();
+    }
+  }]);
+
+  return AudioTest;
+}(_TestSuite.Test);
+
+exports.default = AudioTest;
+
+},{"../TestSuite":62,"localMedia":4}],67:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
+
+var _TestSuite = require('../TestSuite');
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var PeerConnection = require('rtcpeerconnection');
+var _ = require('lodash');
+
+var ConnectivityTest = function (_Test) {
+  _inherits(ConnectivityTest, _Test);
+
+  function ConnectivityTest() {
+    _classCallCheck(this, ConnectivityTest);
+
+    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(ConnectivityTest).apply(this, arguments));
+
+    _this.name = 'Connectivity Test';
+    return _this;
+  }
+
+  _createClass(ConnectivityTest, [{
+    key: 'logIceServers',
+    value: function logIceServers() {
+      var _this2 = this;
+
+      if (this.options.iceServers) {
+        this.options.iceServers.forEach(function (iceServer) {
+          _this2.logger.log('webrtc-troubleshooter: Using ICE Server: ' + iceServer.url);
+        });
+        if (this.options.iceServers.length === 0) {
+          this.logger.error('webrtc-troubleshooter: no ice servers provided');
+        }
+      } else {
+        this.logger.log('webrtc-troubleshooter: Using default ICE Servers');
+      }
+    }
+  }, {
+    key: 'start',
+    value: function start() {
+      var _this3 = this;
+
+      _get(Object.getPrototypeOf(ConnectivityTest.prototype), 'start', this).call(this);
+      this.pc1 = new PeerConnection(this.options);
+      this.pc2 = new PeerConnection(this.options);
+
+      return new Promise(function (resolve, reject) {
+        _this3.reject = reject;
+        var connectivityCheckFailure = window.setTimeout(function () {
+          _this3.logger.error('webrtc-troubleshooter: Connectivity timeout error');
+          reject('connectivity timeout');
+        }, 10000);
+        _this3.pc2.on('ice', function (candidate) {
+          _this3.logger.log('webrtc-troubleshooter: pc2 ICE candidate');
+          _this3.pc1.processIce(candidate);
+        });
+        _this3.pc1.on('ice', function (candidate) {
+          _this3.logger.log('webrtc-troubleshooter: pc1 ICE candidate');
+          _this3.pc2.processIce(candidate);
+        });
+        _this3.pc2.on('answer', function (answer) {
+          _this3.logger.log('webrtc-troubleshooter: pc2 handle answer');
+          _this3.pc1.handleAnswer(answer);
+        });
+
+        // when pc1 gets the offer, instantly handle the offer by pc2
+        _this3.pc1.on('offer', function (offer) {
+          _this3.logger.log('webrtc-troubleshooter: pc1 offer');
+          _this3.pc2.handleOffer(offer, function (err) {
+            if (err) {
+              _this3.logger.error('webrtc-troubleshooter: pc2 failed to handle offer');
+              reject(err);
+            }
+            _this3.logger.log('webrtc-troubleshooter: pc2 handle offer');
+            _this3.pc2.answer(function (err, answer) {
+              if (err) {
+                _this3.logger.error('webrtc-troubleshooter: pc2 failed answer');
+                reject(err);
+              }
+              _this3.logger.log('webrtc-troubleshooter: pc2 successful ' + answer.type);
+            });
+          });
+        });
+        _this3.dataChannel = _this3.pc1.createDataChannel('testChannel');
+
+        // generate list of messages to send over data channel
+        var messageQueue = _.map(new Array(100), function (n, i) {
+          return 'message ' + i;
+        });
+
+        var messagesReceived = 0;
+        // when the data channel receives a message, remove it from the queue
+        _this3.dataChannel.onmessage = function (msgEvent) {
+          _.remove(messageQueue, function (message) {
+            return message === msgEvent.data;
+          });
+          messagesReceived++;
+          // when all messages have been received, we're clear
+          if (messageQueue.length === 0) {
+            window.clearTimeout(connectivityCheckFailure);
+            _this3.logger.log('webrtc-troubleshooter: Received ' + messagesReceived + ' messages');
+            resolve();
+          }
+        };
+        // when pc2 gets a data channel, send all messageQueue items on it
+        _this3.pc2.on('addChannel', function (channel) {
+          channel.onopen = function () {
+            _this3.logger.log('webrtc-troubleshooter: Sending ' + messageQueue.length + ' messages');
+            _.each(_.clone(messageQueue), function (message) {
+              channel.send(message);
+            });
+          };
+        });
+
+        // kick it off
+        _this3.pc1.offer();
+      });
+    }
+  }, {
+    key: 'destroy',
+    value: function destroy() {
+      _get(Object.getPrototypeOf(ConnectivityTest.prototype), 'destroy', this).call(this);
+      this.pc1.close();
+      this.pc2.close();
+    }
+  }]);
+
+  return ConnectivityTest;
+}(_TestSuite.Test);
+
+exports.default = ConnectivityTest;
+
+},{"../TestSuite":62,"lodash":21,"rtcpeerconnection":61}],68:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
+
+var _WebrtcCall = require('../WebrtcCall');
+
+var _WebrtcCall2 = _interopRequireDefault(_WebrtcCall);
+
+var _TestSuite = require('../TestSuite');
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var DataChannelThroughputTest = function (_Test) {
+  _inherits(DataChannelThroughputTest, _Test);
+
+  function DataChannelThroughputTest() {
+    _classCallCheck(this, DataChannelThroughputTest);
+
+    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(DataChannelThroughputTest).apply(this, arguments));
+
+    _this.name = 'Data Throughput Test';
+    _this.testDurationSeconds = 5.0;
+    _this.startTime = null;
+    _this.sentPayloadBytes = 0;
+    _this.receivedPayloadBytes = 0;
+
+    _this.stopSending = false;
+
+    var makeString = function makeString() {
+      _this.samplePacket = '';
+
+      for (var i = 0; i !== 1024; ++i) {
+        _this.samplePacket += 'h';
+      }
+    };
+    makeString();
+
+    _this.maxNumberOfPacketsToSend = 1;
+    _this.bytesToKeepBuffered = 1024 * _this.maxNumberOfPacketsToSend;
+    _this.lastBitrateMeasureTime = null;
+    _this.lastReceivedPayloadBytes = 0;
+
+    _this.call = null;
+    _this.senderChannel = null;
+    _this.receiveChannel = null;
+    return _this;
+  }
+
+  _createClass(DataChannelThroughputTest, [{
+    key: 'start',
+    value: function start() {
+      var _this2 = this;
+
+      _get(Object.getPrototypeOf(DataChannelThroughputTest.prototype), 'start', this).call(this);
+
+      return new Promise(function (resolve, reject) {
+        _this2.resolve = resolve;
+        _this2.reject = reject;
+
+        if (!_this2.options.iceServers.length) {
+          _this2.logger.error('webrtc-troubleshooter: No ice servers were provided');
+          reject('No ice servers');
+        } else {
+          _this2.call = new _WebrtcCall2.default(_this2.options);
+          _this2.call.setIceCandidateFilter(_WebrtcCall2.default.isRelay);
+          _this2.senderChannel = _this2.call.pc1.createDataChannel(null);
+          _this2.senderChannel.addEventListener('open', _this2.sendingStep.bind(_this2));
+          _this2.call.pc2.addEventListener('datachannel', _this2.onReceiverChannel.bind(_this2));
+
+          _this2.call.establishConnection();
+        }
+      });
+    }
+  }, {
+    key: 'done',
+    value: function done() {
+      this.resolve();
+    }
+  }, {
+    key: 'onReceiverChannel',
+    value: function onReceiverChannel(event) {
+      this.receiveChannel = event.channel;
+      this.receiveChannel.addEventListener('message', this.onMessageReceived.bind(this));
+    }
+  }, {
+    key: 'sendingStep',
+    value: function sendingStep() {
+      var now = new Date();
+      if (!this.startTime) {
+        this.startTime = now;
+        this.lastBitrateMeasureTime = now;
+      }
+
+      for (var i = 0; i !== this.maxNumberOfPacketsToSend; ++i) {
+        if (this.senderChannel.bufferedAmount >= this.bytesToKeepBuffered) {
+          break;
+        }
+        this.sentPayloadBytes += this.samplePacket.length;
+        this.senderChannel.send(this.samplePacket);
+      }
+
+      if (now - this.startTime >= 1000 * this.testDurationSeconds) {
+        this.stopSending = true;
+      } else {
+        this.throughputTimeout = setTimeout(this.sendingStep.bind(this), 1);
+      }
+    }
+  }, {
+    key: 'onMessageReceived',
+    value: function onMessageReceived(event) {
+      this.receivedPayloadBytes += event.data.length;
+      var now = new Date();
+      if (now - this.lastBitrateMeasureTime >= 1000) {
+        var bitrate = (this.receivedPayloadBytes - this.lastReceivedPayloadBytes) / (now - this.lastBitrateMeasureTime);
+        bitrate = Math.round(bitrate * 1000 * 8) / 1000;
+        this.logger.log('webrtc-troubleshooter: Transmitting at ' + bitrate + ' kbps.');
+        this.lastReceivedPayloadBytes = this.receivedPayloadBytes;
+        this.lastBitrateMeasureTime = now;
+      }
+      if (this.stopSending && this.sentPayloadBytes === this.receivedPayloadBytes) {
+        this.call.close();
+        this.call = null;
+
+        var elapsedTime = Math.round((now - this.startTime) * 10) / 10000.0;
+        var receivedKBits = this.receivedPayloadBytes * 8 / 1000;
+        this.logger.log('webrtc-troubleshooter: ' + receivedKBits + ' kilo-bits in ' + elapsedTime + ' seconds.');
+        this.done();
+      }
+    }
+  }, {
+    key: 'destroy',
+    value: function destroy() {
+      _get(Object.getPrototypeOf(DataChannelThroughputTest.prototype), 'destroy', this).call(this);
+      window.clearTimeout(this.throughputTimeout);
+      if (this.call) {
+        this.call.close();
+        this.call = null;
+      }
+    }
+  }]);
+
+  return DataChannelThroughputTest;
+}(_TestSuite.Test);
+
+exports.default = DataChannelThroughputTest;
+
+},{"../TestSuite":62,"../WebrtcCall":64}],69:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
+
+var _WebrtcCall = require('../WebrtcCall');
+
+var _WebrtcCall2 = _interopRequireDefault(_WebrtcCall);
+
+var _TestSuite = require('../TestSuite');
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /* global webrtcsupport, localMedia, _ */
+
+// adapted from https://github.com/webrtc/testrtc/blob/master/src/js/bandwidth_test.js
+
+var _ = require('lodash');
+var localMedia = require('localMedia');
+
+var VideoBandwidthTest = function (_Test) {
+  _inherits(VideoBandwidthTest, _Test);
+
+  function VideoBandwidthTest() {
+    _classCallCheck(this, VideoBandwidthTest);
+
+    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(VideoBandwidthTest).apply(this, arguments));
+
+    _this.name = 'Bandwidth Test';
+    _this.maxVideoBitrateKbps = 2000;
+    _this.durationMs = 40000;
+    _this.statStepMs = 100;
+    _this.bweStats = new StatisticsAggregate(0.75 * _this.maxVideoBitrateKbps * 1000);
+    _this.rttStats = new StatisticsAggregate();
+    _this.packetsLost = null;
+    _this.videoStats = [];
+    _this.startTime = null;
+    _this.call = null;
+    // Open the camera with hd resolution specs to get a correct measurement of ramp-up time.
+    _this.constraints = {
+      audio: false,
+      video: {
+        width: {
+          min: 640,
+          ideal: 1280,
+          max: 1920
+        },
+        height: {
+          min: 480,
+          ideal: 720,
+          max: 1080
+        }
+      }
+
+    };
+    if (_this.options.mediaOptions.video.deviceId) {
+      _this.constraints.video.deviceId = _this.options.mediaOptions.video.deviceId;
+    }
+    _this.log = [];
+    return _this;
+  }
+
+  _createClass(VideoBandwidthTest, [{
+    key: 'start',
+    value: function start() {
+      var _this2 = this,
+          _arguments = arguments;
+
+      _get(Object.getPrototypeOf(VideoBandwidthTest.prototype), 'start', this).call(this);
+      this.log = this.results = { log: [] };
+
+      return new Promise(function (resolve, reject) {
+        _this2.reject = reject;
+
+        _this2.addLog('INFO', 'Video Bandwidth Test');
+
+        if (!_this2.options.iceConfig.iceServers.length) {
+          _this2.addLog('FATAL', 'No ice servers were provided');
+          reject(_this2.log);
+        } else {
+          _this2.call = new _WebrtcCall2.default(_this2.options.iceConfig);
+          _this2.call.setIceCandidateFilter(_WebrtcCall2.default.isRelay);
+          // FEC makes it hard to study bandwidth estimation since there seems to be
+          // a spike when it is enabled and disabled. Disable it for now. FEC issue
+          // tracked on: https://code.google.com/p/webrtc/issues/detail?id=3050
+          _this2.call.disableVideoFec();
+          _this2.call.constrainVideoBitrate(_this2.maxVideoBitrateKbps);
+
+          // this.doGetUserMedia(this.constraints, this.gotStream.bind(this)); // returns fail in two cases
+          var failFunc = function failFunc(error) {
+            _this2.addLog('ERROR', { 'status': 'fail', 'error': error });
+            if (onFail) {
+              onFail.apply(_this2, _arguments);
+            } else {
+              _this2.addLog('FATAL', 'Failed to get access to local media due to error: ' + error.name);
+              reject();
+            }
+          };
+          try {
+            _this2.addLog('INFO', { 'status': 'pending', 'constraints': _this2.constraints });
+            var locMedia = new localMedia(); // eslint-disable-line
+            locMedia.start(constraints, function (err, stream) {
+              if (err) {
+                return failFunc(err);
+              }
+              var cam = _this2.getDeviceName_(stream.getVideoTracks());
+              _this2.results.camera = cam;
+              _this2.addLog('INFO', { 'status': 'success', 'camera': cam });
+              onSuccess(stream);
+            });
+          } catch (e) {
+            _this2.addLog('FATAL', { 'status': 'exception', 'error': e.message });
+            reject();
+          }
+
+          // completed returns resolve
+        }
+      });
+    }
+  }, {
+    key: 'fail',
+    value: function fail() {
+      // this.deferred.reject(_.last(this.log));
+      console.log('stuff got rejected bandwidth');
+    }
+  }, {
+    key: 'done',
+    value: function done() {
+      // this.deferred.resolve();
+      console.log('stuff got resolved bandwidth');
+    }
+  }, {
+    key: 'addLog',
+    value: function addLog(level, msg) {
+      if (_.isObject(msg)) {
+        msg = JSON.stringify(msg);
+      }
+      this.results.log.push(level + ': ' + msg);
+    }
+  }, {
+    key: 'doGetUserMedia',
+    value: function doGetUserMedia(constraints, onSuccess, onFail) {
+      var _this3 = this,
+          _arguments2 = arguments;
+
+      var failFunc = function failFunc(error) {
+        _this3.addLog('ERROR', { 'status': 'fail', 'error': error });
+        if (onFail) {
+          onFail.apply(_this3, _arguments2);
+        } else {
+          _this3.addLog('FATAL', 'Failed to get access to local media due to error: ' + error.name);
+          return _this3.fail();
+        }
+      };
+      try {
+        this.addLog('INFO', { 'status': 'pending', 'constraints': constraints });
+        var locMedia = new localMedia(); // eslint-disable-line
+        locMedia.start(constraints, function (err, stream) {
+          if (err) {
+            return failFunc(err);
+          }
+          var cam = _this3.getDeviceName_(stream.getVideoTracks());
+          // this.results.camera = cam;
+          _this3.addLog('INFO', { 'status': 'success', 'camera': cam });
+          onSuccess(stream);
+        });
+      } catch (e) {
+        this.addLog('FATAL', { 'status': 'exception', 'error': e.message });
+        this.fail();
+      }
+    }
+  }, {
+    key: 'getDeviceName_',
+    value: function getDeviceName_(tracks) {
+      if (tracks.length === 0) {
+        return null;
+      }
+      return tracks[0].label;
+    }
+  }, {
+    key: 'gotStream',
+    value: function gotStream(stream) {
+      this.call.pc1.addStream(stream);
+      this.call.establishConnection();
+      this.startTime = new Date();
+      this.localStream = stream.getVideoTracks()[0];
+      this.nextTimeout = setTimeout(this.gatherStats.bind(this), this.statStepMs);
+    }
+  }, {
+    key: 'gatherStats',
+    value: function gatherStats() {
+      var _this4 = this;
+
+      var now = new Date();
+      if (now - this.startTime > this.durationMs) {
+        this.completed();
+      } else {
+        this.call.pc1.getStats(this.localStream).then(_.bind(this.gotStats, this)).catch(function (error) {
+          _this4.addLog('ERROR', 'Failed to getStats: ' + error);
+        });
+      }
+    }
+  }, {
+    key: 'gotStats',
+    value: function gotStats(response) {
+      var _this5 = this;
+
+      if (webrtcsupport.prefix === 'webkit') {
+        _.forEach(response.result(), function (report) {
+          if (report.id === 'bweforvideo') {
+            _this5.bweStats.add(Date.parse(report.timestamp), parseInt(report.stat('googAvailableSendBandwidth'), 10));
+          } else if (report.type === 'ssrc') {
+            _this5.rttStats.add(Date.parse(report.timestamp), parseInt(report.stat('googRtt'), 10));
+            // Grab the last stats.
+            _this5.videoStats[0] = report.stat('googFrameWidthSent');
+            _this5.videoStats[1] = report.stat('googFrameHeightSent');
+            _this5.packetsLost = report.stat('packetsLost');
+          }
+        });
+      } else if (webrtcsupport.prefix === 'moz') {
+        for (var j in response) {
+          var stats = response[j];
+          if (stats.id === 'outbound_rtcp_video_0') {
+            this.rttStats.add(Date.parse(stats.timestamp), parseInt(stats.mozRtt, 10));
+            // Grab the last stats.
+            this.jitter = stats.jitter;
+            this.packetsLost = stats.packetsLost;
+          } else if (stats.id === 'outbound_rtp_video_0') {
+            // TODO: Get dimensions from getStats when supported in FF.
+            this.videoStats[0] = 'Not supported on Firefox';
+            this.videoStats[1] = 'Not supported on Firefox';
+            this.bitrateMean = stats.bitrateMean;
+            this.bitrateStdDev = stats.bitrateStdDev;
+            this.framerateMean = stats.framerateMean;
+          }
+        }
+      } else {
+        this.addLog('ERROR', 'Only Firefox and Chrome getStats implementations are supported.');
+      }
+      this.nextTimeout = setTimeout(this.gatherStats.bind(this), this.statStepMs);
+    }
+  }, {
+    key: 'completed',
+    value: function completed() {
+      this.call.pc1.getLocalStreams()[0].getTracks().forEach(function (track) {
+        track.stop();
+      });
+      this.call.close();
+      this.call = null;
+      var stats = this.results.stats = {};
+
+      if (webrtcsupport.prefix === 'webkit') {
+        // Checking if greater than 2 because Chrome sometimes reports 2x2 when a camera starts but fails to deliver frames.
+        if (this.videoStats[0] < 2 && this.videoStats[1] < 2) {
+          this.addLog('ERROR', 'Camera failure: ' + this.videoStats[0] + 'x' + this.videoStats[1] + '. Cannot test bandwidth without a working camera.');
+        } else {
+          stats.resolution = this.videoStats[0] + 'x' + this.videoStats[1];
+          stats.bpsAvg = this.bweStats.getAverage();
+          stats.bpsMax = this.bweStats.getMax();
+          stats.rampUpTimeMs = this.bweStats.getRampUpTime();
+
+          this.addLog('INFO', 'Video resolution: ' + stats.resolution);
+          this.addLog('INFO', 'Send bandwidth estimate average: ' + stats.bpsAvg + ' bps');
+          this.addLog('INFO', 'Send bandwidth estimate max: ' + stats.bpsMax + ' bps');
+          this.addLog('INFO', 'Send bandwidth ramp-up time: ' + stats.rampUpTimeMs + ' ms');
+        }
+      } else if (webrtcsupport.prefix === 'moz') {
+        if (parseInt(this.framerateMean, 10) > 0) {
+          this.addLog('SUCCESS', 'Frame rate mean: ' + parseInt(this.framerateMean, 10));
+        } else {
+          this.addLog('ERROR', 'Frame rate mean is 0, cannot test bandwidth without a working camera.');
+        }
+        stats.framerateMean = this.framerateMean || null;
+
+        stats.bitrateMean = this.bitrateMean;
+        stats.bitrateStdDev = this.bitrateStdDev;
+        this.addLog('INFO', 'Send bitrate mean: ' + stats.bitrateMean + ' bps');
+        this.addLog('INFO', 'Send bitrate standard deviation: ' + stats.bitrateStdDev + ' bps');
+      }
+      stats.rttAverage = this.rttStats.getAverage();
+      stats.rttMax = this.rttStats.getMax();
+      stats.lostPackets = parseInt(this.packetsLost, 10);
+
+      this.addLog('INFO', 'RTT average: ' + stats.rttAverage + ' ms');
+      this.addLog('INFO', 'RTT max: ' + stats.rttMax + ' ms');
+      this.addLog('INFO', 'Lost packets: ' + stats.lostPackets);
+
+      this.done();
+    }
+  }, {
+    key: 'destroy',
+    value: function destroy() {
+      window.clearTimeout(this.nextTimeout);
+      if (this.call) {
+        this.call.close();
+        this.call = null;
+      }
+    }
+  }]);
+
+  return VideoBandwidthTest;
+}(_TestSuite.Test);
+
+var StatisticsAggregate = function () {
+  function StatisticsAggregate(rampUpThreshold) {
+    _classCallCheck(this, StatisticsAggregate);
+
+    this.startTime_ = 0;
+    this.sum_ = 0;
+    this.count_ = 0;
+    this.max_ = 0;
+    this.rampUpThreshold_ = rampUpThreshold;
+    this.rampUpTime_ = Infinity;
+  }
+
+  _createClass(StatisticsAggregate, [{
+    key: 'add',
+    value: function add(time, datapoint) {
+      if (this.startTime_ === 0) {
+        this.startTime_ = time;
+      }
+      this.sum_ += datapoint;
+      this.max_ = Math.max(this.max_, datapoint);
+      if (this.rampUpTime_ === Infinity && datapoint > this.rampUpThreshold_) {
+        this.rampUpTime_ = time;
+      }
+      this.count_++;
+    }
+  }, {
+    key: 'getAverage',
+    value: function getAverage() {
+      if (this.count_ === 0) {
+        return 0;
+      }
+      return Math.round(this.sum_ / this.count_);
+    }
+  }, {
+    key: 'getMax',
+    value: function getMax() {
+      return this.max_;
+    }
+  }, {
+    key: 'getRampUpTime',
+    value: function getRampUpTime() {
+      return this.rampUpTime_ - this.startTime_;
+    }
+  }]);
+
+  return StatisticsAggregate;
+}();
+
+exports.default = VideoBandwidthTest;
+
+},{"../TestSuite":62,"../WebrtcCall":64,"localMedia":4,"lodash":21}],70:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
+
+var _TestSuite = require('../TestSuite');
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var LocalMedia = require('localMedia');
+
+var VideoTest = function (_Test) {
+  _inherits(VideoTest, _Test);
+
+  function VideoTest() {
+    _classCallCheck(this, VideoTest);
+
+    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(VideoTest).apply(this, arguments));
+
+    _this.name = 'Video Test';
+
+    _this.localMedia = new LocalMedia({ detectSpeakingEvents: true });
+    return _this;
+  }
+
+  _createClass(VideoTest, [{
+    key: 'start',
+    value: function start() {
+      var _this2 = this;
+
+      _get(Object.getPrototypeOf(VideoTest.prototype), 'start', this).call(this);
+
+      return new Promise(function (resolve, reject) {
+        _this2.reject = reject;
+
+        _this2.localMedia.start(_this2.options, function (err) {
+          if (err) {
+            _this2.logger.log('webrtc-troubleshooter: Video Local media start failed ' + err.name);
+            reject(err);
+          } else {
+            _this2.logger.log('webrtc-troubleshooter: Video Local media started');
+          }
+        });
+
+        _this2.localMedia.on('localStream', function (stream) {
+          if (stream.getVideoTracks().length) {
+            var videoTrack = stream.getVideoTracks()[0];
+            if (videoTrack) {
+              _this2.logger.log('webrtc-troubleshooter: Video stream passed');
+              resolve();
+            } else {
+              _this2.logger.error('webrtc-troubleshooter: Video stream failed');
+              reject('no video track available');
+            }
+          }
+        });
+      });
+    }
+  }, {
+    key: 'destroy',
+    value: function destroy() {
+      _get(Object.getPrototypeOf(VideoTest.prototype), 'destroy', this).call(this);
+      this.localMedia.stop();
+    }
+  }]);
+
+  return VideoTest;
+}(_TestSuite.Test);
+
+exports.default = VideoTest;
+
+},{"../TestSuite":62,"localMedia":4}],71:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+exports.VideoBandwidthTest = exports.ThroughputTest = exports.AdvancedCameraTest = exports.ConnectivityTest = exports.VideoTest = exports.AudioTest = undefined;
+
+var _AudioTest = require('./AudioTest');
+
+var _AudioTest2 = _interopRequireDefault(_AudioTest);
+
+var _VideoTest = require('./VideoTest');
+
+var _VideoTest2 = _interopRequireDefault(_VideoTest);
+
+var _ConnectivityTest = require('./ConnectivityTest');
+
+var _ConnectivityTest2 = _interopRequireDefault(_ConnectivityTest);
+
+var _AdvancedCameraTest = require('./AdvancedCameraTest');
+
+var _AdvancedCameraTest2 = _interopRequireDefault(_AdvancedCameraTest);
+
+var _DataThroughputTest = require('./DataThroughputTest');
+
+var _DataThroughputTest2 = _interopRequireDefault(_DataThroughputTest);
+
+var _VideoBandwidthTest = require('./VideoBandwidthTest');
+
+var _VideoBandwidthTest2 = _interopRequireDefault(_VideoBandwidthTest);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+exports.AudioTest = _AudioTest2.default;
+exports.VideoTest = _VideoTest2.default;
+exports.ConnectivityTest = _ConnectivityTest2.default;
+exports.AdvancedCameraTest = _AdvancedCameraTest2.default;
+exports.ThroughputTest = _DataThroughputTest2.default;
+exports.VideoBandwidthTest = _VideoBandwidthTest2.default;
+
+},{"./AdvancedCameraTest":65,"./AudioTest":66,"./ConnectivityTest":67,"./DataThroughputTest":68,"./VideoBandwidthTest":69,"./VideoTest":70}],72:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {

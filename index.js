@@ -8,7 +8,7 @@ import {
     VideoBandwidthTest
 } from './utils/tests/defaultTests';
 
-module.exports = {
+export default {
     TestSuite,
     AudioTest,
     VideoTest,
