@@ -6,14 +6,14 @@ class WebrtcCall {
     this.pc1 = new RTCPeerConnection(config);
     this.pc2 = new RTCPeerConnection(config);
 
-    this.pc1.addEventListener('icecandidate', this.onIceCandidate_.bind(this, this.pc2));
-    this.pc2.addEventListener('icecandidate', this.onIceCandidate_.bind(this, this.pc1));
+    this.pc1.addEventListener('icecandidate', this.onIceCandidate.bind(this, this.pc2));
+    this.pc2.addEventListener('icecandidate', this.onIceCandidate.bind(this, this.pc1));
 
-    this.iceCandidateFilter_ = WebrtcCall.noFilter;
+    this.iceCandidateFilter = WebrtcCall.noFilter;
   }
 
   establishConnection () {
-    this.pc1.createOffer(this.gotOffer_.bind(this), console.error.bind(console));
+    this.pc1.createOffer(this.gotOffer.bind(this), console.error.bind(console));
   }
 
   close () {
@@ -26,53 +26,53 @@ class WebrtcCall {
   gatherStats (peerConnection, statsCb, interval) {
     const stats = [];
     const statsCollectTime = [];
-    getStats_();
+    getStats();
 
-    function getStats_ () {
+    function getStats () {
       if (peerConnection.signalingState === 'closed') {
         statsCb(stats, statsCollectTime);
         return;
       }
       // Work around for webrtc/testrtc#74
       if (typeof mozRTCPeerConnection !== 'undefined' && peerConnection instanceof mozRTCPeerConnection) {
-        setTimeout(getStats_, interval);
+        setTimeout(getStats, interval);
       } else {
-        setTimeout(peerConnection.getStats.bind(peerConnection, gotStats_), interval);
+        setTimeout(peerConnection.getStats.bind(peerConnection, gotStats), interval);
       }
     }
 
-    function gotStats_ (response) {
+    function gotStats (response) {
       for (let index in response.result()) {
         stats.push(response.result()[index]);
         statsCollectTime.push(Date.now());
       }
-      getStats_();
+      getStats();
     }
   }
 
-  gotOffer_ (offer) {
-    if (this.constrainOfferToRemoveVideoFec_) {
+  gotOffer (offer) {
+    if (this.constrainOfferToRemoveVideoFec) {
       offer.sdp = offer.sdp.replace(/(m=video 1 [^\r]+)(116 117)(\r\n)/g, '$1\r\n');
       offer.sdp = offer.sdp.replace(/a=rtpmap:116 red\/90000\r\n/g, '');
       offer.sdp = offer.sdp.replace(/a=rtpmap:117 ulpfec\/90000\r\n/g, '');
     }
     this.pc1.setLocalDescription(offer);
     this.pc2.setRemoteDescription(offer);
-    this.pc2.createAnswer(this.gotAnswer_.bind(this), console.error.bind(console));
+    this.pc2.createAnswer(this.gotAnswer.bind(this), console.error.bind(console));
   }
 
-  gotAnswer_ (answer) {
-    if (this.constrainVideoBitrateKbps_) {
-      answer.sdp = answer.sdp.replace(/a=mid:video\r\n/g, 'a=mid:video\r\nb=AS:' + this.constrainVideoBitrateKbps_ + '\r\n');
+  gotAnswer (answer) {
+    if (this.constrainVideoBitrateKbps) {
+      answer.sdp = answer.sdp.replace(/a=mid:video\r\n/g, 'a=mid:video\r\nb=AS:' + this.constrainVideoBitrateKbps + '\r\n');
     }
     this.pc2.setLocalDescription(answer);
     this.pc1.setRemoteDescription(answer);
   }
 
-  onIceCandidate_ (otherPeer, event) {
+  onIceCandidate (otherPeer, event) {
     if (event.candidate) {
       var parsed = this.parseCandidate(event.candidate.candidate);
-      if (this.iceCandidateFilter_(parsed)) {
+      if (this.iceCandidateFilter(parsed)) {
         otherPeer.addIceCandidate(event.candidate);
       }
     }
@@ -90,17 +90,17 @@ class WebrtcCall {
   }
 
   setIceCandidateFilter (filter) {
-    this.iceCandidateFilter_ = filter;
+    this.iceCandidateFilter = filter;
   }
 
   // Remove video FEC if available on the offer.
   disableVideoFec () {
-    this.constrainOfferToRemoveVideoFec_ = true;
+    this.constrainOfferToRemoveVideoFec = true;
   }
 
   // Constraint max video bitrate by modifying the SDP when creating an answer.
   constrainVideoBitrate (maxVideoBitrateKbps) {
-    this.constrainVideoBitrateKbps_ = maxVideoBitrateKbps;
+    this.constrainVideoBitrateKbps = maxVideoBitrateKbps;
   }
 
   static noFilter () {

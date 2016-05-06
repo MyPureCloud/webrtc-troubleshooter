@@ -1,6 +1,6 @@
 import { Test } from '../TestSuite';
+
 const PeerConnection = require('rtcpeerconnection');
-const _ = require('lodash');
 
 class ConnectivityTest extends Test {
   constructor () {
@@ -66,16 +66,23 @@ class ConnectivityTest extends Test {
       this.dataChannel = this.pc1.createDataChannel('testChannel');
 
       // generate list of messages to send over data channel
-      var messageQueue = _.map(new Array(100), (n, i) => {
+      var messageQueue = Array.apply(null, { length: 100 }).map((n, i) => {
+        return `message ${i}`;
+      });
+
+      // duplicating this is faster than cloning it
+      var messageQueue2 = Array.apply(null, { length: 100 }).map((n, i) => {
         return `message ${i}`;
       });
 
       var messagesReceived = 0;
       // when the data channel receives a message, remove it from the queue
       this.dataChannel.onmessage = (msgEvent) => {
-        _.remove(messageQueue, (message) => {
+        const message = messageQueue.find((message) => {
           return message === msgEvent.data;
         });
+        console.log('got a message', message);
+        messageQueue.splice(messageQueue.indexOf(message), 1);
         messagesReceived++;
         // when all messages have been received, we're clear
         if (messageQueue.length === 0) {
@@ -88,9 +95,7 @@ class ConnectivityTest extends Test {
       this.pc2.on('addChannel', (channel) => {
         channel.onopen = () => {
           this.logger.log(`webrtc-troubleshooter: Sending ${messageQueue.length} messages`);
-          _.each(_.clone(messageQueue), (message) => {
-            channel.send(message);
-          });
+          messageQueue2.forEach(channel.send.bind(channel));
         };
       });
 

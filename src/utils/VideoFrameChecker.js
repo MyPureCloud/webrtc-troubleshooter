@@ -8,55 +8,55 @@ class VideoFrameChecker {
       numFrames: 0
     };
 
-    this.running_ = true;
+    this.running = true;
 
     this.nonBlackPixelLumaThreshold = 20;
-    this.previousFrame_ = [];
+    this.previousFrame = [];
     this.identicalFrameSsimThreshold = 0.985;
     this.frameComparator = new Ssim();
 
-    this.canvas_ = document.createElement('canvas');
-    this.videoElement_ = videoElement;
-    this.listener_ = this.checkVideoFrame_.bind(this);
-    this.videoElement_.addEventListener('play', this.listener_, false);
+    this.canvas = document.createElement('canvas');
+    this.videoElement = videoElement;
+    this.listener = this.checkVideoFrame.bind(this);
+    this.videoElement.addEventListener('play', this.listener, false);
   }
   stop () {
-    this.videoElement_.removeEventListener('play', this.listener_);
-    this.running_ = false;
+    this.videoElement.removeEventListener('play', this.listener);
+    this.running = false;
   }
-  getCurrentImageData_ () {
-    this.canvas_.width = this.videoElement_.width;
-    this.canvas_.height = this.videoElement_.height;
+  getCurrentImageData () {
+    this.canvas.width = this.videoElement.width;
+    this.canvas.height = this.videoElement.height;
 
-    var context = this.canvas_.getContext('2d');
-    context.drawImage(this.videoElement_, 0, 0, this.canvas_.width,
-      this.canvas_.height);
-    return context.getImageData(0, 0, this.canvas_.width, this.canvas_.height);
+    var context = this.canvas.getContext('2d');
+    context.drawImage(this.videoElement, 0, 0, this.canvas.width,
+      this.canvas.height);
+    return context.getImageData(0, 0, this.canvas.width, this.canvas.height);
   }
-  checkVideoFrame_ () {
-    if (!this.running_) {
+  checkVideoFrame () {
+    if (!this.running) {
       return;
     }
-    if (this.videoElement_.ended) {
+    if (this.videoElement.ended) {
       return;
     }
 
-    var imageData = this.getCurrentImageData_();
+    var imageData = this.getCurrentImageData ();
 
-    if (this.isBlackFrame_(imageData.data, imageData.data.length)) {
+    if (this.isBlackFrame(imageData.data, imageData.data.length)) {
       this.frameStats.numBlackFrames++;
     }
 
-    if (this.frameComparator.calculate(this.previousFrame_, imageData.data) >
+    if (this.frameComparator.calculate(this.previousFrame, imageData.data) >
       this.identicalFrameSsimThreshold) {
       this.frameStats.numFrozenFrames++;
     }
-    this.previousFrame_ = imageData.data;
+    this.previousFrame = imageData.data;
 
     this.frameStats.numFrames++;
-    setTimeout(this.checkVideoFrame_.bind(this), 20);
+    setTimeout(this.checkVideoFrame.bind(this), 20);
   }
-  isBlackFrame_ (data, length) {
+  isBlackFrame (data, length) {
     // TODO: Use a statistical, histogram-based detection.
     var thresh = this.nonBlackPixelLumaThreshold;
     var accuLuma = 0;
@@ -74,45 +74,45 @@ class VideoFrameChecker {
 
 VideoFrameChecker.prototype = {
   stop: function () {
-    this.videoElement_.removeEventListener('play', this.listener_);
-    this.running_ = false;
+    this.videoElement.removeEventListener('play', this.listener);
+    this.running = false;
   },
 
-  getCurrentImageData_: function () {
-    this.canvas_.width = this.videoElement_.width;
-    this.canvas_.height = this.videoElement_.height;
+  getCurrentImageData: function () {
+    this.canvas.width = this.videoElement.width;
+    this.canvas.height = this.videoElement.height;
 
-    var context = this.canvas_.getContext('2d');
-    context.drawImage(this.videoElement_, 0, 0, this.canvas_.width,
-      this.canvas_.height);
-    return context.getImageData(0, 0, this.canvas_.width, this.canvas_.height);
+    var context = this.canvas.getContext('2d');
+    context.drawImage(this.videoElement, 0, 0, this.canvas.width,
+      this.canvas.height);
+    return context.getImageData(0, 0, this.canvas.width, this.canvas.height);
   },
 
-  checkVideoFrame_: function () {
-    if (!this.running_) {
+  checkVideoFrame: function () {
+    if (!this.running) {
       return;
     }
-    if (this.videoElement_.ended) {
+    if (this.videoElement.ended) {
       return;
     }
 
-    var imageData = this.getCurrentImageData_();
+    var imageData = this.getCurrentImageData();
 
-    if (this.isBlackFrame_(imageData.data, imageData.data.length)) {
+    if (this.isBlackFrame(imageData.data, imageData.data.length)) {
       this.frameStats.numBlackFrames++;
     }
 
-    if (this.frameComparator.calculate(this.previousFrame_, imageData.data) >
+    if (this.frameComparator.calculate(this.previousFrame, imageData.data) >
       this.identicalFrameSsimThreshold) {
       this.frameStats.numFrozenFrames++;
     }
-    this.previousFrame_ = imageData.data;
+    this.previousFrame = imageData.data;
 
     this.frameStats.numFrames++;
-    setTimeout(this.checkVideoFrame_.bind(this), 20);
+    setTimeout(this.checkVideoFrame.bind(this), 20);
   },
 
-  isBlackFrame_: function (data, length) {
+  isBlackFrame: function (data, length) {
     // TODO: Use a statistical, histogram-based detection.
     var thresh = this.nonBlackPixelLumaThreshold;
     var accuLuma = 0;

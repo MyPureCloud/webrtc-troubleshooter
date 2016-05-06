@@ -3,6 +3,7 @@ var video = true;
 var audio = true;
 
 var iceServers = [];
+WebRTCTroubleshooter = WebRTCTroubleshooter.default;
 var testSuite = new WebRTCTroubleshooter.TestSuite();
 
 document.getElementById('run-button').onclick = function startTroubleshooter () {

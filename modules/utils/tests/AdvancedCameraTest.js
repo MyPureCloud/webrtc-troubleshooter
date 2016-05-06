@@ -96,7 +96,7 @@ class CameraResolutionTest {
         });
         this.maybeContinueGetUserMedia();
       } else {
-        this.collectAndAnalyzeStats(stream, resolution);
+        this.collectAndanalyzeStats(stream, resolution);
       }
     }).catch((error) => {
       if (this.resolutions.length > 1) {
@@ -113,7 +113,7 @@ class CameraResolutionTest {
     }
     this.startGetUserMedia(this.resolutions[this.currentResolution++]);
   }
-  collectAndAnalyzeStats (stream, resolution) {
+  collectAndanalyzeStats (stream, resolution) {
     const tracks = stream.getVideoTracks();
     if (tracks.length < 1) {
       this.reportError('No video track in returned stream.');
