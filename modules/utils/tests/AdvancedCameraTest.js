@@ -26,8 +26,8 @@ class AdvancedCameraTest extends Test {
 
       while (testNum < this.tests.length) {
         this.tests[testNum].run((results) => {
-          this.log.push(results.log);
-          this.log.push(results.stats);
+          this.logger.log(results.log);
+          this.logger.log(results.stats);
           if (testNum == this.tests.length) {
             resolve(this.log);
           }
@@ -59,7 +59,7 @@ class CameraResolutionTest {
       resolutions: this.resolutions,
       duration: this.duration
     };
-    this.log.push(`Advanced Camera Test with resolutions: ${JSON.stringify(settings.resolutions)} and duration ${JSON.stringify(settings.duration)}`);
+    this.logger.log(`Advanced Camera Test with resolutions: ${JSON.stringify(settings.resolutions)} and duration ${JSON.stringify(settings.duration)}`);
     this.startGetUserMedia(this.resolutions[this.currentResolution]);
   }
   done () {
@@ -72,13 +72,13 @@ class CameraResolutionTest {
     this.cb(results);
   }
   reportSuccess (str) {
-    this.log.push(`SUCCESS: ${str}`);
+    this.logger.log(`SUCCESS: ${str}`);
   }
   reportError (str) {
-    this.log.push(`ERROR: ${str}`);
+    this.logger.log(`ERROR: ${str}`);
   }
   reportInfo (str) {
-    this.log.push(`INFO: ${str}`);
+    this.logger.log(`INFO: ${str}`);
   }
   startGetUserMedia (resolution) {
     const constraints = {
