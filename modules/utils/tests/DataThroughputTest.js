@@ -1,4 +1,3 @@
-
 import WebrtcCall from '../WebrtcCall';
 import { Test } from '../TestSuite';
 
@@ -36,13 +35,10 @@ class DataChannelThroughputTest extends Test {
 
     return new Promise((resolve, reject) => {
       this.reject = reject;
-      this.log = this.results = {log: []};
-
-      this.addLog('INFO', 'Data Channel Throughput Test');
 
       if (!this.options.iceServers.length) {
-        this.addLog('FATAL', 'No ice servers were provided');
-        reject(_.last(this.results.log));
+        this.logger.error('webrtc-troubleshooter: No ice servers were provided');
+        reject('No ice servers');
       } else {
         this.call = new WebrtcCall(this.options);
         this.call.setIceCandidateFilter(WebrtcCall.isRelay);
@@ -62,7 +58,7 @@ class DataChannelThroughputTest extends Test {
             if (now - this.lastBitrateMeasureTime >= 1000) {
               let bitrate = (this.receivedPayloadBytes - this.lastReceivedPayloadBytes) / (now - this.lastBitrateMeasureTime);
               bitrate = Math.round(bitrate * 1000 * 8) / 1000;
-              this.addLog('INFO', `Transmitting at ${bitrate} kbps.`);
+              this.logger.log(`webrtc-troubleshooter: Transmitting at ${bitrate} kbps.`);
               this.lastReceivedPayloadBytes = this.receivedPayloadBytes;
               this.lastBitrateMeasureTime = now;
             }
@@ -72,7 +68,7 @@ class DataChannelThroughputTest extends Test {
 
               const elapsedTime = Math.round((now - this.startTime) * 10) / 10000.0;
               const receivedKBits = this.receivedPayloadBytes * 8 / 1000;
-              this.addLog('INFO', `Total transmitted: ${receivedKBits} kilo-bits in ${elapsedTime} seconds.`);
+              this.logger.log(`webrtc-troubleshooter: Total transmitted: ${receivedKBits} kilo-bits in ${elapsedTime} seconds.`);
               this.results.stats = {
                 receivedKBits,
                 elapsedSeconds: elapsedTime
@@ -82,14 +78,9 @@ class DataChannelThroughputTest extends Test {
           });
         });
       }
-    })
+    });
   }
-  addLog (level, msg) {
-    if (_.isObject(msg)) {
-      msg = JSON.stringify;
-    }
-    this.results.log.push(`${level}: ${msg}`);
-  }
+
   // done () {
   //   this.deferred.resolve();
   // }
@@ -97,6 +88,7 @@ class DataChannelThroughputTest extends Test {
   //   this.receiveChannel = event.channel;
   //   this.receiveChannel.addEventListener('message', this.onMessageReceived.bind(this));
   // }
+
   sendingStep () {
     const now = new Date();
     if (!this.startTime) {
@@ -118,13 +110,14 @@ class DataChannelThroughputTest extends Test {
       this.throughputTimeout = setTimeout(this.sendingStep.bind(this), 1);
     }
   }
+
   // onMessageReceived (event) {
   //   this.receivedPayloadBytes += event.data.length;
   //   const now = new Date();
   //   if (now - this.lastBitrateMeasureTime >= 1000) {
   //     let bitrate = (this.receivedPayloadBytes - this.lastReceivedPayloadBytes) / (now - this.lastBitrateMeasureTime);
   //     bitrate = Math.round(bitrate * 1000 * 8) / 1000;
-  //     this.addLog('INFO', `Transmitting at ${bitrate} kbps.`);
+  //     this.logger.log(`webrtc-troubleshooter: Transmitting at ${bitrate} kbps.`);
   //     this.lastReceivedPayloadBytes = this.receivedPayloadBytes;
   //     this.lastBitrateMeasureTime = now;
   //   }
@@ -134,7 +127,7 @@ class DataChannelThroughputTest extends Test {
   //
   //     const elapsedTime = Math.round((now - this.startTime) * 10) / 10000.0;
   //     const receivedKBits = this.receivedPayloadBytes * 8 / 1000;
-  //     this.addLog('INFO', `Total transmitted: ${receivedKBits} kilo-bits in ${elapsedTime} seconds.`);
+  //     this.logger.log(`webrtc-troubleshooter: ${receivedKBits} kilo-bits in ${elapsedTime} seconds.`);
   //     this.results.stats = {
   //       receivedKBits,
   //       elapsedSeconds: elapsedTime
@@ -142,6 +135,7 @@ class DataChannelThroughputTest extends Test {
   //     this.done();
   //   }
   // }
+
   destroy () {
     super.destroy();
     window.clearTimeout(this.throughputTimeout);
