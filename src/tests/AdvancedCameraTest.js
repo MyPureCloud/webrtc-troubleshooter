@@ -8,6 +8,7 @@ export default class AdvancedCameraTest extends TestSuite {
     super(...arguments);
     this.name = 'Advanced Video Test';
     this.tests = [];
+    this.deferred = Promise.defer();
 
     this.addTest(new CameraResolutionTest([[320, 240]], options));
     this.addTest(new CameraResolutionTest([[640, 480]], options));
@@ -17,7 +18,7 @@ export default class AdvancedCameraTest extends TestSuite {
       [1920, 1200], [3840, 2160], [4096, 2160]], options));
   }
   start () {
-    return super.start();
+    return super.start().then(this.deferred.resolve, this.deferred.reject);
   }
 
   destroy () {

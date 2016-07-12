@@ -5747,6 +5747,7 @@ var AdvancedCameraTest = function (_TestSuite) {
 
     _this.name = 'Advanced Video Test';
     _this.tests = [];
+    _this.deferred = Promise.defer();
 
     _this.addTest(new _CameraResolutionTest2.default([[320, 240]], options));
     _this.addTest(new _CameraResolutionTest2.default([[640, 480]], options));
@@ -5758,7 +5759,7 @@ var AdvancedCameraTest = function (_TestSuite) {
   _createClass(AdvancedCameraTest, [{
     key: 'start',
     value: function start() {
-      return _get(Object.getPrototypeOf(AdvancedCameraTest.prototype), 'start', this).call(this);
+      return _get(Object.getPrototypeOf(AdvancedCameraTest.prototype), 'start', this).call(this).then(this.deferred.resolve, this.deferred.reject);
     }
   }, {
     key: 'destroy',
