@@ -25,7 +25,7 @@ export default class CameraResolutionTest extends Test {
       duration: this.duration
     };
     this.logger.log(`Advanced Camera Test with resolutions: ${JSON.stringify(settings.resolutions)} and duration ${JSON.stringify(settings.duration)}`);
-    return this.startGetUserMedia(this.resolutions[this.currentResolution]);
+    return this.startGetUserMedia(this.resolutions[this.currentResolution]).then(this.resolve.bind(this), this.reject.bind(this));
   }
 
   getResults () {

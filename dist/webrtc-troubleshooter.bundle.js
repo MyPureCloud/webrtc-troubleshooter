@@ -5849,7 +5849,7 @@ var AudioTest = function (_Test) {
           }
         }
       });
-      return this._promise.promise;
+      return this.deferred.promise;
     }
   }, {
     key: 'destroy',
@@ -5924,7 +5924,7 @@ var CameraResolutionTest = function (_Test) {
         duration: this.duration
       };
       this.logger.log('Advanced Camera Test with resolutions: ' + JSON.stringify(settings.resolutions) + ' and duration ' + JSON.stringify(settings.duration));
-      return this.startGetUserMedia(this.resolutions[this.currentResolution]);
+      return this.startGetUserMedia(this.resolutions[this.currentResolution]).then(this.resolve.bind(this), this.reject.bind(this));
     }
   }, {
     key: 'getResults',
@@ -6336,7 +6336,7 @@ var ConnectivityTest = function (_Test) {
 
       // kick it off
       this.pc1.offer();
-      return this._promise.promise;
+      return this.deferred.promise;
     }
   }, {
     key: 'destroy',
@@ -6432,7 +6432,7 @@ var DataChannelThroughputTest = function (_Test) {
 
         this.call.establishConnection();
       }
-      return this._promise.promise;
+      return this.defrred.promise;
     }
   }, {
     key: 'onReceiverChannel',
@@ -6620,7 +6620,7 @@ var VideoBandwidthTest = function (_Test) {
         _this2.addLog('error', { 'status': 'fail', 'error': error });
         _this2.addLog('error', 'Failed to get access to local media due to error: ' + error.name);
         console.warn('rejecting2', _this2);
-        _this2.reject(error);
+        return _this2.reject(error);
       });
     }
   }, {
@@ -6844,7 +6844,7 @@ var VideoTest = function (_Test) {
           }
         }
       });
-      return this._promise.promise;
+      return this.defrred.promise;
     }
   }, {
     key: 'destroy',
@@ -7042,6 +7042,7 @@ var Test = function () {
 
     this.options = options || {};
     this.logger = this.options.logger || console;
+    this.deferred = Promise.defer();
   }
 
   _createClass(Test, [{
@@ -7049,7 +7050,6 @@ var Test = function () {
     value: function start() {
       var _this = this;
 
-      this._promise = Promise.defer();
       this.timeout = window.setTimeout(function () {
         _this.reject(new Error('Test Timeout'));
       }, 45000);
@@ -7057,14 +7057,14 @@ var Test = function () {
   }, {
     key: 'resolve',
     value: function resolve() {
-      this._promise.resolve();
-      return this._promise.promise;
+      this.deferred.resolve();
+      return this.deferred.promise;
     }
   }, {
     key: 'reject',
     value: function reject(err) {
-      this._promise.reject(err);
-      return this._promise.promise;
+      this.deferred.reject(err);
+      return this.deferred.promise;
     }
   }, {
     key: 'destroy',

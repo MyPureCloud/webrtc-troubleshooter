@@ -79,7 +79,7 @@ export default class VideoBandwidthTest extends Test {
       this.addLog('error', {'status': 'fail', 'error': error});
       this.addLog('error', `Failed to get access to local media due to error: ${error.name}`);
       console.warn('rejecting2', this);
-      this.reject(error);
+      return this.reject(error);
     });
   }
 

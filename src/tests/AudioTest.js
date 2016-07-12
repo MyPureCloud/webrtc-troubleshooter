@@ -44,7 +44,7 @@ class AudioTest extends Test {
         }
       }
     });
-    return this._promise.promise;
+    return this.deferred.promise;
   }
 
   destroy () {

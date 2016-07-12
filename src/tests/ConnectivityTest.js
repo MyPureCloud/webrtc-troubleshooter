@@ -99,7 +99,7 @@ class ConnectivityTest extends Test {
 
     // kick it off
     this.pc1.offer();
-    return this._promise.promise;
+    return this.deferred.promise;
   }
 
   destroy () {

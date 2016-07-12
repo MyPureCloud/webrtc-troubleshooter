@@ -2,23 +2,23 @@ export default class Test {
   constructor (options) {
     this.options = options || {};
     this.logger = this.options.logger || console;
+    this.deferred = Promise.defer();
   }
 
   start () {
-    this._promise = Promise.defer();
     this.timeout = window.setTimeout(() => {
       this.reject(new Error('Test Timeout'));
     }, 45000);
   }
 
   resolve () {
-    this._promise.resolve();
-    return this._promise.promise;
+    this.deferred.resolve();
+    return this.deferred.promise;
   }
 
   reject (err) {
-    this._promise.reject(err);
-    return this._promise.promise;
+    this.deferred.reject(err);
+    return this.deferred.promise;
   }
 
   destroy () {

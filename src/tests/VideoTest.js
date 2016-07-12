@@ -1,7 +1,7 @@
 import Test from '../utils/Test';
 const LocalMedia = require('localMedia');
 
-class VideoTest extends Test {
+export default class VideoTest extends Test {
   constructor() {
     super(...arguments);
     this.name = 'Video Test';
@@ -33,7 +33,7 @@ class VideoTest extends Test {
         }
       }
     });
-    return this._promise.promise;
+    return this.defrred.promise;
   }
 
   destroy () {
@@ -41,5 +41,3 @@ class VideoTest extends Test {
     this.localMedia.stop();
   }
 }
-
-export default VideoTest;
