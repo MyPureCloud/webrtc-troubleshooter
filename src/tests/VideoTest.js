@@ -9,7 +9,7 @@ class VideoTest extends Test {
     this.localMedia = new LocalMedia({detectSpeakingEvents: true});
   }
 
-  start() {
+  start () {
     super.start();
 
     this.localMedia.start(this.options, (err) => {
@@ -36,7 +36,7 @@ class VideoTest extends Test {
     return this._promise.promise;
   }
 
-  destroy() {
+  destroy () {
     super.destroy();
     this.localMedia.stop();
   }

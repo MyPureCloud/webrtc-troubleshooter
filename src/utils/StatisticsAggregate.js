@@ -1,5 +1,5 @@
 export default class StatisticsAggregate {
-  constructor(rampUpThreshold) {
+  constructor (rampUpThreshold) {
     this.startTime = 0;
     this.sum = 0;
     this.count = 0;
@@ -7,7 +7,7 @@ export default class StatisticsAggregate {
     this.rampUpThreshold = rampUpThreshold;
     this.rampUpTime = Infinity;
   }
-  add(time, datapoint) {
+  add (time, datapoint) {
     if (this.startTime === 0) {
       this.startTime = time;
     }
@@ -19,16 +19,16 @@ export default class StatisticsAggregate {
     }
     this.count++;
   }
-  getAverage() {
+  getAverage () {
     if (this.count === 0) {
       return 0;
     }
     return Math.round(this.sum / this.count);
   }
-  getMax() {
+  getMax () {
     return this.max;
   }
-  getRampUpTime() {
+  getRampUpTime () {
     return this.rampUpTime - this.startTime;
   }
 }

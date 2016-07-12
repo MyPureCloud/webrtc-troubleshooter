@@ -6,7 +6,7 @@ import VideoFrameChecker from './VideoFrameChecker';
 import WebrtcCall from './WebrtcCall';
 
 export default class CameraResolutionTest {
-  constructor(resolutions, options) {
+  constructor (resolutions, options) {
     this.resolutions = resolutions;
     this.duration = options.duration;
     this.logger = options && options.logger ? options.logger : console;
@@ -16,7 +16,7 @@ export default class CameraResolutionTest {
     this.isShuttingDown = false;
   }
 
-  run() {
+  run () {
     const settings = {
       resolutions: this.resolutions,
       duration: this.duration
@@ -25,7 +25,7 @@ export default class CameraResolutionTest {
     return this.startGetUserMedia(this.resolutions[this.currentResolution]);
   }
 
-  getResults() {
+  getResults () {
     const results = {
       log: this.log,
       stats: this.stats,
@@ -35,24 +35,24 @@ export default class CameraResolutionTest {
     return results;
   }
 
-  reportSuccess(str) {
+  reportSuccess (str) {
     this.logger.log(`SUCCESS: ${str}`);
   }
 
-  reportError(str) {
-    this.logger.log(`ERROR: ${str}`);
+  reportError (str) {
+    this.logger.warn(`${str}`);
   }
 
-  reportInfo(str) {
-    this.logger.log(`INFO: ${str}`);
+  reportInfo (str) {
+    this.logger.info(`${str}`);
   }
 
-  startGetUserMedia(resolution) {
+  startGetUserMedia (resolution) {
     const constraints = {
       audio: false,
       video: {
-        width: { exact: resolution[0]},
-        height: { exact: resolution[1]}
+        width: { exact: resolution[0] },
+        height: { exact: resolution[1] }
       }
     };
 
@@ -78,14 +78,14 @@ export default class CameraResolutionTest {
     });
   }
 
-  maybeContinueGetUserMedia() {
+  maybeContinueGetUserMedia () {
     if (this.currentResolution === this.resolutions.length) {
       return this.getResults();
     }
     return this.startGetUserMedia(this.resolutions[this.currentResolution++]);
   }
 
-  collectAndAnalyzeStats(stream, resolution) {
+  collectAndAnalyzeStats (stream, resolution) {
     const tracks = stream.getVideoTracks();
     if (tracks.length < 1) {
       this.reportError('No video track in returned stream.');
@@ -139,14 +139,14 @@ export default class CameraResolutionTest {
 
     return call.establishConnection().then(() => {
       return call.gatherStats(call.pc1, 100);
-    }).then((stats, statsTime) => {
-      const result = this.analyzeStats({resolution, videoElement, stream, frameChecker, stats, statsTime});
+    }).then(({stats, statsCollectTime}) => {
+      const result = this.analyzeStats({resolution, videoElement, stream, frameChecker, stats, statsCollectTime});
       frameChecker.stop();
       return result;
     });
   }
 
-  analyzeStats({resolution, videoElement, stream, frameChecker, stats, statsTime}) {
+  analyzeStats ({resolution, videoElement, stream, frameChecker, stats, statsCollectTime}) {
     const googAvgEncodeTime = [];
     const googAvgFrameRateInput = [];
     const googAvgFrameRateSent = [];
@@ -172,7 +172,7 @@ export default class CameraResolutionTest {
     statsReport.actualVideoHeight = videoElement.videoHeight;
     statsReport.mandatoryWidth = resolution[0];
     statsReport.mandatoryHeight = resolution[1];
-    statsReport.encodeSetupTimeMs = this.extractEncoderSetupTime(stats, statsTime);
+    statsReport.encodeSetupTimeMs = this.extractEncoderSetupTime(stats, statsCollectTime);
     statsReport.avgEncodeTimeMs = this.arrayAverage(googAvgEncodeTime);
     statsReport.minEncodeTimeMs = Math.min(...googAvgEncodeTime);
     statsReport.maxEncodeTimeMs = Math.max(...googAvgEncodeTime);
@@ -191,7 +191,7 @@ export default class CameraResolutionTest {
     return statsReport;
   }
 
-  endCall(callObject, stream) {
+  endCall (callObject, stream) {
     this.isShuttingDown = true;
     stream.getTracks().forEach((track) => {
       track.stop();
@@ -199,25 +199,25 @@ export default class CameraResolutionTest {
     callObject.close();
   }
 
-  extractEncoderSetupTime(stats, statsTime) {
+  extractEncoderSetupTime (stats, statsCollectTime) {
     for (let index = 0; index !== stats.length; index++) {
       if (stats[index].type === 'ssrc') {
         if (stats[index].stat('googFrameRateInput') > 0) {
-          return JSON.stringify(statsTime[index] - statsTime[0]);
+          return JSON.stringify(statsCollectTime[index] - statsCollectTime[0]);
         }
       }
     }
     return NaN;
   }
 
-  resolutionMatchesIndependentOfRotationOrCrop(aWidth, aHeight, bWidth, bHeight) {
+  resolutionMatchesIndependentOfRotationOrCrop (aWidth, aHeight, bWidth, bHeight) {
     const minRes = Math.min(bWidth, bHeight);
     return (aWidth === bWidth && aHeight === bHeight) ||
     (aWidth === bHeight && aHeight === bWidth) ||
     (aWidth === minRes && bHeight === minRes);
   }
 
-  testExpectations(report) {
+  testExpectations (report) {
     const notAvailableStats = [];
 
     for (let key in report) {
@@ -258,7 +258,7 @@ export default class CameraResolutionTest {
     }
   }
 
-  arrayAverage(array) {
+  arrayAverage (array) {
     const cnt = array.length;
     let tot = 0;
     for (let i = 0; i < cnt; i++) {

@@ -5,7 +5,7 @@ import Test from '../utils/Test';
 import StatisticsAggregate from '../utils/StatisticsAggregate';
 
 export default class VideoBandwidthTest extends Test {
-  constructor() {
+  constructor () {
     super(...arguments);
     this.name = 'Bandwidth Test';
     this.maxVideoBitrateKbps = 2000;
@@ -40,7 +40,7 @@ export default class VideoBandwidthTest extends Test {
     this.log = [];
   }
 
-  start() {
+  start () {
     super.start();
     this.log = this.results = {log: []};
 
@@ -61,19 +61,19 @@ export default class VideoBandwidthTest extends Test {
     return this.doGetUserMedia(this.constraints);
   }
 
-  addLog(level, msg) {
+  addLog (level, msg) {
+    this.logger[level.toLowerCase()](msg);
     if (msg && typeof msg === 'Object') {
       msg = JSON.stringify(msg);
     }
     this.results.log.push(`${level}: ${msg}`);
   }
 
-  doGetUserMedia(constraints) {
-    this.addLog('INFO', {'status': 'pending', 'constraints': constraints});
+  doGetUserMedia (constraints) {
+    this.addLog('INFO', { status: 'pending', constraints });
     return navigator.mediaDevices.getUserMedia({ audio: true, video: true }).then((stream) => {
-      const cam = this.getDeviceName(stream.getVideoTracks());
-      // this.results.camera = cam;
-      this.addLog('INFO', {'status': 'success', 'camera': cam});
+      const camera = this.getDeviceName(stream.getVideoTracks());
+      this.addLog('INFO', { status: 'success', camera });
       return this.gotStream(stream).then(this.resolve.bind(this), this.reject.bind(this));
     }, (error) => {
       this.addLog('ERROR', {'status': 'fail', 'error': error});
@@ -83,16 +83,17 @@ export default class VideoBandwidthTest extends Test {
     });
   }
 
-  getDeviceName(tracks) {
+  getDeviceName (tracks) {
     if (tracks.length === 0) {
       return null;
     }
     return tracks[0].label;
   }
 
-  gotStream(stream) {
+  gotStream (stream) {
     this.call.pc1.addStream(stream);
     return this.call.establishConnection().then(() => {
+      this.addLog('INFO', { status: 'success', message: 'establishing connection' });
       this.startTime = new Date();
       this.localStream = stream.getVideoTracks()[0];
 
@@ -101,13 +102,16 @@ export default class VideoBandwidthTest extends Test {
           this.gatherStats().then(resolve, reject);
         }, this.statStepMs);
       });
+    }, (error) => {
+      this.addLog('WARN', { status: 'error', error });
+      return Promise.reject(error);
     });
   }
 
-  gatherStats() {
+  gatherStats () {
     const now = new Date();
     if (now - this.startTime > this.durationMs) {
-      return this.completed();
+      return Promise.resolve(this.completed());
     }
     return this.call.pc1.getStats(this.localStream)
       .then(this.gotStats.bind(this), (error) => {
@@ -115,19 +119,19 @@ export default class VideoBandwidthTest extends Test {
       });
   }
 
-  gotStats(response) {
+  gotStats (response) {
     const isWebkit = 'WebkitAppearance' in document.documentElement.style;
     const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
     if (isWebkit) {
-      response.result().forEach((report) => {
+      response.forEach((report) => {
         if (report.id === 'bweforvideo') {
-          this.bweStats.add(Date.parse(report.timestamp), parseInt(report.stat('googAvailableSendBandwidth'), 10));
+          this.bweStats.add(Date.parse(report.timestamp), parseInt(report['googAvailableSendBandwidth'], 10));
         } else if (report.type === 'ssrc') {
-          this.rttStats.add(Date.parse(report.timestamp), parseInt(report.stat('googRtt'), 10));
+          this.rttStats.add(Date.parse(report.timestamp), parseInt(report['googRtt'], 10));
           // Grab the last stats.
-          this.videoStats[0] = report.stat('googFrameWidthSent');
-          this.videoStats[1] = report.stat('googFrameHeightSent');
-          this.packetsLost = report.stat('packetsLost');
+          this.videoStats[0] = report['googFrameWidthSent'];
+          this.videoStats[1] = report['googFrameHeightSent'];
+          this.packetsLost = report['packetsLost'];
         }
       });
     } else if (isFirefox) {
@@ -156,7 +160,7 @@ export default class VideoBandwidthTest extends Test {
       }, this.statStepMs);
     });
   }
-  completed() {
+  completed () {
     const isWebkit = 'WebkitAppearance' in document.documentElement.style;
     const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
     this.call.pc1.getLocalStreams()[0].getTracks().forEach((track) => {
@@ -204,7 +208,7 @@ export default class VideoBandwidthTest extends Test {
     return this.results;
   }
 
-  destroy() {
+  destroy () {
     super.destroy();
     window.clearTimeout(this.nextTimeout);
     if (this.call) {

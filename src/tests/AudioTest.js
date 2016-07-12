@@ -3,7 +3,7 @@ import Test from '../utils/Test';
 const localMedia = require('localMedia');
 
 class AudioTest extends Test {
-  constructor() {
+  constructor () {
     super(...arguments);
     this.name = 'Audio Test';
     this.volumeTimeout = this.options.volumeTimeout || 5000;
@@ -11,7 +11,7 @@ class AudioTest extends Test {
     this.localMedia = new localMedia({detectSpeakingEvents: true});
   }
 
-  start() {
+  start () {
     super.start();
 
     const volumeCheckFailure = window.setTimeout(() => {
@@ -47,7 +47,7 @@ class AudioTest extends Test {
     return this._promise.promise;
   }
 
-  destroy() {
+  destroy () {
     super.destroy();
     this.localMedia.stop();
   }

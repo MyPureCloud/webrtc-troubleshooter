@@ -8,4 +8,5 @@ export default {
   ConnectivityTest,
   AdvancedCameraTest,
   ThroughputTest,
-VideoBandwidthTest};
+  VideoBandwidthTest
+};

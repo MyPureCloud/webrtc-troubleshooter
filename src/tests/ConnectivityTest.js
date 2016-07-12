@@ -3,12 +3,12 @@ import Test from '../utils/Test';
 const PeerConnection = require('rtcpeerconnection');
 
 class ConnectivityTest extends Test {
-  constructor() {
+  constructor () {
     super(...arguments);
     this.name = 'Connectivity Test';
   }
 
-  logIceServers() {
+  logIceServers () {
     if (this.options.iceServers) {
       this.options.iceServers.forEach((iceServer) => {
         this.logger.log(`webrtc-troubleshooter: Using ICE Server: ${iceServer.url}`);
@@ -21,7 +21,7 @@ class ConnectivityTest extends Test {
     }
   }
 
-  start() {
+  start () {
     super.start();
     this.pc1 = new PeerConnection(this.options);
     this.pc2 = new PeerConnection(this.options);
@@ -79,7 +79,7 @@ class ConnectivityTest extends Test {
       const message = messageQueue.find((message) => {
         return message === msgEvent.data;
       });
-      this.logger.log('got a message', message);
+      this.logger.debug('got a message', message);
       messageQueue.splice(messageQueue.indexOf(message), 1);
       messagesReceived++;
       // when all messages have been received, we're clear
@@ -102,7 +102,7 @@ class ConnectivityTest extends Test {
     return this._promise.promise;
   }
 
-  destroy() {
+  destroy () {
     super.destroy();
     this.pc1.close();
     this.pc2.close();

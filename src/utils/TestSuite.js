@@ -1,5 +1,5 @@
 export default class TestSuite {
-  constructor(options) {
+  constructor (options) {
     options = options || {};
     this.allTestsComplete = false;
     this.running = false;
@@ -7,17 +7,17 @@ export default class TestSuite {
     this.logger = options.logger || console;
   }
 
-  addTest(test) {
+  addTest (test) {
     this.queue.push(test);
   }
 
-  start() {
+  start () {
     return new Promise((resolve, reject) => {
       return this.runNextTest().then(resolve, reject);
     });
   }
 
-  runNextTest() {
+  runNextTest () {
     this.running = true;
     const test = this.queue.shift();
 
@@ -35,21 +35,15 @@ export default class TestSuite {
       return this.runNextTest();
     };
 
-    const testResult = test.start();
-
-    if (!testResult) {
-      debugger;
-    }
-
-    return testResult.then(() => {
+    return test.start().then(() => {
       return next();
     }, (err) => {
-      test.reject(err);
+      this.logger.error('Test failure', err, test);
       return next();
     });
   }
 
-  stopAllTests() {
+  stopAllTests () {
     this.activeTest.destroy();
     this.queue = [];
   }

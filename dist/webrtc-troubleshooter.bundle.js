@@ -300,7 +300,7 @@ Object.defineProperty(LocalMedia.prototype, 'localScreen', {
 
 module.exports = LocalMedia;
 
-},{"getscreenmedia":2,"getusermedia":3,"hark":14,"mediastream-gain":15,"mockconsole":16,"util":54,"webrtcsupport":17,"wildemitter":18}],2:[function(require,module,exports){
+},{"getscreenmedia":2,"getusermedia":3,"hark":14,"mediastream-gain":15,"mockconsole":16,"util":55,"webrtcsupport":17,"wildemitter":18}],2:[function(require,module,exports){
 // getScreenMedia helper by @HenrikJoreteg
 var getUserMedia = require('getusermedia');
 
@@ -4724,7 +4724,7 @@ TraceablePeerConnection.prototype.getStats = function () {
 
 module.exports = TraceablePeerConnection;
 
-},{"util":54,"webrtc-adapter":26,"wildemitter":35}],25:[function(require,module,exports){
+},{"util":55,"webrtc-adapter":26,"wildemitter":35}],25:[function(require,module,exports){
 arguments[4][4][0].apply(exports,arguments)
 },{"dup":4}],26:[function(require,module,exports){
 arguments[4][5][0].apply(exports,arguments)
@@ -5636,7 +5636,7 @@ PeerConnection.prototype.getStats = function (cb) {
 
 module.exports = PeerConnection;
 
-},{"sdp-jingle-json":19,"traceablepeerconnection":24,"util":54,"webrtc-adapter":26,"wildemitter":35}],37:[function(require,module,exports){
+},{"sdp-jingle-json":19,"traceablepeerconnection":24,"util":55,"webrtc-adapter":26,"wildemitter":35}],37:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -5699,9 +5699,10 @@ exports.default = {
   ConnectivityTest: _defaultTests.ConnectivityTest,
   AdvancedCameraTest: _defaultTests.AdvancedCameraTest,
   ThroughputTest: _defaultTests.ThroughputTest,
-  VideoBandwidthTest: _defaultTests.VideoBandwidthTest };
+  VideoBandwidthTest: _defaultTests.VideoBandwidthTest
+};
 
-},{"./defaultTests":37,"./utils/TestSuite":48}],39:[function(require,module,exports){
+},{"./defaultTests":37,"./utils/TestSuite":49}],39:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -5775,7 +5776,7 @@ var AdvancedCameraTest = function (_Test) {
 
 exports.default = AdvancedCameraTest;
 
-},{"../utils/CameraResolutionTest":45,"../utils/Test":47,"../utils/VideoFrameChecker":49,"../utils/WebrtcCall":50}],40:[function(require,module,exports){
+},{"../utils/CameraResolutionTest":45,"../utils/Test":48,"../utils/VideoFrameChecker":50,"../utils/WebrtcCall":51}],40:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -5867,7 +5868,7 @@ var AudioTest = function (_Test) {
 
 exports.default = AudioTest;
 
-},{"../utils/Test":47,"localMedia":1}],41:[function(require,module,exports){
+},{"../utils/Test":48,"localMedia":1}],41:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -5982,7 +5983,7 @@ var ConnectivityTest = function (_Test) {
         var message = messageQueue.find(function (message) {
           return message === msgEvent.data;
         });
-        _this3.logger.log('got a message', message);
+        _this3.logger.debug('got a message', message);
         messageQueue.splice(messageQueue.indexOf(message), 1);
         messagesReceived++;
         // when all messages have been received, we're clear
@@ -6018,7 +6019,7 @@ var ConnectivityTest = function (_Test) {
 
 exports.default = ConnectivityTest;
 
-},{"../utils/Test":47,"rtcpeerconnection":36}],42:[function(require,module,exports){
+},{"../utils/Test":48,"rtcpeerconnection":36}],42:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -6168,7 +6169,7 @@ var DataChannelThroughputTest = function (_Test) {
 
 exports.default = DataChannelThroughputTest;
 
-},{"../utils/Test":47,"../utils/WebrtcCall":50}],43:[function(require,module,exports){
+},{"../utils/Test":48,"../utils/WebrtcCall":51}],43:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -6266,6 +6267,7 @@ var VideoBandwidthTest = function (_Test) {
   }, {
     key: 'addLog',
     value: function addLog(level, msg) {
+      this.logger[level.toLowerCase()](msg);
       if (msg && typeof msg === 'Object') {
         msg = JSON.stringify(msg);
       }
@@ -6276,11 +6278,10 @@ var VideoBandwidthTest = function (_Test) {
     value: function doGetUserMedia(constraints) {
       var _this2 = this;
 
-      this.addLog('INFO', { 'status': 'pending', 'constraints': constraints });
+      this.addLog('INFO', { status: 'pending', constraints: constraints });
       return navigator.mediaDevices.getUserMedia({ audio: true, video: true }).then(function (stream) {
-        var cam = _this2.getDeviceName(stream.getVideoTracks());
-        // this.results.camera = cam;
-        _this2.addLog('INFO', { 'status': 'success', 'camera': cam });
+        var camera = _this2.getDeviceName(stream.getVideoTracks());
+        _this2.addLog('INFO', { status: 'success', camera: camera });
         return _this2.gotStream(stream).then(_this2.resolve.bind(_this2), _this2.reject.bind(_this2));
       }, function (error) {
         _this2.addLog('ERROR', { 'status': 'fail', 'error': error });
@@ -6304,6 +6305,7 @@ var VideoBandwidthTest = function (_Test) {
 
       this.call.pc1.addStream(stream);
       return this.call.establishConnection().then(function () {
+        _this3.addLog('INFO', { status: 'success', message: 'establishing connection' });
         _this3.startTime = new Date();
         _this3.localStream = stream.getVideoTracks()[0];
 
@@ -6312,6 +6314,9 @@ var VideoBandwidthTest = function (_Test) {
             _this3.gatherStats().then(resolve, reject);
           }, _this3.statStepMs);
         });
+      }, function (error) {
+        _this3.addLog('WARN', { status: 'error', error: error });
+        return Promise.reject(error);
       });
     }
   }, {
@@ -6321,7 +6326,7 @@ var VideoBandwidthTest = function (_Test) {
 
       var now = new Date();
       if (now - this.startTime > this.durationMs) {
-        return this.completed();
+        return Promise.resolve(this.completed());
       }
       return this.call.pc1.getStats(this.localStream).then(this.gotStats.bind(this), function (error) {
         _this4.addLog('ERROR', 'Failed to getStats: ' + error);
@@ -6335,15 +6340,15 @@ var VideoBandwidthTest = function (_Test) {
       var isWebkit = 'WebkitAppearance' in document.documentElement.style;
       var isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
       if (isWebkit) {
-        response.result().forEach(function (report) {
+        response.forEach(function (report) {
           if (report.id === 'bweforvideo') {
-            _this5.bweStats.add(Date.parse(report.timestamp), parseInt(report.stat('googAvailableSendBandwidth'), 10));
+            _this5.bweStats.add(Date.parse(report.timestamp), parseInt(report['googAvailableSendBandwidth'], 10));
           } else if (report.type === 'ssrc') {
-            _this5.rttStats.add(Date.parse(report.timestamp), parseInt(report.stat('googRtt'), 10));
+            _this5.rttStats.add(Date.parse(report.timestamp), parseInt(report['googRtt'], 10));
             // Grab the last stats.
-            _this5.videoStats[0] = report.stat('googFrameWidthSent');
-            _this5.videoStats[1] = report.stat('googFrameHeightSent');
-            _this5.packetsLost = report.stat('packetsLost');
+            _this5.videoStats[0] = report['googFrameWidthSent'];
+            _this5.videoStats[1] = report['googFrameHeightSent'];
+            _this5.packetsLost = report['packetsLost'];
           }
         });
       } else if (isFirefox) {
@@ -6439,7 +6444,7 @@ var VideoBandwidthTest = function (_Test) {
 exports.default = VideoBandwidthTest;
 exports.default = VideoBandwidthTest;
 
-},{"../utils/StatisticsAggregate":46,"../utils/Test":47,"../utils/WebrtcCall":50}],44:[function(require,module,exports){
+},{"../utils/StatisticsAggregate":47,"../utils/Test":48,"../utils/WebrtcCall":51}],44:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -6521,7 +6526,7 @@ var VideoTest = function (_Test) {
 
 exports.default = VideoTest;
 
-},{"../utils/Test":47,"localMedia":1}],45:[function(require,module,exports){
+},{"../utils/Test":48,"localMedia":1}],45:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -6586,12 +6591,12 @@ var CameraResolutionTest = function () {
   }, {
     key: 'reportError',
     value: function reportError(str) {
-      this.logger.log('ERROR: ' + str);
+      this.logger.warn('' + str);
     }
   }, {
     key: 'reportInfo',
     value: function reportInfo(str) {
-      this.logger.log('INFO: ' + str);
+      this.logger.info('' + str);
     }
   }, {
     key: 'startGetUserMedia',
@@ -6693,21 +6698,24 @@ var CameraResolutionTest = function () {
 
       return call.establishConnection().then(function () {
         return call.gatherStats(call.pc1, 100);
-      }).then(function (stats, statsTime) {
-        var result = _this2.analyzeStats({ resolution: resolution, videoElement: videoElement, stream: stream, frameChecker: frameChecker, stats: stats, statsTime: statsTime });
+      }).then(function (_ref) {
+        var stats = _ref.stats;
+        var statsCollectTime = _ref.statsCollectTime;
+
+        var result = _this2.analyzeStats({ resolution: resolution, videoElement: videoElement, stream: stream, frameChecker: frameChecker, stats: stats, statsCollectTime: statsCollectTime });
         frameChecker.stop();
         return result;
       });
     }
   }, {
     key: 'analyzeStats',
-    value: function analyzeStats(_ref) {
-      var resolution = _ref.resolution;
-      var videoElement = _ref.videoElement;
-      var stream = _ref.stream;
-      var frameChecker = _ref.frameChecker;
-      var stats = _ref.stats;
-      var statsTime = _ref.statsTime;
+    value: function analyzeStats(_ref2) {
+      var resolution = _ref2.resolution;
+      var videoElement = _ref2.videoElement;
+      var stream = _ref2.stream;
+      var frameChecker = _ref2.frameChecker;
+      var stats = _ref2.stats;
+      var statsCollectTime = _ref2.statsCollectTime;
 
       var googAvgEncodeTime = [];
       var googAvgFrameRateInput = [];
@@ -6731,7 +6739,7 @@ var CameraResolutionTest = function () {
       statsReport.actualVideoHeight = videoElement.videoHeight;
       statsReport.mandatoryWidth = resolution[0];
       statsReport.mandatoryHeight = resolution[1];
-      statsReport.encodeSetupTimeMs = this.extractEncoderSetupTime(stats, statsTime);
+      statsReport.encodeSetupTimeMs = this.extractEncoderSetupTime(stats, statsCollectTime);
       statsReport.avgEncodeTimeMs = this.arrayAverage(googAvgEncodeTime);
       statsReport.minEncodeTimeMs = Math.min.apply(Math, googAvgEncodeTime);
       statsReport.maxEncodeTimeMs = Math.max.apply(Math, googAvgEncodeTime);
@@ -6760,11 +6768,11 @@ var CameraResolutionTest = function () {
     }
   }, {
     key: 'extractEncoderSetupTime',
-    value: function extractEncoderSetupTime(stats, statsTime) {
+    value: function extractEncoderSetupTime(stats, statsCollectTime) {
       for (var index = 0; index !== stats.length; index++) {
         if (stats[index].type === 'ssrc') {
           if (stats[index].stat('googFrameRateInput') > 0) {
-            return JSON.stringify(statsTime[index] - statsTime[0]);
+            return JSON.stringify(statsCollectTime[index] - statsCollectTime[0]);
           }
         }
       }
@@ -6833,7 +6841,112 @@ var CameraResolutionTest = function () {
 
 exports.default = CameraResolutionTest;
 
-},{"./VideoFrameChecker":49,"./WebrtcCall":50}],46:[function(require,module,exports){
+},{"./VideoFrameChecker":50,"./WebrtcCall":51}],46:[function(require,module,exports){
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+// adapted from https://github.com/webrtc/testrtc
+
+/* This is an implementation of the algorithm for calculating the Structural
+ * SIMilarity (SSIM) index between two images. Please refer to the article [1],
+ * the website [2] and/or the Wikipedia article [3]. This code takes the value
+ * of the constants C1 and C2 from the Matlab implementation in [4].
+ *
+ * [1] Z. Wang, A. C. Bovik, H. R. Sheikh, and E. P. Simoncelli, "Image quality
+ * assessment: From error measurement to structural similarity",
+ * IEEE Transactions on Image Processing, vol. 13, no. 1, Jan. 2004.
+ * [2] http://www.cns.nyu.edu/~lcv/ssim/
+ * [3] http://en.wikipedia.org/wiki/Structural_similarity
+ * [4] http://www.cns.nyu.edu/~lcv/ssim/ssim_index.m
+ */
+
+var Ssim = function () {
+  function Ssim() {
+    _classCallCheck(this, Ssim);
+  }
+
+  _createClass(Ssim, [{
+    key: "statistics",
+
+    // Implementation of Eq.2, a simple average of a vector and Eq.4., except the
+    // square root. The latter is actually an unbiased estimate of the variance,
+    // not the exact variance.
+    value: function statistics(a) {
+      var accu = 0;
+      var i;
+      for (i = 0; i < a.length; ++i) {
+        accu += a[i];
+      }
+      var meanA = accu / (a.length - 1);
+      var diff = 0;
+      for (i = 1; i < a.length; ++i) {
+        diff = a[i - 1] - meanA;
+        accu += a[i] + diff * diff;
+      }
+      return { mean: meanA, variance: accu / a.length };
+    }
+
+    // Implementation of Eq.11., cov(Y, Z) = E((Y - uY), (Z - uZ)).
+
+  }, {
+    key: "covariance",
+    value: function covariance(a, b, meanA, meanB) {
+      var accu = 0;
+      for (var i = 0; i < a.length; i += 1) {
+        accu += (a[i] - meanA) * (b[i] - meanB);
+      }
+      return accu / a.length;
+    }
+  }, {
+    key: "calculate",
+    value: function calculate(x, y) {
+      if (x.length !== y.length) {
+        return 0;
+      }
+
+      // Values of the constants come from the Matlab code referred before.
+      var K1 = 0.01;
+      var K2 = 0.03;
+      var L = 255;
+      var C1 = K1 * L * (K1 * L);
+      var C2 = K2 * L * (K2 * L);
+      var C3 = C2 / 2;
+
+      var statsX = this.statistics(x);
+      var muX = statsX.mean;
+      var sigmaX2 = statsX.variance;
+      var sigmaX = Math.sqrt(sigmaX2);
+      var statsY = this.statistics(y);
+      var muY = statsY.mean;
+      var sigmaY2 = statsY.variance;
+      var sigmaY = Math.sqrt(sigmaY2);
+      var sigmaXy = this.covariance(x, y, muX, muY);
+
+      // Implementation of Eq.6.
+      var luminance = (2 * muX * muY + C1) / (muX * muX + muY * muY + C1);
+      // Implementation of Eq.10.
+      var structure = (sigmaXy + C3) / (sigmaX * sigmaY + C3);
+      // Implementation of Eq.9.
+      var contrast = (2 * sigmaX * sigmaY + C2) / (sigmaX2 + sigmaY2 + C2);
+
+      // Implementation of Eq.12.
+      return luminance * contrast * structure;
+    }
+  }]);
+
+  return Ssim;
+}();
+
+exports.default = Ssim;
+
+},{}],47:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -6894,7 +7007,7 @@ var StatisticsAggregate = function () {
 
 exports.default = StatisticsAggregate;
 
-},{}],47:[function(require,module,exports){
+},{}],48:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -6920,9 +7033,8 @@ var Test = function () {
 
       this._promise = Promise.defer();
       this.timeout = window.setTimeout(function () {
-        console.error('test failed', _this);
-        _this._promise.reject('timeout', _this);
-      }, 30000);
+        _this.reject(new Error('Test Timeout'));
+      }, 45000);
     }
   }, {
     key: 'resolve',
@@ -6948,7 +7060,7 @@ var Test = function () {
 
 exports.default = Test;
 
-},{}],48:[function(require,module,exports){
+},{}],49:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -7006,16 +7118,10 @@ var TestSuite = function () {
         return _this2.runNextTest();
       };
 
-      var testResult = test.start();
-
-      if (!testResult) {
-        debugger;
-      }
-
-      return testResult.then(function () {
+      return test.start().then(function () {
         return next();
       }, function (err) {
-        test.reject(err);
+        _this2.logger.error('Test failure', err, test);
         return next();
       });
     }
@@ -7032,7 +7138,7 @@ var TestSuite = function () {
 
 exports.default = TestSuite;
 
-},{}],49:[function(require,module,exports){
+},{}],50:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -7041,9 +7147,13 @@ Object.defineProperty(exports, "__esModule", {
 
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+var _Ssim = require('./Ssim.js');
 
-// adapted from https://github.com/webrtc/testrtc
+var _Ssim2 = _interopRequireDefault(_Ssim);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
 var VideoFrameChecker = function () {
   function VideoFrameChecker(videoElement) {
@@ -7060,7 +7170,7 @@ var VideoFrameChecker = function () {
     this.nonBlackPixelLumaThreshold = 20;
     this.previousFrame = [];
     this.identicalFrameSsimThreshold = 0.985;
-    this.frameComparator = new Ssim();
+    this.frameComparator = new _Ssim2.default();
 
     this.canvas = document.createElement('canvas');
     this.videoElement = videoElement;
@@ -7129,153 +7239,9 @@ var VideoFrameChecker = function () {
   return VideoFrameChecker;
 }();
 
-VideoFrameChecker.prototype = {
-  stop: function stop() {
-    this.videoElement.removeEventListener('play', this.listener);
-    this.running = false;
-  },
-
-  getCurrentImageData: function getCurrentImageData() {
-    this.canvas.width = this.videoElement.width;
-    this.canvas.height = this.videoElement.height;
-
-    var context = this.canvas.getContext('2d');
-    context.drawImage(this.videoElement, 0, 0, this.canvas.width, this.canvas.height);
-    return context.getImageData(0, 0, this.canvas.width, this.canvas.height);
-  },
-
-  checkVideoFrame: function checkVideoFrame() {
-    if (!this.running) {
-      return;
-    }
-    if (this.videoElement.ended) {
-      return;
-    }
-
-    var imageData = this.getCurrentImageData();
-
-    if (this.isBlackFrame(imageData.data, imageData.data.length)) {
-      this.frameStats.numBlackFrames++;
-    }
-
-    if (this.frameComparator.calculate(this.previousFrame, imageData.data) > this.identicalFrameSsimThreshold) {
-      this.frameStats.numFrozenFrames++;
-    }
-    this.previousFrame = imageData.data;
-
-    this.frameStats.numFrames++;
-    setTimeout(this.checkVideoFrame.bind(this), 20);
-  },
-
-  isBlackFrame: function isBlackFrame(data, length) {
-    // TODO: Use a statistical, histogram-based detection.
-    var thresh = this.nonBlackPixelLumaThreshold;
-    var accuLuma = 0;
-    for (var i = 4; i < length; i += 4) {
-      // Use Luma as in Rec. 709: Y′709 = 0.21R + 0.72G + 0.07B
-      accuLuma += 0.21 * data[i] + 0.72 * data[i + 1] + 0.07 * data[i + 2];
-      // Early termination if the average Luma so far is bright enough.
-      if (accuLuma > thresh * i / 4) {
-        return false;
-      }
-    }
-    return true;
-  }
-};
-
-/* This is an implementation of the algorithm for calculating the Structural
- * SIMilarity (SSIM) index between two images. Please refer to the article [1],
- * the website [2] and/or the Wikipedia article [3]. This code takes the value
- * of the constants C1 and C2 from the Matlab implementation in [4].
- *
- * [1] Z. Wang, A. C. Bovik, H. R. Sheikh, and E. P. Simoncelli, "Image quality
- * assessment: From error measurement to structural similarity",
- * IEEE Transactions on Image Processing, vol. 13, no. 1, Jan. 2004.
- * [2] http://www.cns.nyu.edu/~lcv/ssim/
- * [3] http://en.wikipedia.org/wiki/Structural_similarity
- * [4] http://www.cns.nyu.edu/~lcv/ssim/ssim_index.m
- */
-
-var Ssim = function () {
-  function Ssim() {
-    _classCallCheck(this, Ssim);
-  }
-
-  _createClass(Ssim, [{
-    key: 'statistics',
-
-    // Implementation of Eq.2, a simple average of a vector and Eq.4., except the
-    // square root. The latter is actually an unbiased estimate of the variance,
-    // not the exact variance.
-    value: function statistics(a) {
-      var accu = 0;
-      var i;
-      for (i = 0; i < a.length; ++i) {
-        accu += a[i];
-      }
-      var meanA = accu / (a.length - 1);
-      var diff = 0;
-      for (i = 1; i < a.length; ++i) {
-        diff = a[i - 1] - meanA;
-        accu += a[i] + diff * diff;
-      }
-      return { mean: meanA, variance: accu / a.length };
-    }
-
-    // Implementation of Eq.11., cov(Y, Z) = E((Y - uY), (Z - uZ)).
-
-  }, {
-    key: 'covariance',
-    value: function covariance(a, b, meanA, meanB) {
-      var accu = 0;
-      for (var i = 0; i < a.length; i += 1) {
-        accu += (a[i] - meanA) * (b[i] - meanB);
-      }
-      return accu / a.length;
-    }
-  }, {
-    key: 'calculate',
-    value: function calculate(x, y) {
-      if (x.length !== y.length) {
-        return 0;
-      }
-
-      // Values of the constants come from the Matlab code referred before.
-      var K1 = 0.01;
-      var K2 = 0.03;
-      var L = 255;
-      var C1 = K1 * L * (K1 * L);
-      var C2 = K2 * L * (K2 * L);
-      var C3 = C2 / 2;
-
-      var statsX = this.statistics(x);
-      var muX = statsX.mean;
-      var sigmaX2 = statsX.variance;
-      var sigmaX = Math.sqrt(sigmaX2);
-      var statsY = this.statistics(y);
-      var muY = statsY.mean;
-      var sigmaY2 = statsY.variance;
-      var sigmaY = Math.sqrt(sigmaY2);
-      var sigmaXy = this.covariance(x, y, muX, muY);
-
-      // Implementation of Eq.6.
-      var luminance = (2 * muX * muY + C1) / (muX * muX + muY * muY + C1);
-      // Implementation of Eq.10.
-      var structure = (sigmaXy + C3) / (sigmaX * sigmaY + C3);
-      // Implementation of Eq.9.
-      var contrast = (2 * sigmaX * sigmaY + C2) / (sigmaX2 + sigmaY2 + C2);
-
-      // Implementation of Eq.12.
-      return luminance * contrast * structure;
-    }
-  }]);
-
-  return Ssim;
-}();
-
 exports.default = VideoFrameChecker;
 
-},{}],50:[function(require,module,exports){
+},{"./Ssim.js":46}],51:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -7326,7 +7292,7 @@ var WebrtcCall = function () {
       return new Promise(function (resolve, reject) {
         var getStats = function getStats() {
           if (peerConnection.signalingState === 'closed') {
-            return resolve(stats, statsCollectTime);
+            return resolve({ stats: stats, statsCollectTime: statsCollectTime });
           }
           // Work around for webrtc/testrtc#74
           if (typeof mozRTCPeerConnection !== 'undefined' && peerConnection instanceof mozRTCPeerConnection) {
@@ -7337,10 +7303,12 @@ var WebrtcCall = function () {
         };
 
         var gotStats = function gotStats(response) {
-          for (var index in response.result()) {
-            stats.push(response.result()[index]);
-            statsCollectTime.push(Date.now());
-          }
+          var now = Date.now();
+          var results = response.result();
+          stats = results;
+          statsCollectTime = results.map(function () {
+            return now;
+          });
           getStats();
         };
 
@@ -7428,7 +7396,7 @@ var WebrtcCall = function () {
 
 exports.default = WebrtcCall;
 
-},{}],51:[function(require,module,exports){
+},{}],52:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -7453,7 +7421,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],52:[function(require,module,exports){
+},{}],53:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -7546,14 +7514,14 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],53:[function(require,module,exports){
+},{}],54:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],54:[function(require,module,exports){
+},{}],55:[function(require,module,exports){
 (function (process,global){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -8143,5 +8111,5 @@ function hasOwnProperty(obj, prop) {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./support/isBuffer":53,"_process":52,"inherits":51}]},{},[38])(38)
+},{"./support/isBuffer":54,"_process":53,"inherits":52}]},{},[38])(38)
 });

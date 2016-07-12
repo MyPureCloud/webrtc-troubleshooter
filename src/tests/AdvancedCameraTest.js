@@ -4,7 +4,7 @@ import WebrtcCall from '../utils/WebrtcCall';
 import CameraResolutionTest from '../utils/CameraResolutionTest';
 
 export default class AdvancedCameraTest extends Test {
-  constructor(options) {
+  constructor (options) {
     super(...arguments);
     this.name = 'Advanced Video Test';
     this.tests = [];
@@ -16,13 +16,13 @@ export default class AdvancedCameraTest extends Test {
       [1024, 576], [1280, 720], [1280, 768], [1280, 800], [1920, 1080],
       [1920, 1200], [3840, 2160], [4096, 2160]], options));
   }
-  start() {
+  start () {
     super.start();
     const testResults = this.tests.map((test) => test.run());
     return Promise.all(testResults).then(this.resolve.bind(this), this.reject.bind(this));
   }
 
-  destroy() {
+  destroy () {
     super.destroy();
   }
 }

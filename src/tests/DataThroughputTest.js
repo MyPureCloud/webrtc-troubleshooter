@@ -2,7 +2,7 @@ import WebrtcCall from '../utils/WebrtcCall';
 import Test from '../utils/Test';
 
 class DataChannelThroughputTest extends Test {
-  constructor() {
+  constructor () {
     super(...arguments);
     this.name = 'Data Throughput Test';
     this.testDurationSeconds = 5.0;
@@ -30,7 +30,7 @@ class DataChannelThroughputTest extends Test {
     this.senderChannel = null;
     this.receiveChannel = null;
   }
-  start() {
+  start () {
     super.start();
 
     if (!this.options.iceServers.length) {
@@ -48,12 +48,12 @@ class DataChannelThroughputTest extends Test {
     return this._promise.promise;
   }
 
-  onReceiverChannel(event) {
+  onReceiverChannel (event) {
     this.receiveChannel = event.channel;
     this.receiveChannel.addEventListener('message', this.onMessageReceived.bind(this));
   }
 
-  sendingStep() {
+  sendingStep () {
     const now = new Date();
     if (!this.startTime) {
       this.startTime = now;
@@ -75,7 +75,7 @@ class DataChannelThroughputTest extends Test {
     }
   }
 
-  onMessageReceived(event) {
+  onMessageReceived (event) {
     this.receivedPayloadBytes += event.data.length;
     const now = new Date();
     if (now - this.lastBitrateMeasureTime >= 1000) {
@@ -96,7 +96,7 @@ class DataChannelThroughputTest extends Test {
     }
   }
 
-  destroy() {
+  destroy () {
     super.destroy();
     window.clearTimeout(this.throughputTimeout);
     if (this.call) {
