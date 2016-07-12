@@ -6432,7 +6432,7 @@ var DataChannelThroughputTest = function (_Test) {
 
         this.call.establishConnection();
       }
-      return this.defrred.promise;
+      return this.deferred.promise;
     }
   }, {
     key: 'onReceiverChannel',
@@ -6844,7 +6844,7 @@ var VideoTest = function (_Test) {
           }
         }
       });
-      return this.defrred.promise;
+      return this.deferred.promise;
     }
   }, {
     key: 'destroy',

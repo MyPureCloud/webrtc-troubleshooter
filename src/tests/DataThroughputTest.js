@@ -45,7 +45,7 @@ class DataChannelThroughputTest extends Test {
 
       this.call.establishConnection();
     }
-    return this.defrred.promise;
+    return this.deferred.promise;
   }
 
   onReceiverChannel (event) {
