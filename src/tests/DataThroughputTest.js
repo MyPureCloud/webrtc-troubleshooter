@@ -1,8 +1,8 @@
-import WebrtcCall from '../WebrtcCall';
-import { Test } from '../TestSuite';
+import WebrtcCall from '../utils/WebrtcCall';
+import Test from '../utils/Test';
 
 class DataChannelThroughputTest extends Test {
-  constructor () {
+  constructor() {
     super(...arguments);
     this.name = 'Data Throughput Test';
     this.testDurationSeconds = 5.0;
@@ -30,38 +30,30 @@ class DataChannelThroughputTest extends Test {
     this.senderChannel = null;
     this.receiveChannel = null;
   }
-  start () {
+  start() {
     super.start();
 
-    return new Promise((resolve, reject) => {
-      this.resolve = resolve;
-      this.reject = reject;
+    if (!this.options.iceServers.length) {
+      this.logger.error('No ice servers were provided');
+      this.reject(new Error('No ice servers'));
+    } else {
+      this.call = new WebrtcCall(this.options);
+      this.call.setIceCandidateFilter(WebrtcCall.isRelay);
+      this.senderChannel = this.call.pc1.createDataChannel(null);
+      this.senderChannel.addEventListener('open', this.sendingStep.bind(this));
+      this.call.pc2.addEventListener('datachannel', this.onReceiverChannel.bind(this));
 
-      if (!this.options.iceServers.length) {
-        this.logger.error('webrtc-troubleshooter: No ice servers were provided');
-        reject('No ice servers');
-      } else {
-        this.call = new WebrtcCall(this.options);
-        this.call.setIceCandidateFilter(WebrtcCall.isRelay);
-        this.senderChannel = this.call.pc1.createDataChannel(null);
-        this.senderChannel.addEventListener('open', this.sendingStep.bind(this));
-        this.call.pc2.addEventListener('datachannel', this.onReceiverChannel.bind(this));
-
-        this.call.establishConnection();
-      }
-    });
+      this.call.establishConnection();
+    }
+    return this._promise.promise;
   }
 
-  done () {
-    this.resolve();
-  }
-  
-  onReceiverChannel (event) {
+  onReceiverChannel(event) {
     this.receiveChannel = event.channel;
     this.receiveChannel.addEventListener('message', this.onMessageReceived.bind(this));
   }
 
-  sendingStep () {
+  sendingStep() {
     const now = new Date();
     if (!this.startTime) {
       this.startTime = now;
@@ -83,28 +75,28 @@ class DataChannelThroughputTest extends Test {
     }
   }
 
-  onMessageReceived (event) {
+  onMessageReceived(event) {
     this.receivedPayloadBytes += event.data.length;
     const now = new Date();
     if (now - this.lastBitrateMeasureTime >= 1000) {
       let bitrate = (this.receivedPayloadBytes - this.lastReceivedPayloadBytes) / (now - this.lastBitrateMeasureTime);
       bitrate = Math.round(bitrate * 1000 * 8) / 1000;
-      this.logger.log(`webrtc-troubleshooter: Transmitting at ${bitrate} kbps.`);
+      this.logger.log(`Transmitting at ${bitrate} kbps.`);
       this.lastReceivedPayloadBytes = this.receivedPayloadBytes;
       this.lastBitrateMeasureTime = now;
     }
     if (this.stopSending && this.sentPayloadBytes === this.receivedPayloadBytes) {
       this.call.close();
       this.call = null;
-  
+
       const elapsedTime = Math.round((now - this.startTime) * 10) / 10000.0;
       const receivedKBits = this.receivedPayloadBytes * 8 / 1000;
-      this.logger.log(`webrtc-troubleshooter: ${receivedKBits} kilo-bits in ${elapsedTime} seconds.`);
-      this.done();
+      this.logger.log(`${receivedKBits} kb in ${elapsedTime} seconds.`);
+      this.resolve();
     }
   }
 
-  destroy () {
+  destroy() {
     super.destroy();
     window.clearTimeout(this.throughputTimeout);
     if (this.call) {
@@ -115,4 +107,3 @@ class DataChannelThroughputTest extends Test {
 }
 
 export default DataChannelThroughputTest;
-

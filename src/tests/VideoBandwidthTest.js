@@ -1,12 +1,11 @@
-/* global webrtcsupport */
-
 // adapted from https://github.com/webrtc/testrtc/blob/master/src/js/bandwidth_test.js
 
-import WebrtcCall from '../WebrtcCall';
-import { Test } from '../TestSuite';
+import WebrtcCall from '../utils/WebrtcCall';
+import Test from '../utils/Test';
+import StatisticsAggregate from '../utils/StatisticsAggregate';
 
-class VideoBandwidthTest extends Test {
-  constructor () {
+export default class VideoBandwidthTest extends Test {
+  constructor() {
     super(...arguments);
     this.name = 'Bandwidth Test';
     this.maxVideoBitrateKbps = 2000;
@@ -41,117 +40,85 @@ class VideoBandwidthTest extends Test {
     this.log = [];
   }
 
-  start () {
+  start() {
     super.start();
     this.log = this.results = {log: []};
 
-    return new Promise((resolve, reject) => {
-      this.reject = reject;
+    this.addLog('INFO', 'Video Bandwidth Test');
 
-      this.addLog( 'INFO', 'Video Bandwidth Test');
+    if (!this.options.iceConfig.iceServers.length) {
+      this.addLog('FATAL', 'No ice servers were provided');
+      return this.reject(this.log);
+    }
+    this.call = new WebrtcCall(this.options.iceConfig);
+    this.call.setIceCandidateFilter(WebrtcCall.isRelay);
+    // FEC makes it hard to study bandwidth estimation since there seems to be
+    // a spike when it is enabled and disabled. Disable it for now. FEC issue
+    // tracked on: https://code.google.com/p/webrtc/issues/detail?id=3050
+    this.call.disableVideoFec();
+    this.call.constrainVideoBitrate(this.maxVideoBitrateKbps);
 
-      if (!this.options.iceConfig.iceServers.length) {
-        this.addLog('FATAL', 'No ice servers were provided');
-        reject(this.log);
-      } else {
-        this.call = new WebrtcCall(this.options.iceConfig);
-        this.call.setIceCandidateFilter(WebrtcCall.isRelay);
-        // FEC makes it hard to study bandwidth estimation since there seems to be
-        // a spike when it is enabled and disabled. Disable it for now. FEC issue
-        // tracked on: https://code.google.com/p/webrtc/issues/detail?id=3050
-        this.call.disableVideoFec();
-        this.call.constrainVideoBitrate(this.maxVideoBitrateKbps);
-
-        // this.doGetUserMedia(this.constraints, this.gotStream.bind(this)); // returns fail in two cases
-        var failFunc = (error) => {
-          this.addLog('ERROR', {'status': 'fail', 'error': error});
-          if (onFail) {
-            onFail.apply(this, arguments);
-          } else {
-            this.addLog('FATAL', `Failed to get access to local media due to error: ${error.name}`);
-            reject();
-          }
-        };
-        try {
-          this.addLog('INFO', {'status': 'pending', 'constraints': this.constraints});
-          window.navigator.getUserMedia({audio: true, video: true}, (stream) => {
-              const cam = this.getDeviceName(stream.getVideoTracks());
-              this.results.camera = cam;
-              this.addLog('INFO', {'status': 'success', 'camera': cam});
-              this.gotStream(stream);
-          }, failFunc);
-        } catch (e) {
-          this.addLog('FATAL', {'status': 'exception', 'error': e.message});
-          reject();
-        }
-
-        // completed returns resolve
-      }
-
-    });
+    return this.doGetUserMedia(this.constraints);
   }
-  fail () {
-    console.log('stuff got rejected bandwidth');
-  }
-  done () {
-    console.log('stuff got resolved bandwidth')
-  }
-  addLog (level, msg) {
+
+  addLog(level, msg) {
     if (msg && typeof msg === 'Object') {
       msg = JSON.stringify(msg);
     }
     this.results.log.push(`${level}: ${msg}`);
   }
-  doGetUserMedia (constraints, onSuccess, onFail) {
-    var failFunc = (error) => {
+
+  doGetUserMedia(constraints) {
+    this.addLog('INFO', {'status': 'pending', 'constraints': constraints});
+    return navigator.mediaDevices.getUserMedia({ audio: true, video: true }).then((stream) => {
+      const cam = this.getDeviceName(stream.getVideoTracks());
+      // this.results.camera = cam;
+      this.addLog('INFO', {'status': 'success', 'camera': cam});
+      return this.gotStream(stream).then(this.resolve.bind(this), this.reject.bind(this));
+    }, (error) => {
       this.addLog('ERROR', {'status': 'fail', 'error': error});
-      if (onFail) {
-        onFail.apply(this, arguments);
-      } else {
-        this.addLog('FATAL', `Failed to get access to local media due to error: ${error.name}`);
-        return this.fail();
-      }
-    };
-    try {
-      this.addLog('INFO', {'status': 'pending', 'constraints': constraints});
-      window.navigator.getUserMedia({ audio: true, video: true }, (stream) => {
-          const cam = this.getDeviceName(stream.getVideoTracks());
-          // this.results.camera = cam;
-          this.addLog('INFO', {'status': 'success', 'camera': cam});
-          onSuccess(stream);
-      }, failFunc);
-    } catch (e) {
-      this.addLog('FATAL', {'status': 'exception', 'error': e.message});
-      this.fail();
-    }
+      this.addLog('FATAL', `Failed to get access to local media due to error: ${error.name}`);
+      console.warn('rejecting2', this);
+      this.reject(error);
+    });
   }
-  getDeviceName (tracks) {
+
+  getDeviceName(tracks) {
     if (tracks.length === 0) {
       return null;
     }
     return tracks[0].label;
   }
-  gotStream (stream) {
+
+  gotStream(stream) {
     this.call.pc1.addStream(stream);
-    this.call.establishConnection();
-    this.startTime = new Date();
-    this.localStream = stream.getVideoTracks()[0];
-    this.nextTimeout = setTimeout(this.gatherStats.bind(this), this.statStepMs);
+    return this.call.establishConnection().then(() => {
+      this.startTime = new Date();
+      this.localStream = stream.getVideoTracks()[0];
+
+      return new Promise((resolve, reject) => {
+        this.nextTimeout = setTimeout(() => {
+          this.gatherStats().then(resolve, reject);
+        }, this.statStepMs);
+      });
+    });
   }
-  gatherStats () {
+
+  gatherStats() {
     const now = new Date();
     if (now - this.startTime > this.durationMs) {
-      this.completed();
-    } else {
-      this.call.pc1.getStats(this.localStream)
-        .then(this.gotStats.bind(this))
-        .catch((error) => {
-          this.addLog('ERROR', 'Failed to getStats: ' + error);
-        });
+      return this.completed();
     }
+    return this.call.pc1.getStats(this.localStream)
+      .then(this.gotStats.bind(this), (error) => {
+        this.addLog('ERROR', 'Failed to getStats: ' + error);
+      });
   }
-  gotStats (response) {
-    if (webrtcsupport.prefix === 'webkit') {
+
+  gotStats(response) {
+    const isWebkit = 'WebkitAppearance' in document.documentElement.style;
+    const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
+    if (isWebkit) {
       response.result().forEach((report) => {
         if (report.id === 'bweforvideo') {
           this.bweStats.add(Date.parse(report.timestamp), parseInt(report.stat('googAvailableSendBandwidth'), 10));
@@ -163,7 +130,7 @@ class VideoBandwidthTest extends Test {
           this.packetsLost = report.stat('packetsLost');
         }
       });
-    } else if (webrtcsupport.prefix === 'moz') {
+    } else if (isFirefox) {
       for (let j in response) {
         let stats = response[j];
         if (stats.id === 'outbound_rtcp_video_0') {
@@ -183,9 +150,15 @@ class VideoBandwidthTest extends Test {
     } else {
       this.addLog('ERROR', 'Only Firefox and Chrome getStats implementations are supported.');
     }
-    this.nextTimeout = setTimeout(this.gatherStats.bind(this), this.statStepMs);
+    return new Promise((resolve, reject) => {
+      this.nextTimeout = setTimeout(() => {
+        this.gatherStats().then(resolve, reject);
+      }, this.statStepMs);
+    });
   }
-  completed () {
+  completed() {
+    const isWebkit = 'WebkitAppearance' in document.documentElement.style;
+    const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
     this.call.pc1.getLocalStreams()[0].getTracks().forEach((track) => {
       track.stop();
     });
@@ -193,7 +166,7 @@ class VideoBandwidthTest extends Test {
     this.call = null;
     const stats = this.results.stats = {};
 
-    if (webrtcsupport.prefix === 'webkit') {
+    if (isWebkit) {
       // Checking if greater than 2 because Chrome sometimes reports 2x2 when a camera starts but fails to deliver frames.
       if (this.videoStats[0] < 2 && this.videoStats[1] < 2) {
         this.addLog('ERROR', `Camera failure: ${this.videoStats[0]}x${this.videoStats[1]}. Cannot test bandwidth without a working camera.`);
@@ -208,7 +181,7 @@ class VideoBandwidthTest extends Test {
         this.addLog('INFO', `Send bandwidth estimate max: ${stats.bpsMax} bps`);
         this.addLog('INFO', `Send bandwidth ramp-up time: ${stats.rampUpTimeMs} ms`);
       }
-    } else if (webrtcsupport.prefix === 'moz') {
+    } else if (isFirefox) {
       if (parseInt(this.framerateMean, 10) > 0) {
         this.addLog('SUCCESS', `Frame rate mean: ${parseInt(this.framerateMean, 10)}`);
       } else {
@@ -228,50 +201,16 @@ class VideoBandwidthTest extends Test {
     this.addLog('INFO', `RTT average: ${stats.rttAverage} ms`);
     this.addLog('INFO', `RTT max: ${stats.rttMax} ms`);
     this.addLog('INFO', `Lost packets: ${stats.lostPackets}`);
-
-    this.done();
+    return this.results;
   }
-  destroy () {
+
+  destroy() {
+    super.destroy();
     window.clearTimeout(this.nextTimeout);
     if (this.call) {
       this.call.close();
       this.call = null;
     }
-  }
-}
-
-class StatisticsAggregate {
-  constructor (rampUpThreshold) {
-    this.startTime = 0;
-    this.sum = 0;
-    this.count = 0;
-    this.max = 0;
-    this.rampUpThreshold = rampUpThreshold;
-    this.rampUpTime = Infinity;
-  }
-  add (time, datapoint) {
-    if (this.startTime === 0) {
-      this.startTime = time;
-    }
-    this.sum += datapoint;
-    this.max = Math.max(this.max, datapoint);
-    if (this.rampUpTime === Infinity &&
-      datapoint > this.rampUpThreshold) {
-      this.rampUpTime = time;
-    }
-    this.count++;
-  }
-  getAverage () {
-    if (this.count === 0) {
-      return 0;
-    }
-    return Math.round(this.sum / this.count);
-  }
-  getMax () {
-    return this.max;
-  }
-  getRampUpTime () {
-    return this.rampUpTime - this.startTime;
   }
 }
 

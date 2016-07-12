@@ -2,7 +2,7 @@
 // adapted from https://github.com/webrtc/testrtc
 
 class WebrtcCall {
-  constructor (config) {
+  constructor(config) {
     this.pc1 = new RTCPeerConnection(config);
     this.pc2 = new RTCPeerConnection(config);
 
@@ -12,64 +12,66 @@ class WebrtcCall {
     this.iceCandidateFilter = WebrtcCall.noFilter;
   }
 
-  establishConnection () {
-    this.pc1.createOffer(this.gotOffer.bind(this), console.error.bind(console));
+  establishConnection() {
+    return this.pc1.createOffer().then(this.gotOffer.bind(this), console.error.bind(console));
   }
 
-  close () {
+  close() {
     this.pc1.close();
     this.pc2.close();
   }
 
   // When the peerConnection is closed the statsCb is called once with an array
   // of gathered stats.
-  gatherStats (peerConnection, statsCb, interval) {
+  gatherStats(peerConnection, interval) {
     const stats = [];
     const statsCollectTime = [];
-    getStats();
 
-    function getStats () {
-      if (peerConnection.signalingState === 'closed') {
-        statsCb(stats, statsCollectTime);
-        return;
+    return new Promise((resolve, reject) => {
+      const getStats = () => {
+        if (peerConnection.signalingState === 'closed') {
+          return resolve(stats, statsCollectTime);
+        }
+        // Work around for webrtc/testrtc#74
+        if (typeof mozRTCPeerConnection !== 'undefined' && peerConnection instanceof mozRTCPeerConnection) {
+          setTimeout(getStats, interval);
+        } else {
+          setTimeout(peerConnection.getStats.bind(peerConnection, gotStats), interval);
+        }
       }
-      // Work around for webrtc/testrtc#74
-      if (typeof mozRTCPeerConnection !== 'undefined' && peerConnection instanceof mozRTCPeerConnection) {
-        setTimeout(getStats, interval);
-      } else {
-        setTimeout(peerConnection.getStats.bind(peerConnection, gotStats), interval);
-      }
-    }
 
-    function gotStats (response) {
-      for (let index in response.result()) {
-        stats.push(response.result()[index]);
-        statsCollectTime.push(Date.now());
+      const gotStats = (response) => {
+        for (let index in response.result()) {
+          stats.push(response.result()[index]);
+          statsCollectTime.push(Date.now());
+        }
+        getStats();
       }
+
       getStats();
-    }
+    });
   }
 
-  gotOffer (offer) {
-    if (this.constrainOfferToRemoveVideoFec) {
-      offer.sdp = offer.sdp.replace(/(m=video 1 [^\r]+)(116 117)(\r\n)/g, '$1\r\n');
-      offer.sdp = offer.sdp.replace(/a=rtpmap:116 red\/90000\r\n/g, '');
-      offer.sdp = offer.sdp.replace(/a=rtpmap:117 ulpfec\/90000\r\n/g, '');
-    }
+  gotOffer(offer) {
+    // if (this.constrainOfferToRemoveVideoFec) {
+    //   offer.sdp = offer.sdp.replace(/(m=video 1 [^\r]+)(116 117)(\r\n)/g, '$1\r\n');
+    //   offer.sdp = offer.sdp.replace(/a=rtpmap:116 red\/90000\r\n/g, '');
+    //   offer.sdp = offer.sdp.replace(/a=rtpmap:117 ulpfec\/90000\r\n/g, '');
+    // }
     this.pc1.setLocalDescription(offer);
     this.pc2.setRemoteDescription(offer);
-    this.pc2.createAnswer(this.gotAnswer.bind(this), console.error.bind(console));
+    return this.pc2.createAnswer().then(this.gotAnswer.bind(this), console.error.bind(console));
   }
 
-  gotAnswer (answer) {
+  gotAnswer(answer) {
     if (this.constrainVideoBitrateKbps) {
       answer.sdp = answer.sdp.replace(/a=mid:video\r\n/g, 'a=mid:video\r\nb=AS:' + this.constrainVideoBitrateKbps + '\r\n');
     }
     this.pc2.setLocalDescription(answer);
-    this.pc1.setRemoteDescription(answer);
+    return this.pc1.setRemoteDescription(answer);
   }
 
-  onIceCandidate (otherPeer, event) {
+  onIceCandidate(otherPeer, event) {
     if (event.candidate) {
       var parsed = this.parseCandidate(event.candidate.candidate);
       if (this.iceCandidateFilter(parsed)) {
@@ -78,7 +80,7 @@ class WebrtcCall {
     }
   }
 
-  parseCandidate (text) {
+  parseCandidate(text) {
     const candidateStr = 'candidate:';
     const pos = text.indexOf(candidateStr) + candidateStr.length;
     const fields = text.substr(pos).split(' ');
@@ -89,25 +91,25 @@ class WebrtcCall {
     };
   }
 
-  setIceCandidateFilter (filter) {
+  setIceCandidateFilter(filter) {
     this.iceCandidateFilter = filter;
   }
 
   // Remove video FEC if available on the offer.
-  disableVideoFec () {
+  disableVideoFec() {
     this.constrainOfferToRemoveVideoFec = true;
   }
 
   // Constraint max video bitrate by modifying the SDP when creating an answer.
-  constrainVideoBitrate (maxVideoBitrateKbps) {
+  constrainVideoBitrate(maxVideoBitrateKbps) {
     this.constrainVideoBitrateKbps = maxVideoBitrateKbps;
   }
 
-  static noFilter () {
+  static noFilter() {
     return true;
   }
 
-  static isRelay (candidate) {
+  static isRelay(candidate) {
     return candidate.type === 'relay';
   }
 }

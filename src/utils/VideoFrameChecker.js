@@ -1,7 +1,7 @@
 // adapted from https://github.com/webrtc/testrtc
 
 class VideoFrameChecker {
-  constructor (videoElement) {
+  constructor(videoElement) {
     this.frameStats = {
       numFrozenFrames: 0,
       numBlackFrames: 0,
@@ -20,11 +20,11 @@ class VideoFrameChecker {
     this.listener = this.checkVideoFrame.bind(this);
     this.videoElement.addEventListener('play', this.listener, false);
   }
-  stop () {
+  stop() {
     this.videoElement.removeEventListener('play', this.listener);
     this.running = false;
   }
-  getCurrentImageData () {
+  getCurrentImageData() {
     this.canvas.width = this.videoElement.width;
     this.canvas.height = this.videoElement.height;
 
@@ -33,7 +33,7 @@ class VideoFrameChecker {
       this.canvas.height);
     return context.getImageData(0, 0, this.canvas.width, this.canvas.height);
   }
-  checkVideoFrame () {
+  checkVideoFrame() {
     if (!this.running) {
       return;
     }
@@ -41,7 +41,7 @@ class VideoFrameChecker {
       return;
     }
 
-    var imageData = this.getCurrentImageData ();
+    var imageData = this.getCurrentImageData();
 
     if (this.isBlackFrame(imageData.data, imageData.data.length)) {
       this.frameStats.numBlackFrames++;
@@ -56,7 +56,7 @@ class VideoFrameChecker {
     this.frameStats.numFrames++;
     setTimeout(this.checkVideoFrame.bind(this), 20);
   }
-  isBlackFrame (data, length) {
+  isBlackFrame(data, length) {
     // TODO: Use a statistical, histogram-based detection.
     var thresh = this.nonBlackPixelLumaThreshold;
     var accuLuma = 0;
@@ -145,7 +145,7 @@ class Ssim {
   // Implementation of Eq.2, a simple average of a vector and Eq.4., except the
   // square root. The latter is actually an unbiased estimate of the variance,
   // not the exact variance.
-  statistics (a) {
+  statistics(a) {
     var accu = 0;
     var i;
     for (i = 0; i < a.length; ++i) {
@@ -161,7 +161,7 @@ class Ssim {
   }
 
   // Implementation of Eq.11., cov(Y, Z) = E((Y - uY), (Z - uZ)).
-  covariance (a, b, meanA, meanB) {
+  covariance(a, b, meanA, meanB) {
     var accu = 0;
     for (var i = 0; i < a.length; i += 1) {
       accu += (a[i] - meanA) * (b[i] - meanB);
@@ -169,7 +169,7 @@ class Ssim {
     return accu / a.length;
   }
 
-  calculate (x, y) {
+  calculate(x, y) {
     if (x.length !== y.length) {
       return 0;
     }

@@ -300,7 +300,7 @@ Object.defineProperty(LocalMedia.prototype, 'localScreen', {
 
 module.exports = LocalMedia;
 
-},{"getscreenmedia":2,"getusermedia":3,"hark":13,"mediastream-gain":14,"mockconsole":15,"util":72,"webrtcsupport":16,"wildemitter":17}],2:[function(require,module,exports){
+},{"getscreenmedia":2,"getusermedia":3,"hark":14,"mediastream-gain":15,"mockconsole":16,"util":54,"webrtcsupport":17,"wildemitter":18}],2:[function(require,module,exports){
 // getScreenMedia helper by @HenrikJoreteg
 var getUserMedia = require('getusermedia');
 
@@ -344,11 +344,7 @@ module.exports = function (constraints, cb) {
                                 maxWidth: window.screen.width,
                                 maxHeight: window.screen.height,
                                 maxFrameRate: 3
-                            },
-                            optional: [
-                                {googLeakyBucket: true},
-                                {googTemporalLayeredScreencast: true}
-                            ]
+                            }
                         }};
                         constraints.video.mandatory.chromeMediaSourceId = data.sourceId;
                         getUserMedia(constraints, callback);
@@ -555,492 +551,7 @@ module.exports = function (constraints, cb) {
     });
 };
 
-},{"webrtc-adapter":4}],4:[function(require,module,exports){
-/*
- *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
- *
- *  Use of this source code is governed by a BSD-style license
- *  that can be found in the LICENSE file in the root of the source
- *  tree.
- */
- /* eslint-env node */
-
-'use strict';
-
-// Shimming starts here.
-(function() {
-  // Utils.
-  var logging = require('./utils').log;
-  var browserDetails = require('./utils').browserDetails;
-  // Export to the adapter global object visible in the browser.
-  module.exports.browserDetails = browserDetails;
-  module.exports.extractVersion = require('./utils').extractVersion;
-  module.exports.disableLog = require('./utils').disableLog;
-
-  // Comment out the line below if you want logging to occur, including logging
-  // for the switch statement below. Can also be turned on in the browser via
-  // adapter.disableLog(false), but then logging from the switch statement below
-  // will not appear.
-  require('./utils').disableLog(true);
-
-  // Browser shims.
-  var chromeShim = require('./chrome/chrome_shim') || null;
-  var edgeShim = require('./edge/edge_shim') || null;
-  var firefoxShim = require('./firefox/firefox_shim') || null;
-  var safariShim = require('./safari/safari_shim') || null;
-
-  // Shim browser if found.
-  switch (browserDetails.browser) {
-    case 'opera': // fallthrough as it uses chrome shims
-    case 'chrome':
-      if (!chromeShim || !chromeShim.shimPeerConnection) {
-        logging('Chrome shim is not included in this adapter release.');
-        return;
-      }
-      logging('adapter.js shimming chrome.');
-      // Export to the adapter global object visible in the browser.
-      module.exports.browserShim = chromeShim;
-
-      chromeShim.shimGetUserMedia();
-      chromeShim.shimSourceObject();
-      chromeShim.shimPeerConnection();
-      chromeShim.shimOnTrack();
-      break;
-    case 'firefox':
-      if (!firefoxShim || !firefoxShim.shimPeerConnection) {
-        logging('Firefox shim is not included in this adapter release.');
-        return;
-      }
-      logging('adapter.js shimming firefox.');
-      // Export to the adapter global object visible in the browser.
-      module.exports.browserShim = firefoxShim;
-
-      firefoxShim.shimGetUserMedia();
-      firefoxShim.shimSourceObject();
-      firefoxShim.shimPeerConnection();
-      firefoxShim.shimOnTrack();
-      break;
-    case 'edge':
-      if (!edgeShim || !edgeShim.shimPeerConnection) {
-        logging('MS edge shim is not included in this adapter release.');
-        return;
-      }
-      logging('adapter.js shimming edge.');
-      // Export to the adapter global object visible in the browser.
-      module.exports.browserShim = edgeShim;
-
-      edgeShim.shimPeerConnection();
-      break;
-    case 'safari':
-      if (!safariShim) {
-        logging('Safari shim is not included in this adapter release.');
-        return;
-      }
-      logging('adapter.js shimming safari.');
-      // Export to the adapter global object visible in the browser.
-      module.exports.browserShim = safariShim;
-
-      safariShim.shimGetUserMedia();
-      break;
-    default:
-      logging('Unsupported browser!');
-  }
-})();
-
-},{"./chrome/chrome_shim":5,"./edge/edge_shim":8,"./firefox/firefox_shim":9,"./safari/safari_shim":11,"./utils":12}],5:[function(require,module,exports){
-/*
- *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
- *
- *  Use of this source code is governed by a BSD-style license
- *  that can be found in the LICENSE file in the root of the source
- *  tree.
- */
- /* eslint-env node */
-'use strict';
-var logging = require('../utils.js').log;
-var browserDetails = require('../utils.js').browserDetails;
-
-var chromeShim = {
-  shimOnTrack: function() {
-    if (typeof window === 'object' && window.RTCPeerConnection && !('ontrack' in
-        window.RTCPeerConnection.prototype)) {
-      Object.defineProperty(window.RTCPeerConnection.prototype, 'ontrack', {
-        get: function() {
-          return this._ontrack;
-        },
-        set: function(f) {
-          var self = this;
-          if (this._ontrack) {
-            this.removeEventListener('track', this._ontrack);
-            this.removeEventListener('addstream', this._ontrackpoly);
-          }
-          this.addEventListener('track', this._ontrack = f);
-          this.addEventListener('addstream', this._ontrackpoly = function(e) {
-            // onaddstream does not fire when a track is added to an existing
-            // stream. But stream.onaddtrack is implemented so we use that.
-            e.stream.addEventListener('addtrack', function(te) {
-              var event = new Event('track');
-              event.track = te.track;
-              event.receiver = {track: te.track};
-              event.streams = [e.stream];
-              self.dispatchEvent(event);
-            });
-            e.stream.getTracks().forEach(function(track) {
-              var event = new Event('track');
-              event.track = track;
-              event.receiver = {track: track};
-              event.streams = [e.stream];
-              this.dispatchEvent(event);
-            }.bind(this));
-          }.bind(this));
-        }
-      });
-    }
-  },
-
-  shimSourceObject: function() {
-    if (typeof window === 'object') {
-      if (window.HTMLMediaElement &&
-        !('srcObject' in window.HTMLMediaElement.prototype)) {
-        // Shim the srcObject property, once, when HTMLMediaElement is found.
-        Object.defineProperty(window.HTMLMediaElement.prototype, 'srcObject', {
-          get: function() {
-            return this._srcObject;
-          },
-          set: function(stream) {
-            var self = this;
-            // Use _srcObject as a private property for this shim
-            this._srcObject = stream;
-            if (this.src) {
-              URL.revokeObjectURL(this.src);
-            }
-
-            if (!stream) {
-              this.src = '';
-              return;
-            }
-            this.src = URL.createObjectURL(stream);
-            // We need to recreate the blob url when a track is added or
-            // removed. Doing it manually since we want to avoid a recursion.
-            stream.addEventListener('addtrack', function() {
-              if (self.src) {
-                URL.revokeObjectURL(self.src);
-              }
-              self.src = URL.createObjectURL(stream);
-            });
-            stream.addEventListener('removetrack', function() {
-              if (self.src) {
-                URL.revokeObjectURL(self.src);
-              }
-              self.src = URL.createObjectURL(stream);
-            });
-          }
-        });
-      }
-    }
-  },
-
-  shimPeerConnection: function() {
-    // The RTCPeerConnection object.
-    window.RTCPeerConnection = function(pcConfig, pcConstraints) {
-      // Translate iceTransportPolicy to iceTransports,
-      // see https://code.google.com/p/webrtc/issues/detail?id=4869
-      logging('PeerConnection');
-      if (pcConfig && pcConfig.iceTransportPolicy) {
-        pcConfig.iceTransports = pcConfig.iceTransportPolicy;
-      }
-
-      var pc = new webkitRTCPeerConnection(pcConfig, pcConstraints);
-      var origGetStats = pc.getStats.bind(pc);
-      pc.getStats = function(selector, successCallback, errorCallback) {
-        var self = this;
-        var args = arguments;
-
-        // If selector is a function then we are in the old style stats so just
-        // pass back the original getStats format to avoid breaking old users.
-        if (arguments.length > 0 && typeof selector === 'function') {
-          return origGetStats(selector, successCallback);
-        }
-
-        var fixChromeStats_ = function(response) {
-          var standardReport = {};
-          var reports = response.result();
-          reports.forEach(function(report) {
-            var standardStats = {
-              id: report.id,
-              timestamp: report.timestamp,
-              type: report.type
-            };
-            report.names().forEach(function(name) {
-              standardStats[name] = report.stat(name);
-            });
-            standardReport[standardStats.id] = standardStats;
-          });
-
-          return standardReport;
-        };
-
-        if (arguments.length >= 2) {
-          var successCallbackWrapper_ = function(response) {
-            args[1](fixChromeStats_(response));
-          };
-
-          return origGetStats.apply(this, [successCallbackWrapper_,
-              arguments[0]]);
-        }
-
-        // promise-support
-        return new Promise(function(resolve, reject) {
-          if (args.length === 1 && typeof selector === 'object') {
-            origGetStats.apply(self,
-                [function(response) {
-                  resolve.apply(null, [fixChromeStats_(response)]);
-                }, reject]);
-          } else {
-            origGetStats.apply(self, [resolve, reject]);
-          }
-        });
-      };
-
-      return pc;
-    };
-    window.RTCPeerConnection.prototype = webkitRTCPeerConnection.prototype;
-
-    // wrap static methods. Currently just generateCertificate.
-    if (webkitRTCPeerConnection.generateCertificate) {
-      Object.defineProperty(window.RTCPeerConnection, 'generateCertificate', {
-        get: function() {
-          return webkitRTCPeerConnection.generateCertificate;
-        }
-      });
-    }
-
-    // add promise support
-    ['createOffer', 'createAnswer'].forEach(function(method) {
-      var nativeMethod = webkitRTCPeerConnection.prototype[method];
-      webkitRTCPeerConnection.prototype[method] = function() {
-        var self = this;
-        if (arguments.length < 1 || (arguments.length === 1 &&
-            typeof(arguments[0]) === 'object')) {
-          var opts = arguments.length === 1 ? arguments[0] : undefined;
-          return new Promise(function(resolve, reject) {
-            nativeMethod.apply(self, [resolve, reject, opts]);
-          });
-        }
-        return nativeMethod.apply(this, arguments);
-      };
-    });
-
-    ['setLocalDescription', 'setRemoteDescription', 'addIceCandidate']
-        .forEach(function(method) {
-          var nativeMethod = webkitRTCPeerConnection.prototype[method];
-          webkitRTCPeerConnection.prototype[method] = function() {
-            var args = arguments;
-            var self = this;
-            args[0] = new ((method === 'addIceCandidate')?
-                RTCIceCandidate : RTCSessionDescription)(args[0]);
-            return new Promise(function(resolve, reject) {
-              nativeMethod.apply(self, [args[0],
-                  function() {
-                    resolve();
-                    if (args.length >= 2) {
-                      args[1].apply(null, []);
-                    }
-                  },
-                  function(err) {
-                    reject(err);
-                    if (args.length >= 3) {
-                      args[2].apply(null, [err]);
-                    }
-                  }]
-                );
-            });
-          };
-        });
-  },
-
-  // Attach a media stream to an element.
-  attachMediaStream: function(element, stream) {
-    logging('DEPRECATED, attachMediaStream will soon be removed.');
-    if (browserDetails.version >= 43) {
-      element.srcObject = stream;
-    } else if (typeof element.src !== 'undefined') {
-      element.src = URL.createObjectURL(stream);
-    } else {
-      logging('Error attaching stream to element.');
-    }
-  },
-
-  reattachMediaStream: function(to, from) {
-    logging('DEPRECATED, reattachMediaStream will soon be removed.');
-    if (browserDetails.version >= 43) {
-      to.srcObject = from.srcObject;
-    } else {
-      to.src = from.src;
-    }
-  }
-};
-
-
-// Expose public methods.
-module.exports = {
-  shimOnTrack: chromeShim.shimOnTrack,
-  shimSourceObject: chromeShim.shimSourceObject,
-  shimPeerConnection: chromeShim.shimPeerConnection,
-  shimGetUserMedia: require('./getusermedia'),
-  attachMediaStream: chromeShim.attachMediaStream,
-  reattachMediaStream: chromeShim.reattachMediaStream
-};
-
-},{"../utils.js":12,"./getusermedia":6}],6:[function(require,module,exports){
-/*
- *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
- *
- *  Use of this source code is governed by a BSD-style license
- *  that can be found in the LICENSE file in the root of the source
- *  tree.
- */
- /* eslint-env node */
-'use strict';
-var logging = require('../utils.js').log;
-
-// Expose public methods.
-module.exports = function() {
-  var constraintsToChrome_ = function(c) {
-    if (typeof c !== 'object' || c.mandatory || c.optional) {
-      return c;
-    }
-    var cc = {};
-    Object.keys(c).forEach(function(key) {
-      if (key === 'require' || key === 'advanced' || key === 'mediaSource') {
-        return;
-      }
-      var r = (typeof c[key] === 'object') ? c[key] : {ideal: c[key]};
-      if (r.exact !== undefined && typeof r.exact === 'number') {
-        r.min = r.max = r.exact;
-      }
-      var oldname_ = function(prefix, name) {
-        if (prefix) {
-          return prefix + name.charAt(0).toUpperCase() + name.slice(1);
-        }
-        return (name === 'deviceId') ? 'sourceId' : name;
-      };
-      if (r.ideal !== undefined) {
-        cc.optional = cc.optional || [];
-        var oc = {};
-        if (typeof r.ideal === 'number') {
-          oc[oldname_('min', key)] = r.ideal;
-          cc.optional.push(oc);
-          oc = {};
-          oc[oldname_('max', key)] = r.ideal;
-          cc.optional.push(oc);
-        } else {
-          oc[oldname_('', key)] = r.ideal;
-          cc.optional.push(oc);
-        }
-      }
-      if (r.exact !== undefined && typeof r.exact !== 'number') {
-        cc.mandatory = cc.mandatory || {};
-        cc.mandatory[oldname_('', key)] = r.exact;
-      } else {
-        ['min', 'max'].forEach(function(mix) {
-          if (r[mix] !== undefined) {
-            cc.mandatory = cc.mandatory || {};
-            cc.mandatory[oldname_(mix, key)] = r[mix];
-          }
-        });
-      }
-    });
-    if (c.advanced) {
-      cc.optional = (cc.optional || []).concat(c.advanced);
-    }
-    return cc;
-  };
-
-  var getUserMedia_ = function(constraints, onSuccess, onError) {
-    constraints = JSON.parse(JSON.stringify(constraints));
-    if (constraints.audio) {
-      constraints.audio = constraintsToChrome_(constraints.audio);
-    }
-    if (constraints.video) {
-      constraints.video = constraintsToChrome_(constraints.video);
-    }
-    logging('chrome: ' + JSON.stringify(constraints));
-    return navigator.webkitGetUserMedia(constraints, onSuccess, onError);
-  };
-  navigator.getUserMedia = getUserMedia_;
-
-  // Returns the result of getUserMedia as a Promise.
-  var getUserMediaPromise_ = function(constraints) {
-    return new Promise(function(resolve, reject) {
-      navigator.getUserMedia(constraints, resolve, reject);
-    });
-  };
-
-  if (!navigator.mediaDevices) {
-    navigator.mediaDevices = {
-      getUserMedia: getUserMediaPromise_,
-      enumerateDevices: function() {
-        return new Promise(function(resolve) {
-          var kinds = {audio: 'audioinput', video: 'videoinput'};
-          return MediaStreamTrack.getSources(function(devices) {
-            resolve(devices.map(function(device) {
-              return {label: device.label,
-                      kind: kinds[device.kind],
-                      deviceId: device.id,
-                      groupId: ''};
-            }));
-          });
-        });
-      }
-    };
-  }
-
-  // A shim for getUserMedia method on the mediaDevices object.
-  // TODO(KaptenJansson) remove once implemented in Chrome stable.
-  if (!navigator.mediaDevices.getUserMedia) {
-    navigator.mediaDevices.getUserMedia = function(constraints) {
-      return getUserMediaPromise_(constraints);
-    };
-  } else {
-    // Even though Chrome 45 has navigator.mediaDevices and a getUserMedia
-    // function which returns a Promise, it does not accept spec-style
-    // constraints.
-    var origGetUserMedia = navigator.mediaDevices.getUserMedia.
-        bind(navigator.mediaDevices);
-    navigator.mediaDevices.getUserMedia = function(c) {
-      if (c) {
-        logging('spec:   ' + JSON.stringify(c)); // whitespace for alignment
-        c.audio = constraintsToChrome_(c.audio);
-        c.video = constraintsToChrome_(c.video);
-        logging('chrome: ' + JSON.stringify(c));
-      }
-      return origGetUserMedia(c);
-    }.bind(this);
-  }
-
-  // Dummy devicechange event methods.
-  // TODO(KaptenJansson) remove once implemented in Chrome stable.
-  if (typeof navigator.mediaDevices.addEventListener === 'undefined') {
-    navigator.mediaDevices.addEventListener = function() {
-      logging('Dummy mediaDevices.addEventListener called.');
-    };
-  }
-  if (typeof navigator.mediaDevices.removeEventListener === 'undefined') {
-    navigator.mediaDevices.removeEventListener = function() {
-      logging('Dummy mediaDevices.removeEventListener called.');
-    };
-  }
-};
-
-},{"../utils.js":12}],7:[function(require,module,exports){
-/*
- *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
- *
- *  Use of this source code is governed by a BSD-style license
- *  that can be found in the LICENSE file in the root of the source
- *  tree.
- */
+},{"webrtc-adapter":5}],4:[function(require,module,exports){
  /* eslint-env node */
 'use strict';
 
@@ -1240,7 +751,8 @@ SDPUtils.writeRtcpFb = function(codec) {
   if (codec.rtcpFeedback && codec.rtcpFeedback.length) {
     // FIXME: special handling for trr-int?
     codec.rtcpFeedback.forEach(function(fb) {
-      lines += 'a=rtcp-fb:' + pt + ' ' + fb.type + ' ' + fb.parameter +
+      lines += 'a=rtcp-fb:' + pt + ' ' + fb.type +
+      (fb.parameter && fb.parameter.length ? ' ' + fb.parameter : '') +
           '\r\n';
     });
   }
@@ -1426,6 +938,7 @@ SDPUtils.parseRtpEncodingParameters = function(mediaSection) {
         ssrc: primarySsrc,
         codecPayloadType: parseInt(codec.parameters.apt, 10),
         rtx: {
+          payloadType: codec.payloadType,
           ssrc: secondarySsrc
         }
       };
@@ -1531,7 +1044,577 @@ SDPUtils.getDirection = function(mediaSection, sessionpart) {
 // Expose public methods.
 module.exports = SDPUtils;
 
-},{}],8:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
+/*
+ *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree.
+ */
+ /* eslint-env node */
+
+'use strict';
+
+// Shimming starts here.
+(function() {
+  // Utils.
+  var logging = require('./utils').log;
+  var browserDetails = require('./utils').browserDetails;
+  // Export to the adapter global object visible in the browser.
+  module.exports.browserDetails = browserDetails;
+  module.exports.extractVersion = require('./utils').extractVersion;
+  module.exports.disableLog = require('./utils').disableLog;
+
+  // Uncomment the line below if you want logging to occur, including logging
+  // for the switch statement below. Can also be turned on in the browser via
+  // adapter.disableLog(false), but then logging from the switch statement below
+  // will not appear.
+  // require('./utils').disableLog(false);
+
+  // Browser shims.
+  var chromeShim = require('./chrome/chrome_shim') || null;
+  var edgeShim = require('./edge/edge_shim') || null;
+  var firefoxShim = require('./firefox/firefox_shim') || null;
+  var safariShim = require('./safari/safari_shim') || null;
+
+  // Shim browser if found.
+  switch (browserDetails.browser) {
+    case 'opera': // fallthrough as it uses chrome shims
+    case 'chrome':
+      if (!chromeShim || !chromeShim.shimPeerConnection) {
+        logging('Chrome shim is not included in this adapter release.');
+        return;
+      }
+      logging('adapter.js shimming chrome.');
+      // Export to the adapter global object visible in the browser.
+      module.exports.browserShim = chromeShim;
+
+      chromeShim.shimGetUserMedia();
+      chromeShim.shimMediaStream();
+      chromeShim.shimSourceObject();
+      chromeShim.shimPeerConnection();
+      chromeShim.shimOnTrack();
+      break;
+    case 'firefox':
+      if (!firefoxShim || !firefoxShim.shimPeerConnection) {
+        logging('Firefox shim is not included in this adapter release.');
+        return;
+      }
+      logging('adapter.js shimming firefox.');
+      // Export to the adapter global object visible in the browser.
+      module.exports.browserShim = firefoxShim;
+
+      firefoxShim.shimGetUserMedia();
+      firefoxShim.shimSourceObject();
+      firefoxShim.shimPeerConnection();
+      firefoxShim.shimOnTrack();
+      break;
+    case 'edge':
+      if (!edgeShim || !edgeShim.shimPeerConnection) {
+        logging('MS edge shim is not included in this adapter release.');
+        return;
+      }
+      logging('adapter.js shimming edge.');
+      // Export to the adapter global object visible in the browser.
+      module.exports.browserShim = edgeShim;
+
+      edgeShim.shimGetUserMedia();
+      edgeShim.shimPeerConnection();
+      break;
+    case 'safari':
+      if (!safariShim) {
+        logging('Safari shim is not included in this adapter release.');
+        return;
+      }
+      logging('adapter.js shimming safari.');
+      // Export to the adapter global object visible in the browser.
+      module.exports.browserShim = safariShim;
+
+      safariShim.shimGetUserMedia();
+      break;
+    default:
+      logging('Unsupported browser!');
+  }
+})();
+
+},{"./chrome/chrome_shim":6,"./edge/edge_shim":8,"./firefox/firefox_shim":10,"./safari/safari_shim":12,"./utils":13}],6:[function(require,module,exports){
+
+/*
+ *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree.
+ */
+ /* eslint-env node */
+'use strict';
+var logging = require('../utils.js').log;
+var browserDetails = require('../utils.js').browserDetails;
+
+var chromeShim = {
+  shimMediaStream: function() {
+    window.MediaStream = window.MediaStream || window.webkitMediaStream;
+  },
+
+  shimOnTrack: function() {
+    if (typeof window === 'object' && window.RTCPeerConnection && !('ontrack' in
+        window.RTCPeerConnection.prototype)) {
+      Object.defineProperty(window.RTCPeerConnection.prototype, 'ontrack', {
+        get: function() {
+          return this._ontrack;
+        },
+        set: function(f) {
+          var self = this;
+          if (this._ontrack) {
+            this.removeEventListener('track', this._ontrack);
+            this.removeEventListener('addstream', this._ontrackpoly);
+          }
+          this.addEventListener('track', this._ontrack = f);
+          this.addEventListener('addstream', this._ontrackpoly = function(e) {
+            // onaddstream does not fire when a track is added to an existing
+            // stream. But stream.onaddtrack is implemented so we use that.
+            e.stream.addEventListener('addtrack', function(te) {
+              var event = new Event('track');
+              event.track = te.track;
+              event.receiver = {track: te.track};
+              event.streams = [e.stream];
+              self.dispatchEvent(event);
+            });
+            e.stream.getTracks().forEach(function(track) {
+              var event = new Event('track');
+              event.track = track;
+              event.receiver = {track: track};
+              event.streams = [e.stream];
+              this.dispatchEvent(event);
+            }.bind(this));
+          }.bind(this));
+        }
+      });
+    }
+  },
+
+  shimSourceObject: function() {
+    if (typeof window === 'object') {
+      if (window.HTMLMediaElement &&
+        !('srcObject' in window.HTMLMediaElement.prototype)) {
+        // Shim the srcObject property, once, when HTMLMediaElement is found.
+        Object.defineProperty(window.HTMLMediaElement.prototype, 'srcObject', {
+          get: function() {
+            return this._srcObject;
+          },
+          set: function(stream) {
+            var self = this;
+            // Use _srcObject as a private property for this shim
+            this._srcObject = stream;
+            if (this.src) {
+              URL.revokeObjectURL(this.src);
+            }
+
+            if (!stream) {
+              this.src = '';
+              return;
+            }
+            this.src = URL.createObjectURL(stream);
+            // We need to recreate the blob url when a track is added or
+            // removed. Doing it manually since we want to avoid a recursion.
+            stream.addEventListener('addtrack', function() {
+              if (self.src) {
+                URL.revokeObjectURL(self.src);
+              }
+              self.src = URL.createObjectURL(stream);
+            });
+            stream.addEventListener('removetrack', function() {
+              if (self.src) {
+                URL.revokeObjectURL(self.src);
+              }
+              self.src = URL.createObjectURL(stream);
+            });
+          }
+        });
+      }
+    }
+  },
+
+  shimPeerConnection: function() {
+    // The RTCPeerConnection object.
+    window.RTCPeerConnection = function(pcConfig, pcConstraints) {
+      // Translate iceTransportPolicy to iceTransports,
+      // see https://code.google.com/p/webrtc/issues/detail?id=4869
+      logging('PeerConnection');
+      if (pcConfig && pcConfig.iceTransportPolicy) {
+        pcConfig.iceTransports = pcConfig.iceTransportPolicy;
+      }
+
+      var pc = new webkitRTCPeerConnection(pcConfig, pcConstraints);
+      var origGetStats = pc.getStats.bind(pc);
+      pc.getStats = function(selector, successCallback, errorCallback) {
+        var self = this;
+        var args = arguments;
+
+        // If selector is a function then we are in the old style stats so just
+        // pass back the original getStats format to avoid breaking old users.
+        if (arguments.length > 0 && typeof selector === 'function') {
+          return origGetStats(selector, successCallback);
+        }
+
+        var fixChromeStats_ = function(response) {
+          var standardReport = {};
+          var reports = response.result();
+          reports.forEach(function(report) {
+            var standardStats = {
+              id: report.id,
+              timestamp: report.timestamp,
+              type: report.type
+            };
+            report.names().forEach(function(name) {
+              standardStats[name] = report.stat(name);
+            });
+            standardReport[standardStats.id] = standardStats;
+          });
+
+          return standardReport;
+        };
+
+        // shim getStats with maplike support
+        var makeMapStats = function(stats, legacyStats) {
+          var map = new Map(Object.keys(stats).map(function(key) {
+            return[key, stats[key]];
+          }));
+          legacyStats = legacyStats || stats;
+          Object.keys(legacyStats).forEach(function(key) {
+            map[key] = legacyStats[key];
+          });
+          return map;
+        };
+
+        if (arguments.length >= 2) {
+          var successCallbackWrapper_ = function(response) {
+            args[1](makeMapStats(fixChromeStats_(response)));
+          };
+
+          return origGetStats.apply(this, [successCallbackWrapper_,
+              arguments[0]]);
+        }
+
+        // promise-support
+        return new Promise(function(resolve, reject) {
+          if (args.length === 1 && typeof selector === 'object') {
+            origGetStats.apply(self, [
+              function(response) {
+                resolve(makeMapStats(fixChromeStats_(response)));
+              }, reject]);
+          } else {
+            // Preserve legacy chrome stats only on legacy access of stats obj
+            origGetStats.apply(self, [
+              function(response) {
+                resolve(makeMapStats(fixChromeStats_(response),
+                    response.result()));
+              }, reject]);
+          }
+        }).then(successCallback, errorCallback);
+      };
+
+      return pc;
+    };
+    window.RTCPeerConnection.prototype = webkitRTCPeerConnection.prototype;
+
+    // wrap static methods. Currently just generateCertificate.
+    if (webkitRTCPeerConnection.generateCertificate) {
+      Object.defineProperty(window.RTCPeerConnection, 'generateCertificate', {
+        get: function() {
+          return webkitRTCPeerConnection.generateCertificate;
+        }
+      });
+    }
+
+    ['createOffer', 'createAnswer'].forEach(function(method) {
+      var nativeMethod = webkitRTCPeerConnection.prototype[method];
+      webkitRTCPeerConnection.prototype[method] = function() {
+        var self = this;
+        if (arguments.length < 1 || (arguments.length === 1 &&
+            typeof arguments[0] === 'object')) {
+          var opts = arguments.length === 1 ? arguments[0] : undefined;
+          return new Promise(function(resolve, reject) {
+            nativeMethod.apply(self, [resolve, reject, opts]);
+          });
+        }
+        return nativeMethod.apply(this, arguments);
+      };
+    });
+
+    // add promise support -- natively available in Chrome 51
+    if (browserDetails.version < 51) {
+      ['setLocalDescription', 'setRemoteDescription', 'addIceCandidate']
+          .forEach(function(method) {
+            var nativeMethod = webkitRTCPeerConnection.prototype[method];
+            webkitRTCPeerConnection.prototype[method] = function() {
+              var args = arguments;
+              var self = this;
+              var promise = new Promise(function(resolve, reject) {
+                nativeMethod.apply(self, [args[0], resolve, reject]);
+              });
+              if (args.length < 2) {
+                return promise;
+              }
+              return promise.then(function() {
+                args[1].apply(null, []);
+              },
+              function(err) {
+                if (args.length >= 3) {
+                  args[2].apply(null, [err]);
+                }
+              });
+            };
+          });
+    }
+
+    // support for addIceCandidate(null)
+    var nativeAddIceCandidate =
+        RTCPeerConnection.prototype.addIceCandidate;
+    RTCPeerConnection.prototype.addIceCandidate = function() {
+      return arguments[0] === null ? Promise.resolve()
+          : nativeAddIceCandidate.apply(this, arguments);
+    };
+
+    // shim implicit creation of RTCSessionDescription/RTCIceCandidate
+    ['setLocalDescription', 'setRemoteDescription', 'addIceCandidate']
+        .forEach(function(method) {
+          var nativeMethod = webkitRTCPeerConnection.prototype[method];
+          webkitRTCPeerConnection.prototype[method] = function() {
+            arguments[0] = new ((method === 'addIceCandidate') ?
+                RTCIceCandidate : RTCSessionDescription)(arguments[0]);
+            return nativeMethod.apply(this, arguments);
+          };
+        });
+  },
+
+  // Attach a media stream to an element.
+  attachMediaStream: function(element, stream) {
+    logging('DEPRECATED, attachMediaStream will soon be removed.');
+    if (browserDetails.version >= 43) {
+      element.srcObject = stream;
+    } else if (typeof element.src !== 'undefined') {
+      element.src = URL.createObjectURL(stream);
+    } else {
+      logging('Error attaching stream to element.');
+    }
+  },
+
+  reattachMediaStream: function(to, from) {
+    logging('DEPRECATED, reattachMediaStream will soon be removed.');
+    if (browserDetails.version >= 43) {
+      to.srcObject = from.srcObject;
+    } else {
+      to.src = from.src;
+    }
+  }
+};
+
+
+// Expose public methods.
+module.exports = {
+  shimMediaStream: chromeShim.shimMediaStream,
+  shimOnTrack: chromeShim.shimOnTrack,
+  shimSourceObject: chromeShim.shimSourceObject,
+  shimPeerConnection: chromeShim.shimPeerConnection,
+  shimGetUserMedia: require('./getusermedia'),
+  attachMediaStream: chromeShim.attachMediaStream,
+  reattachMediaStream: chromeShim.reattachMediaStream
+};
+
+},{"../utils.js":13,"./getusermedia":7}],7:[function(require,module,exports){
+/*
+ *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree.
+ */
+ /* eslint-env node */
+'use strict';
+var logging = require('../utils.js').log;
+
+// Expose public methods.
+module.exports = function() {
+  var constraintsToChrome_ = function(c) {
+    if (typeof c !== 'object' || c.mandatory || c.optional) {
+      return c;
+    }
+    var cc = {};
+    Object.keys(c).forEach(function(key) {
+      if (key === 'require' || key === 'advanced' || key === 'mediaSource') {
+        return;
+      }
+      var r = (typeof c[key] === 'object') ? c[key] : {ideal: c[key]};
+      if (r.exact !== undefined && typeof r.exact === 'number') {
+        r.min = r.max = r.exact;
+      }
+      var oldname_ = function(prefix, name) {
+        if (prefix) {
+          return prefix + name.charAt(0).toUpperCase() + name.slice(1);
+        }
+        return (name === 'deviceId') ? 'sourceId' : name;
+      };
+      if (r.ideal !== undefined) {
+        cc.optional = cc.optional || [];
+        var oc = {};
+        if (typeof r.ideal === 'number') {
+          oc[oldname_('min', key)] = r.ideal;
+          cc.optional.push(oc);
+          oc = {};
+          oc[oldname_('max', key)] = r.ideal;
+          cc.optional.push(oc);
+        } else {
+          oc[oldname_('', key)] = r.ideal;
+          cc.optional.push(oc);
+        }
+      }
+      if (r.exact !== undefined && typeof r.exact !== 'number') {
+        cc.mandatory = cc.mandatory || {};
+        cc.mandatory[oldname_('', key)] = r.exact;
+      } else {
+        ['min', 'max'].forEach(function(mix) {
+          if (r[mix] !== undefined) {
+            cc.mandatory = cc.mandatory || {};
+            cc.mandatory[oldname_(mix, key)] = r[mix];
+          }
+        });
+      }
+    });
+    if (c.advanced) {
+      cc.optional = (cc.optional || []).concat(c.advanced);
+    }
+    return cc;
+  };
+
+  var shimConstraints_ = function(constraints, func) {
+    constraints = JSON.parse(JSON.stringify(constraints));
+    if (constraints && constraints.audio) {
+      constraints.audio = constraintsToChrome_(constraints.audio);
+    }
+    if (constraints && typeof constraints.video === 'object') {
+      // Shim facingMode for mobile, where it defaults to "user".
+      var face = constraints.video.facingMode;
+      face = face && ((typeof face === 'object') ? face : {ideal: face});
+
+      if ((face && (face.exact === 'user' || face.exact === 'environment' ||
+                    face.ideal === 'user' || face.ideal === 'environment')) &&
+          !(navigator.mediaDevices.getSupportedConstraints &&
+            navigator.mediaDevices.getSupportedConstraints().facingMode)) {
+        delete constraints.video.facingMode;
+        if (face.exact === 'environment' || face.ideal === 'environment') {
+          // Look for "back" in label, or use last cam (typically back cam).
+          return navigator.mediaDevices.enumerateDevices()
+          .then(function(devices) {
+            devices = devices.filter(function(d) {
+              return d.kind === 'videoinput';
+            });
+            var back = devices.find(function(d) {
+              return d.label.toLowerCase().indexOf('back') !== -1;
+            }) || (devices.length && devices[devices.length - 1]);
+            if (back) {
+              constraints.video.deviceId = face.exact ? {exact: back.deviceId} :
+                                                        {ideal: back.deviceId};
+            }
+            constraints.video = constraintsToChrome_(constraints.video);
+            logging('chrome: ' + JSON.stringify(constraints));
+            return func(constraints);
+          });
+        }
+      }
+      constraints.video = constraintsToChrome_(constraints.video);
+    }
+    logging('chrome: ' + JSON.stringify(constraints));
+    return func(constraints);
+  };
+
+  var shimError_ = function(e) {
+    return {
+      name: {
+        PermissionDeniedError: 'NotAllowedError',
+        ConstraintNotSatisfiedError: 'OverconstrainedError'
+      }[e.name] || e.name,
+      message: e.message,
+      constraint: e.constraintName,
+      toString: function() {
+        return this.name + (this.message && ': ') + this.message;
+      }
+    };
+  };
+
+  var getUserMedia_ = function(constraints, onSuccess, onError) {
+    shimConstraints_(constraints, function(c) {
+      navigator.webkitGetUserMedia(c, onSuccess, function(e) {
+        onError(shimError_(e));
+      });
+    });
+  };
+
+  navigator.getUserMedia = getUserMedia_;
+
+  // Returns the result of getUserMedia as a Promise.
+  var getUserMediaPromise_ = function(constraints) {
+    return new Promise(function(resolve, reject) {
+      navigator.getUserMedia(constraints, resolve, reject);
+    });
+  };
+
+  if (!navigator.mediaDevices) {
+    navigator.mediaDevices = {
+      getUserMedia: getUserMediaPromise_,
+      enumerateDevices: function() {
+        return new Promise(function(resolve) {
+          var kinds = {audio: 'audioinput', video: 'videoinput'};
+          return MediaStreamTrack.getSources(function(devices) {
+            resolve(devices.map(function(device) {
+              return {label: device.label,
+                      kind: kinds[device.kind],
+                      deviceId: device.id,
+                      groupId: ''};
+            }));
+          });
+        });
+      }
+    };
+  }
+
+  // A shim for getUserMedia method on the mediaDevices object.
+  // TODO(KaptenJansson) remove once implemented in Chrome stable.
+  if (!navigator.mediaDevices.getUserMedia) {
+    navigator.mediaDevices.getUserMedia = function(constraints) {
+      return getUserMediaPromise_(constraints);
+    };
+  } else {
+    // Even though Chrome 45 has navigator.mediaDevices and a getUserMedia
+    // function which returns a Promise, it does not accept spec-style
+    // constraints.
+    var origGetUserMedia = navigator.mediaDevices.getUserMedia.
+        bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = function(cs) {
+      return shimConstraints_(cs, function(c) {
+        return origGetUserMedia(c).catch(function(e) {
+          return Promise.reject(shimError_(e));
+        });
+      });
+    };
+  }
+
+  // Dummy devicechange event methods.
+  // TODO(KaptenJansson) remove once implemented in Chrome stable.
+  if (typeof navigator.mediaDevices.addEventListener === 'undefined') {
+    navigator.mediaDevices.addEventListener = function() {
+      logging('Dummy mediaDevices.addEventListener called.');
+    };
+  }
+  if (typeof navigator.mediaDevices.removeEventListener === 'undefined') {
+    navigator.mediaDevices.removeEventListener = function() {
+      logging('Dummy mediaDevices.removeEventListener called.');
+    };
+  }
+};
+
+},{"../utils.js":13}],8:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -1542,7 +1625,7 @@ module.exports = SDPUtils;
  /* eslint-env node */
 'use strict';
 
-var SDPUtils = require('./edge_sdp');
+var SDPUtils = require('sdp');
 var logging = require('../utils').log;
 
 var edgeShim = {
@@ -1622,17 +1705,24 @@ var edgeShim = {
             break;
         }
       }
+      this.usingBundle = config && config.bundlePolicy === 'max-bundle';
+
       if (config && config.iceServers) {
         // Edge does not like
         // 1) stun:
         // 2) turn: that does not have all of turn:host:port?transport=udp
-        this.iceOptions.iceServers = config.iceServers.filter(function(server) {
+        var iceServers = JSON.parse(JSON.stringify(config.iceServers));
+        this.iceOptions.iceServers = iceServers.filter(function(server) {
           if (server && server.urls) {
-            server.urls = server.urls.filter(function(url) {
+            var urls = server.urls;
+            if (typeof urls === 'string') {
+              urls = [urls];
+            }
+            urls = urls.filter(function(url) {
               return url.indexOf('turn:') === 0 &&
                   url.indexOf('transport=udp') !== -1;
             })[0];
-            return !!server.urls;
+            return !!urls;
           }
           return false;
         });
@@ -1697,6 +1787,24 @@ var edgeShim = {
         this.localStreams.splice(idx, 1);
         this._maybeFireNegotiationNeeded();
       }
+    };
+
+    window.RTCPeerConnection.prototype.getSenders = function() {
+      return this.transceivers.filter(function(transceiver) {
+        return !!transceiver.rtpSender;
+      })
+      .map(function(transceiver) {
+        return transceiver.rtpSender;
+      });
+    };
+
+    window.RTCPeerConnection.prototype.getReceivers = function() {
+      return this.transceivers.filter(function(transceiver) {
+        return !!transceiver.rtpReceiver;
+      })
+      .map(function(transceiver) {
+        return transceiver.rtpReceiver;
+      });
     };
 
     // Determines the intersection of local and remote capabilities.
@@ -1771,6 +1879,18 @@ var edgeShim = {
               cand.component = iceTransport.component === 'RTCP' ? 2 : 1;
               event.candidate.candidate = SDPUtils.writeCandidate(cand);
             }
+
+            // update local description.
+            var sections = SDPUtils.splitSections(self.localDescription.sdp);
+            if (event.candidate.candidate.indexOf('typ endOfCandidates')
+                === -1) {
+              sections[event.candidate.sdpMLineIndex + 1] +=
+                  'a=' + event.candidate.candidate + '\r\n';
+            } else {
+              sections[event.candidate.sdpMLineIndex + 1] +=
+                  'a=end-of-candidates\r\n';
+            }
+            self.localDescription.sdp = sections.join('');
 
             var complete = self.transceivers.every(function(transceiver) {
               return transceiver.iceGatherer &&
@@ -1880,6 +2000,8 @@ var edgeShim = {
           } else if (description.type === 'answer') {
             sections = SDPUtils.splitSections(self.remoteDescription.sdp);
             sessionpart = sections.shift();
+            var isIceLite = SDPUtils.matchPrefix(sessionpart,
+                'a=ice-lite').length > 0;
             sections.forEach(function(mediaSection, sdpMLineIndex) {
               var transceiver = self.transceivers[sdpMLineIndex];
               var iceGatherer = transceiver.iceGatherer;
@@ -1893,12 +2015,32 @@ var edgeShim = {
               if (!rejected) {
                 var remoteIceParameters = SDPUtils.getIceParameters(
                     mediaSection, sessionpart);
-                iceTransport.start(iceGatherer, remoteIceParameters,
-                    'controlled');
-
+                if (isIceLite) {
+                  var cands = SDPUtils.matchPrefix(mediaSection, 'a=candidate:')
+                  .map(function(cand) {
+                    return SDPUtils.parseCandidate(cand);
+                  })
+                  .filter(function(cand) {
+                    return cand.component === '1';
+                  });
+                  // ice-lite only includes host candidates in the SDP so we can
+                  // use setRemoteCandidates (which implies an
+                  // RTCIceCandidateComplete)
+                  if (cands.length) {
+                    iceTransport.setRemoteCandidates(cands);
+                  }
+                }
                 var remoteDtlsParameters = SDPUtils.getDtlsParameters(
                     mediaSection, sessionpart);
-                dtlsTransport.start(remoteDtlsParameters);
+                if (isIceLite) {
+                  remoteDtlsParameters.role = 'server';
+                }
+
+                if (!self.usingBundle || sdpMLineIndex === 0) {
+                  iceTransport.start(iceGatherer, remoteIceParameters,
+                      isIceLite ? 'controlling' : 'controlled');
+                  dtlsTransport.start(remoteDtlsParameters);
+                }
 
                 // Calculate intersection of capabilities.
                 var params = self._getCommonCapabilities(localCapabilities,
@@ -1964,6 +2106,10 @@ var edgeShim = {
           var receiverList = [];
           var sections = SDPUtils.splitSections(description.sdp);
           var sessionpart = sections.shift();
+          var isIceLite = SDPUtils.matchPrefix(sessionpart,
+              'a=ice-lite').length > 0;
+          this.usingBundle = SDPUtils.matchPrefix(sessionpart,
+              'a=group:BUNDLE ').length > 0;
           sections.forEach(function(mediaSection, sdpMLineIndex) {
             var lines = SDPUtils.splitLines(mediaSection);
             var mline = lines[0].substr(2).split(' ');
@@ -1991,6 +2137,7 @@ var edgeShim = {
                   sessionpart);
               remoteDtlsParameters = SDPUtils.getDtlsParameters(mediaSection,
                   sessionpart);
+              remoteDtlsParameters.role = 'client';
             }
             recvEncodingParameters =
                 SDPUtils.parseRtpEncodingParameters(mediaSection);
@@ -2026,8 +2173,12 @@ var edgeShim = {
                   return cand.component === '1';
                 });
             if (description.type === 'offer' && !rejected) {
-              var transports = self._createIceAndDtlsTransports(mid,
-                  sdpMLineIndex);
+              var transports = self.usingBundle && sdpMLineIndex > 0 ? {
+                iceGatherer: self.transceivers[0].iceGatherer,
+                iceTransport: self.transceivers[0].iceTransport,
+                dtlsTransport: self.transceivers[0].dtlsTransport
+              } : self._createIceAndDtlsTransports(mid, sdpMLineIndex);
+
               if (isComplete) {
                 transports.iceTransport.setRemoteCandidates(cands);
               }
@@ -2090,12 +2241,14 @@ var edgeShim = {
                   remoteCapabilities;
               self.transceivers[sdpMLineIndex].cname = cname;
 
-              if (isComplete) {
+              if ((isIceLite || isComplete) && cands.length) {
                 iceTransport.setRemoteCandidates(cands);
               }
-              iceTransport.start(iceGatherer, remoteIceParameters,
-                  'controlling');
-              dtlsTransport.start(remoteDtlsParameters);
+              if (!self.usingBundle || sdpMLineIndex === 0) {
+                iceTransport.start(iceGatherer, remoteIceParameters,
+                    'controlling');
+                dtlsTransport.start(remoteDtlsParameters);
+              }
 
               self._transceive(transceiver,
                   direction === 'sendrecv' || direction === 'recvonly',
@@ -2328,7 +2481,11 @@ var edgeShim = {
         var kind = mline.kind;
         var mid = SDPUtils.generateIdentifier();
 
-        var transports = self._createIceAndDtlsTransports(mid, sdpMLineIndex);
+        var transports = self.usingBundle && sdpMLineIndex > 0 ? {
+          iceGatherer: transceivers[0].iceGatherer,
+          iceTransport: transceivers[0].iceTransport,
+          dtlsTransport: transceivers[0].dtlsTransport
+        } : self._createIceAndDtlsTransports(mid, sdpMLineIndex);
 
         var localCapabilities = RTCRtpSender.getCapabilities(kind);
         var rtpSender;
@@ -2359,6 +2516,13 @@ var edgeShim = {
           sendEncodingParameters: sendEncodingParameters,
           recvEncodingParameters: null
         };
+      });
+      if (this.usingBundle) {
+        sdp += 'a=group:BUNDLE ' + transceivers.map(function(t) {
+          return t.mid;
+        }).join(' ') + '\r\n';
+      }
+      tracks.forEach(function(mline, sdpMLineIndex) {
         var transceiver = transceivers[sdpMLineIndex];
         sdp += SDPUtils.writeMediaSection(transceiver,
             transceiver.localCapabilities, 'offer', self.localStreams[0]);
@@ -2379,6 +2543,11 @@ var edgeShim = {
       var self = this;
 
       var sdp = SDPUtils.writeSessionBoilerplate();
+      if (this.usingBundle) {
+        sdp += 'a=group:BUNDLE ' + this.transceivers.map(function(t) {
+          return t.mid;
+        }).join(' ') + '\r\n';
+      }
       this.transceivers.forEach(function(transceiver) {
         // Calculate intersection of capabilities.
         var commonCapabilities = self._getCommonCapabilities(
@@ -2400,38 +2569,44 @@ var edgeShim = {
     };
 
     window.RTCPeerConnection.prototype.addIceCandidate = function(candidate) {
-      var mLineIndex = candidate.sdpMLineIndex;
-      if (candidate.sdpMid) {
-        for (var i = 0; i < this.transceivers.length; i++) {
-          if (this.transceivers[i].mid === candidate.sdpMid) {
-            mLineIndex = i;
-            break;
+      if (candidate === null) {
+        this.transceivers.forEach(function(transceiver) {
+          transceiver.iceTransport.addRemoteCandidate({});
+        });
+      } else {
+        var mLineIndex = candidate.sdpMLineIndex;
+        if (candidate.sdpMid) {
+          for (var i = 0; i < this.transceivers.length; i++) {
+            if (this.transceivers[i].mid === candidate.sdpMid) {
+              mLineIndex = i;
+              break;
+            }
           }
         }
-      }
-      var transceiver = this.transceivers[mLineIndex];
-      if (transceiver) {
-        var cand = Object.keys(candidate.candidate).length > 0 ?
-            SDPUtils.parseCandidate(candidate.candidate) : {};
-        // Ignore Chrome's invalid candidates since Edge does not like them.
-        if (cand.protocol === 'tcp' && cand.port === 0) {
-          return;
-        }
-        // Ignore RTCP candidates, we assume RTCP-MUX.
-        if (cand.component !== '1') {
-          return;
-        }
-        // A dirty hack to make samples work.
-        if (cand.type === 'endOfCandidates') {
-          cand = {};
-        }
-        transceiver.iceTransport.addRemoteCandidate(cand);
+        var transceiver = this.transceivers[mLineIndex];
+        if (transceiver) {
+          var cand = Object.keys(candidate.candidate).length > 0 ?
+              SDPUtils.parseCandidate(candidate.candidate) : {};
+          // Ignore Chrome's invalid candidates since Edge does not like them.
+          if (cand.protocol === 'tcp' && cand.port === 0) {
+            return;
+          }
+          // Ignore RTCP candidates, we assume RTCP-MUX.
+          if (cand.component !== '1') {
+            return;
+          }
+          // A dirty hack to make samples work.
+          if (cand.type === 'endOfCandidates') {
+            cand = {};
+          }
+          transceiver.iceTransport.addRemoteCandidate(cand);
 
-        // update the remoteDescription.
-        var sections = SDPUtils.splitSections(this.remoteDescription.sdp);
-        sections[mLineIndex + 1] += (cand.type ? candidate.candidate.trim()
-            : 'a=end-of-candidates') + '\r\n';
-        this.remoteDescription.sdp = sections.join('');
+          // update the remoteDescription.
+          var sections = SDPUtils.splitSections(this.remoteDescription.sdp);
+          sections[mLineIndex + 1] += (cand.type ? candidate.candidate.trim()
+              : 'a=end-of-candidates') + '\r\n';
+          this.remoteDescription.sdp = sections.join('');
+        }
       }
       if (arguments.length > 1 && typeof arguments[1] === 'function') {
         window.setTimeout(arguments[1], 0);
@@ -2452,10 +2627,12 @@ var edgeShim = {
       var cb = arguments.length > 1 && typeof arguments[1] === 'function' &&
           arguments[1];
       return new Promise(function(resolve) {
-        var results = {};
+        // shim getStats with maplike support
+        var results = new Map();
         Promise.all(promises).then(function(res) {
           res.forEach(function(result) {
             Object.keys(result).forEach(function(id) {
+              results.set(id, result[id]);
               results[id] = result[id];
             });
           });
@@ -2483,11 +2660,46 @@ var edgeShim = {
 // Expose public methods.
 module.exports = {
   shimPeerConnection: edgeShim.shimPeerConnection,
+  shimGetUserMedia: require('./getusermedia'),
   attachMediaStream: edgeShim.attachMediaStream,
   reattachMediaStream: edgeShim.reattachMediaStream
 };
 
-},{"../utils":12,"./edge_sdp":7}],9:[function(require,module,exports){
+},{"../utils":13,"./getusermedia":9,"sdp":4}],9:[function(require,module,exports){
+/*
+ *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
+ *
+ *  Use of this source code is governed by a BSD-style license
+ *  that can be found in the LICENSE file in the root of the source
+ *  tree.
+ */
+ /* eslint-env node */
+'use strict';
+
+// Expose public methods.
+module.exports = function() {
+  var shimError_ = function(e) {
+    return {
+      name: {PermissionDeniedError: 'NotAllowedError'}[e.name] || e.name,
+      message: e.message,
+      constraint: e.constraint,
+      toString: function() {
+        return this.name;
+      }
+    };
+  };
+
+  // getUserMedia error shim.
+  var origGetUserMedia = navigator.mediaDevices.getUserMedia.
+      bind(navigator.mediaDevices);
+  navigator.mediaDevices.getUserMedia = function(c) {
+    return origGetUserMedia(c).catch(function(e) {
+      return Promise.reject(shimError_(e));
+    });
+  };
+};
+
+},{}],10:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -2548,6 +2760,10 @@ var firefoxShim = {
   },
 
   shimPeerConnection: function() {
+    if (typeof window !== 'object' || !(window.RTCPeerConnection ||
+        window.mozRTCPeerConnection)) {
+      return; // probably media.peerconnection.enabled=false in about:config
+    }
     // The RTCPeerConnection object.
     if (!window.RTCPeerConnection) {
       window.RTCPeerConnection = function(pcConfig, pcConstraints) {
@@ -2598,114 +2814,38 @@ var firefoxShim = {
         .forEach(function(method) {
           var nativeMethod = RTCPeerConnection.prototype[method];
           RTCPeerConnection.prototype[method] = function() {
-            arguments[0] = new ((method === 'addIceCandidate')?
+            arguments[0] = new ((method === 'addIceCandidate') ?
                 RTCIceCandidate : RTCSessionDescription)(arguments[0]);
             return nativeMethod.apply(this, arguments);
           };
         });
-  },
 
-  shimGetUserMedia: function() {
-    // getUserMedia constraints shim.
-    var getUserMedia_ = function(constraints, onSuccess, onError) {
-      var constraintsToFF37_ = function(c) {
-        if (typeof c !== 'object' || c.require) {
-          return c;
-        }
-        var require = [];
-        Object.keys(c).forEach(function(key) {
-          if (key === 'require' || key === 'advanced' ||
-              key === 'mediaSource') {
-            return;
-          }
-          var r = c[key] = (typeof c[key] === 'object') ?
-              c[key] : {ideal: c[key]};
-          if (r.min !== undefined ||
-              r.max !== undefined || r.exact !== undefined) {
-            require.push(key);
-          }
-          if (r.exact !== undefined) {
-            if (typeof r.exact === 'number') {
-              r. min = r.max = r.exact;
-            } else {
-              c[key] = r.exact;
-            }
-            delete r.exact;
-          }
-          if (r.ideal !== undefined) {
-            c.advanced = c.advanced || [];
-            var oc = {};
-            if (typeof r.ideal === 'number') {
-              oc[key] = {min: r.ideal, max: r.ideal};
-            } else {
-              oc[key] = r.ideal;
-            }
-            c.advanced.push(oc);
-            delete r.ideal;
-            if (!Object.keys(r).length) {
-              delete c[key];
-            }
-          }
-        });
-        if (require.length) {
-          c.require = require;
-        }
-        return c;
-      };
-      constraints = JSON.parse(JSON.stringify(constraints));
-      if (browserDetails.version < 38) {
-        logging('spec: ' + JSON.stringify(constraints));
-        if (constraints.audio) {
-          constraints.audio = constraintsToFF37_(constraints.audio);
-        }
-        if (constraints.video) {
-          constraints.video = constraintsToFF37_(constraints.video);
-        }
-        logging('ff37: ' + JSON.stringify(constraints));
-      }
-      return navigator.mozGetUserMedia(constraints, onSuccess, onError);
+    // support for addIceCandidate(null)
+    var nativeAddIceCandidate =
+        RTCPeerConnection.prototype.addIceCandidate;
+    RTCPeerConnection.prototype.addIceCandidate = function() {
+      return arguments[0] === null ? Promise.resolve()
+          : nativeAddIceCandidate.apply(this, arguments);
     };
 
-    navigator.getUserMedia = getUserMedia_;
-
-    // Returns the result of getUserMedia as a Promise.
-    var getUserMediaPromise_ = function(constraints) {
-      return new Promise(function(resolve, reject) {
-        navigator.getUserMedia(constraints, resolve, reject);
+    // shim getStats with maplike support
+    var makeMapStats = function(stats) {
+      var map = new Map();
+      Object.keys(stats).forEach(function(key) {
+        map.set(key, stats[key]);
+        map[key] = stats[key];
       });
+      return map;
     };
 
-    // Shim for mediaDevices on older versions.
-    if (!navigator.mediaDevices) {
-      navigator.mediaDevices = {getUserMedia: getUserMediaPromise_,
-        addEventListener: function() { },
-        removeEventListener: function() { }
-      };
-    }
-    navigator.mediaDevices.enumerateDevices =
-        navigator.mediaDevices.enumerateDevices || function() {
-          return new Promise(function(resolve) {
-            var infos = [
-              {kind: 'audioinput', deviceId: 'default', label: '', groupId: ''},
-              {kind: 'videoinput', deviceId: 'default', label: '', groupId: ''}
-            ];
-            resolve(infos);
-          });
-        };
-
-    if (browserDetails.version < 41) {
-      // Work around http://bugzil.la/1169665
-      var orgEnumerateDevices =
-          navigator.mediaDevices.enumerateDevices.bind(navigator.mediaDevices);
-      navigator.mediaDevices.enumerateDevices = function() {
-        return orgEnumerateDevices().then(undefined, function(e) {
-          if (e.name === 'NotFoundError') {
-            return [];
-          }
-          throw e;
-        });
-      };
-    }
+    var nativeGetStats = RTCPeerConnection.prototype.getStats;
+    RTCPeerConnection.prototype.getStats = function(selector, onSucc, onErr) {
+      return nativeGetStats.apply(this, [selector || null])
+        .then(function(stats) {
+          return makeMapStats(stats);
+        })
+        .then(onSucc, onErr);
+    };
   },
 
   // Attach a media stream to an element.
@@ -2730,7 +2870,7 @@ module.exports = {
   reattachMediaStream: firefoxShim.reattachMediaStream
 };
 
-},{"../utils":12,"./getusermedia":10}],10:[function(require,module,exports){
+},{"../utils":13,"./getusermedia":11}],11:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -2746,6 +2886,23 @@ var browserDetails = require('../utils').browserDetails;
 
 // Expose public methods.
 module.exports = function() {
+  var shimError_ = function(e) {
+    return {
+      name: {
+        SecurityError: 'NotAllowedError',
+        PermissionDeniedError: 'NotAllowedError'
+      }[e.name] || e.name,
+      message: {
+        'The operation is insecure.': 'The request is not allowed by the ' +
+        'user agent or the platform in the current context.'
+      }[e.message] || e.message,
+      constraint: e.constraint,
+      toString: function() {
+        return this.name + (this.message && ': ') + this.message;
+      }
+    };
+  };
+
   // getUserMedia constraints shim.
   var getUserMedia_ = function(constraints, onSuccess, onError) {
     var constraintsToFF37_ = function(c) {
@@ -2802,15 +2959,15 @@ module.exports = function() {
       }
       logging('ff37: ' + JSON.stringify(constraints));
     }
-    return navigator.mozGetUserMedia(constraints, onSuccess, onError);
+    return navigator.mozGetUserMedia(constraints, onSuccess, function(e) {
+      onError(shimError_(e));
+    });
   };
-
-  navigator.getUserMedia = getUserMedia_;
 
   // Returns the result of getUserMedia as a Promise.
   var getUserMediaPromise_ = function(constraints) {
     return new Promise(function(resolve, reject) {
-      navigator.getUserMedia(constraints, resolve, reject);
+      getUserMedia_(constraints, resolve, reject);
     });
   };
 
@@ -2845,9 +3002,27 @@ module.exports = function() {
       });
     };
   }
+  if (browserDetails.version < 49) {
+    var origGetUserMedia = navigator.mediaDevices.getUserMedia.
+        bind(navigator.mediaDevices);
+    navigator.mediaDevices.getUserMedia = function(c) {
+      return origGetUserMedia(c).catch(function(e) {
+        return Promise.reject(shimError_(e));
+      });
+    };
+  }
+  navigator.getUserMedia = function(constraints, onSuccess, onError) {
+    if (browserDetails.version < 44) {
+      return getUserMedia_(constraints, onSuccess, onError);
+    }
+    // Replace Firefox 44+'s deprecation warning with unprefixed version.
+    console.warn('navigator.getUserMedia has been replaced by ' +
+                 'navigator.mediaDevices.getUserMedia');
+    navigator.mediaDevices.getUserMedia(constraints).then(onSuccess, onError);
+  };
 };
 
-},{"../utils":12}],11:[function(require,module,exports){
+},{"../utils":13}],12:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -2883,7 +3058,7 @@ module.exports = {
   // reattachMediaStream: safariShim.reattachMediaStream
 };
 
-},{}],12:[function(require,module,exports){
+},{}],13:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -2894,7 +3069,7 @@ module.exports = {
  /* eslint-env node */
 'use strict';
 
-var logDisabled_ = false;
+var logDisabled_ = true;
 
 // Utility methods.
 var utils = {
@@ -3028,7 +3203,7 @@ module.exports = {
   extractVersion: utils.extractVersion
 };
 
-},{}],13:[function(require,module,exports){
+},{}],14:[function(require,module,exports){
 var WildEmitter = require('wildemitter');
 
 function getMaxVolume (analyser, fftBins) {
@@ -3158,7 +3333,7 @@ module.exports = function(stream, options) {
   return harker;
 }
 
-},{"wildemitter":17}],14:[function(require,module,exports){
+},{"wildemitter":18}],15:[function(require,module,exports){
 var support = require('webrtcsupport');
 
 
@@ -3205,7 +3380,7 @@ GainController.prototype.on = function () {
 
 module.exports = GainController;
 
-},{"webrtcsupport":16}],15:[function(require,module,exports){
+},{"webrtcsupport":17}],16:[function(require,module,exports){
 var methods = "assert,count,debug,dir,dirxml,error,exception,group,groupCollapsed,groupEnd,info,log,markTimeline,profile,profileEnd,time,timeEnd,trace,warn".split(",");
 var l = methods.length;
 var fn = function () {};
@@ -3217,7 +3392,7 @@ while (l--) {
 
 module.exports = mockconsole;
 
-},{}],16:[function(require,module,exports){
+},{}],17:[function(require,module,exports){
 // created by @HenrikJoreteg
 var prefix;
 var version;
@@ -3269,7 +3444,7 @@ module.exports = {
     getUserMedia: getUserMedia
 };
 
-},{}],17:[function(require,module,exports){
+},{}],18:[function(require,module,exports){
 /*
 WildEmitter.js is a slim little event emitter by @henrikjoreteg largely based
 on @visionmedia's Emitter from UI Kit.
@@ -3424,2636 +3599,7 @@ WildEmitter.mixin = function (constructor) {
 
 WildEmitter.mixin(WildEmitter);
 
-},{}],18:[function(require,module,exports){
-/**
- * lodash 3.0.3 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-var arrayEach = require('lodash._arrayeach'),
-    baseEach = require('lodash._baseeach'),
-    bindCallback = require('lodash._bindcallback'),
-    isArray = require('lodash.isarray');
-
-/**
- * Creates a function for `_.forEach` or `_.forEachRight`.
- *
- * @private
- * @param {Function} arrayFunc The function to iterate over an array.
- * @param {Function} eachFunc The function to iterate over a collection.
- * @returns {Function} Returns the new each function.
- */
-function createForEach(arrayFunc, eachFunc) {
-  return function(collection, iteratee, thisArg) {
-    return (typeof iteratee == 'function' && thisArg === undefined && isArray(collection))
-      ? arrayFunc(collection, iteratee)
-      : eachFunc(collection, bindCallback(iteratee, thisArg, 3));
-  };
-}
-
-/**
- * Iterates over elements of `collection` invoking `iteratee` for each element.
- * The `iteratee` is bound to `thisArg` and invoked with three arguments:
- * (value, index|key, collection). Iteratee functions may exit iteration early
- * by explicitly returning `false`.
- *
- * **Note:** As with other "Collections" methods, objects with a "length" property
- * are iterated like arrays. To avoid this behavior `_.forIn` or `_.forOwn`
- * may be used for object iteration.
- *
- * @static
- * @memberOf _
- * @alias each
- * @category Collection
- * @param {Array|Object|string} collection The collection to iterate over.
- * @param {Function} [iteratee=_.identity] The function invoked per iteration.
- * @param {*} [thisArg] The `this` binding of `iteratee`.
- * @returns {Array|Object|string} Returns `collection`.
- * @example
- *
- * _([1, 2]).forEach(function(n) {
- *   console.log(n);
- * }).value();
- * // => logs each value from left to right and returns the array
- *
- * _.forEach({ 'a': 1, 'b': 2 }, function(n, key) {
- *   console.log(n, key);
- * });
- * // => logs each value-key pair and returns the object (iteration order is not guaranteed)
- */
-var forEach = createForEach(arrayEach, baseEach);
-
-module.exports = forEach;
-
-},{"lodash._arrayeach":19,"lodash._baseeach":20,"lodash._bindcallback":24,"lodash.isarray":25}],19:[function(require,module,exports){
-/**
- * lodash 3.0.0 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.7.0 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-
-/**
- * A specialized version of `_.forEach` for arrays without support for callback
- * shorthands or `this` binding.
- *
- * @private
- * @param {Array} array The array to iterate over.
- * @param {Function} iteratee The function invoked per iteration.
- * @returns {Array} Returns `array`.
- */
-function arrayEach(array, iteratee) {
-  var index = -1,
-      length = array.length;
-
-  while (++index < length) {
-    if (iteratee(array[index], index, array) === false) {
-      break;
-    }
-  }
-  return array;
-}
-
-module.exports = arrayEach;
-
-},{}],20:[function(require,module,exports){
-/**
- * lodash 3.0.4 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-var keys = require('lodash.keys');
-
-/**
- * Used as the [maximum length](https://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.max_safe_integer)
- * of an array-like value.
- */
-var MAX_SAFE_INTEGER = 9007199254740991;
-
-/**
- * The base implementation of `_.forEach` without support for callback
- * shorthands and `this` binding.
- *
- * @private
- * @param {Array|Object|string} collection The collection to iterate over.
- * @param {Function} iteratee The function invoked per iteration.
- * @returns {Array|Object|string} Returns `collection`.
- */
-var baseEach = createBaseEach(baseForOwn);
-
-/**
- * The base implementation of `baseForIn` and `baseForOwn` which iterates
- * over `object` properties returned by `keysFunc` invoking `iteratee` for
- * each property. Iteratee functions may exit iteration early by explicitly
- * returning `false`.
- *
- * @private
- * @param {Object} object The object to iterate over.
- * @param {Function} iteratee The function invoked per iteration.
- * @param {Function} keysFunc The function to get the keys of `object`.
- * @returns {Object} Returns `object`.
- */
-var baseFor = createBaseFor();
-
-/**
- * The base implementation of `_.forOwn` without support for callback
- * shorthands and `this` binding.
- *
- * @private
- * @param {Object} object The object to iterate over.
- * @param {Function} iteratee The function invoked per iteration.
- * @returns {Object} Returns `object`.
- */
-function baseForOwn(object, iteratee) {
-  return baseFor(object, iteratee, keys);
-}
-
-/**
- * The base implementation of `_.property` without support for deep paths.
- *
- * @private
- * @param {string} key The key of the property to get.
- * @returns {Function} Returns the new function.
- */
-function baseProperty(key) {
-  return function(object) {
-    return object == null ? undefined : object[key];
-  };
-}
-
-/**
- * Creates a `baseEach` or `baseEachRight` function.
- *
- * @private
- * @param {Function} eachFunc The function to iterate over a collection.
- * @param {boolean} [fromRight] Specify iterating from right to left.
- * @returns {Function} Returns the new base function.
- */
-function createBaseEach(eachFunc, fromRight) {
-  return function(collection, iteratee) {
-    var length = collection ? getLength(collection) : 0;
-    if (!isLength(length)) {
-      return eachFunc(collection, iteratee);
-    }
-    var index = fromRight ? length : -1,
-        iterable = toObject(collection);
-
-    while ((fromRight ? index-- : ++index < length)) {
-      if (iteratee(iterable[index], index, iterable) === false) {
-        break;
-      }
-    }
-    return collection;
-  };
-}
-
-/**
- * Creates a base function for `_.forIn` or `_.forInRight`.
- *
- * @private
- * @param {boolean} [fromRight] Specify iterating from right to left.
- * @returns {Function} Returns the new base function.
- */
-function createBaseFor(fromRight) {
-  return function(object, iteratee, keysFunc) {
-    var iterable = toObject(object),
-        props = keysFunc(object),
-        length = props.length,
-        index = fromRight ? length : -1;
-
-    while ((fromRight ? index-- : ++index < length)) {
-      var key = props[index];
-      if (iteratee(iterable[key], key, iterable) === false) {
-        break;
-      }
-    }
-    return object;
-  };
-}
-
-/**
- * Gets the "length" property value of `object`.
- *
- * **Note:** This function is used to avoid a [JIT bug](https://bugs.webkit.org/show_bug.cgi?id=142792)
- * that affects Safari on at least iOS 8.1-8.3 ARM64.
- *
- * @private
- * @param {Object} object The object to query.
- * @returns {*} Returns the "length" value.
- */
-var getLength = baseProperty('length');
-
-/**
- * Checks if `value` is a valid array-like length.
- *
- * **Note:** This function is based on [`ToLength`](https://people.mozilla.org/~jorendorff/es6-draft.html#sec-tolength).
- *
- * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a valid length, else `false`.
- */
-function isLength(value) {
-  return typeof value == 'number' && value > -1 && value % 1 == 0 && value <= MAX_SAFE_INTEGER;
-}
-
-/**
- * Converts `value` to an object if it's not one.
- *
- * @private
- * @param {*} value The value to process.
- * @returns {Object} Returns the object.
- */
-function toObject(value) {
-  return isObject(value) ? value : Object(value);
-}
-
-/**
- * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
- * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an object, else `false`.
- * @example
- *
- * _.isObject({});
- * // => true
- *
- * _.isObject([1, 2, 3]);
- * // => true
- *
- * _.isObject(1);
- * // => false
- */
-function isObject(value) {
-  // Avoid a V8 JIT bug in Chrome 19-20.
-  // See https://code.google.com/p/v8/issues/detail?id=2291 for more details.
-  var type = typeof value;
-  return !!value && (type == 'object' || type == 'function');
-}
-
-module.exports = baseEach;
-
-},{"lodash.keys":21}],21:[function(require,module,exports){
-/**
- * lodash 3.1.2 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-var getNative = require('lodash._getnative'),
-    isArguments = require('lodash.isarguments'),
-    isArray = require('lodash.isarray');
-
-/** Used to detect unsigned integer values. */
-var reIsUint = /^\d+$/;
-
-/** Used for native method references. */
-var objectProto = Object.prototype;
-
-/** Used to check objects for own properties. */
-var hasOwnProperty = objectProto.hasOwnProperty;
-
-/* Native method references for those with the same name as other `lodash` methods. */
-var nativeKeys = getNative(Object, 'keys');
-
-/**
- * Used as the [maximum length](http://ecma-international.org/ecma-262/6.0/#sec-number.max_safe_integer)
- * of an array-like value.
- */
-var MAX_SAFE_INTEGER = 9007199254740991;
-
-/**
- * The base implementation of `_.property` without support for deep paths.
- *
- * @private
- * @param {string} key The key of the property to get.
- * @returns {Function} Returns the new function.
- */
-function baseProperty(key) {
-  return function(object) {
-    return object == null ? undefined : object[key];
-  };
-}
-
-/**
- * Gets the "length" property value of `object`.
- *
- * **Note:** This function is used to avoid a [JIT bug](https://bugs.webkit.org/show_bug.cgi?id=142792)
- * that affects Safari on at least iOS 8.1-8.3 ARM64.
- *
- * @private
- * @param {Object} object The object to query.
- * @returns {*} Returns the "length" value.
- */
-var getLength = baseProperty('length');
-
-/**
- * Checks if `value` is array-like.
- *
- * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is array-like, else `false`.
- */
-function isArrayLike(value) {
-  return value != null && isLength(getLength(value));
-}
-
-/**
- * Checks if `value` is a valid array-like index.
- *
- * @private
- * @param {*} value The value to check.
- * @param {number} [length=MAX_SAFE_INTEGER] The upper bounds of a valid index.
- * @returns {boolean} Returns `true` if `value` is a valid index, else `false`.
- */
-function isIndex(value, length) {
-  value = (typeof value == 'number' || reIsUint.test(value)) ? +value : -1;
-  length = length == null ? MAX_SAFE_INTEGER : length;
-  return value > -1 && value % 1 == 0 && value < length;
-}
-
-/**
- * Checks if `value` is a valid array-like length.
- *
- * **Note:** This function is based on [`ToLength`](http://ecma-international.org/ecma-262/6.0/#sec-tolength).
- *
- * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a valid length, else `false`.
- */
-function isLength(value) {
-  return typeof value == 'number' && value > -1 && value % 1 == 0 && value <= MAX_SAFE_INTEGER;
-}
-
-/**
- * A fallback implementation of `Object.keys` which creates an array of the
- * own enumerable property names of `object`.
- *
- * @private
- * @param {Object} object The object to query.
- * @returns {Array} Returns the array of property names.
- */
-function shimKeys(object) {
-  var props = keysIn(object),
-      propsLength = props.length,
-      length = propsLength && object.length;
-
-  var allowIndexes = !!length && isLength(length) &&
-    (isArray(object) || isArguments(object));
-
-  var index = -1,
-      result = [];
-
-  while (++index < propsLength) {
-    var key = props[index];
-    if ((allowIndexes && isIndex(key, length)) || hasOwnProperty.call(object, key)) {
-      result.push(key);
-    }
-  }
-  return result;
-}
-
-/**
- * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
- * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an object, else `false`.
- * @example
- *
- * _.isObject({});
- * // => true
- *
- * _.isObject([1, 2, 3]);
- * // => true
- *
- * _.isObject(1);
- * // => false
- */
-function isObject(value) {
-  // Avoid a V8 JIT bug in Chrome 19-20.
-  // See https://code.google.com/p/v8/issues/detail?id=2291 for more details.
-  var type = typeof value;
-  return !!value && (type == 'object' || type == 'function');
-}
-
-/**
- * Creates an array of the own enumerable property names of `object`.
- *
- * **Note:** Non-object values are coerced to objects. See the
- * [ES spec](http://ecma-international.org/ecma-262/6.0/#sec-object.keys)
- * for more details.
- *
- * @static
- * @memberOf _
- * @category Object
- * @param {Object} object The object to query.
- * @returns {Array} Returns the array of property names.
- * @example
- *
- * function Foo() {
- *   this.a = 1;
- *   this.b = 2;
- * }
- *
- * Foo.prototype.c = 3;
- *
- * _.keys(new Foo);
- * // => ['a', 'b'] (iteration order is not guaranteed)
- *
- * _.keys('hi');
- * // => ['0', '1']
- */
-var keys = !nativeKeys ? shimKeys : function(object) {
-  var Ctor = object == null ? undefined : object.constructor;
-  if ((typeof Ctor == 'function' && Ctor.prototype === object) ||
-      (typeof object != 'function' && isArrayLike(object))) {
-    return shimKeys(object);
-  }
-  return isObject(object) ? nativeKeys(object) : [];
-};
-
-/**
- * Creates an array of the own and inherited enumerable property names of `object`.
- *
- * **Note:** Non-object values are coerced to objects.
- *
- * @static
- * @memberOf _
- * @category Object
- * @param {Object} object The object to query.
- * @returns {Array} Returns the array of property names.
- * @example
- *
- * function Foo() {
- *   this.a = 1;
- *   this.b = 2;
- * }
- *
- * Foo.prototype.c = 3;
- *
- * _.keysIn(new Foo);
- * // => ['a', 'b', 'c'] (iteration order is not guaranteed)
- */
-function keysIn(object) {
-  if (object == null) {
-    return [];
-  }
-  if (!isObject(object)) {
-    object = Object(object);
-  }
-  var length = object.length;
-  length = (length && isLength(length) &&
-    (isArray(object) || isArguments(object)) && length) || 0;
-
-  var Ctor = object.constructor,
-      index = -1,
-      isProto = typeof Ctor == 'function' && Ctor.prototype === object,
-      result = Array(length),
-      skipIndexes = length > 0;
-
-  while (++index < length) {
-    result[index] = (index + '');
-  }
-  for (var key in object) {
-    if (!(skipIndexes && isIndex(key, length)) &&
-        !(key == 'constructor' && (isProto || !hasOwnProperty.call(object, key)))) {
-      result.push(key);
-    }
-  }
-  return result;
-}
-
-module.exports = keys;
-
-},{"lodash._getnative":22,"lodash.isarguments":23,"lodash.isarray":25}],22:[function(require,module,exports){
-/**
- * lodash 3.9.1 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-
-/** `Object#toString` result references. */
-var funcTag = '[object Function]';
-
-/** Used to detect host constructors (Safari > 5). */
-var reIsHostCtor = /^\[object .+?Constructor\]$/;
-
-/**
- * Checks if `value` is object-like.
- *
- * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
- */
-function isObjectLike(value) {
-  return !!value && typeof value == 'object';
-}
-
-/** Used for native method references. */
-var objectProto = Object.prototype;
-
-/** Used to resolve the decompiled source of functions. */
-var fnToString = Function.prototype.toString;
-
-/** Used to check objects for own properties. */
-var hasOwnProperty = objectProto.hasOwnProperty;
-
-/**
- * Used to resolve the [`toStringTag`](http://ecma-international.org/ecma-262/6.0/#sec-object.prototype.tostring)
- * of values.
- */
-var objToString = objectProto.toString;
-
-/** Used to detect if a method is native. */
-var reIsNative = RegExp('^' +
-  fnToString.call(hasOwnProperty).replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
-  .replace(/hasOwnProperty|(function).*?(?=\\\()| for .+?(?=\\\])/g, '$1.*?') + '$'
-);
-
-/**
- * Gets the native function at `key` of `object`.
- *
- * @private
- * @param {Object} object The object to query.
- * @param {string} key The key of the method to get.
- * @returns {*} Returns the function if it's native, else `undefined`.
- */
-function getNative(object, key) {
-  var value = object == null ? undefined : object[key];
-  return isNative(value) ? value : undefined;
-}
-
-/**
- * Checks if `value` is classified as a `Function` object.
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is correctly classified, else `false`.
- * @example
- *
- * _.isFunction(_);
- * // => true
- *
- * _.isFunction(/abc/);
- * // => false
- */
-function isFunction(value) {
-  // The use of `Object#toString` avoids issues with the `typeof` operator
-  // in older versions of Chrome and Safari which return 'function' for regexes
-  // and Safari 8 equivalents which return 'object' for typed array constructors.
-  return isObject(value) && objToString.call(value) == funcTag;
-}
-
-/**
- * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
- * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an object, else `false`.
- * @example
- *
- * _.isObject({});
- * // => true
- *
- * _.isObject([1, 2, 3]);
- * // => true
- *
- * _.isObject(1);
- * // => false
- */
-function isObject(value) {
-  // Avoid a V8 JIT bug in Chrome 19-20.
-  // See https://code.google.com/p/v8/issues/detail?id=2291 for more details.
-  var type = typeof value;
-  return !!value && (type == 'object' || type == 'function');
-}
-
-/**
- * Checks if `value` is a native function.
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a native function, else `false`.
- * @example
- *
- * _.isNative(Array.prototype.push);
- * // => true
- *
- * _.isNative(_);
- * // => false
- */
-function isNative(value) {
-  if (value == null) {
-    return false;
-  }
-  if (isFunction(value)) {
-    return reIsNative.test(fnToString.call(value));
-  }
-  return isObjectLike(value) && reIsHostCtor.test(value);
-}
-
-module.exports = getNative;
-
-},{}],23:[function(require,module,exports){
-/**
- * lodash 3.0.8 (Custom Build) <https://lodash.com/>
- * Build: `lodash modularize exports="npm" -o ./`
- * Copyright 2012-2016 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2016 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-
-/** Used as references for various `Number` constants. */
-var MAX_SAFE_INTEGER = 9007199254740991;
-
-/** `Object#toString` result references. */
-var argsTag = '[object Arguments]',
-    funcTag = '[object Function]',
-    genTag = '[object GeneratorFunction]';
-
-/** Used for built-in method references. */
-var objectProto = Object.prototype;
-
-/** Used to check objects for own properties. */
-var hasOwnProperty = objectProto.hasOwnProperty;
-
-/**
- * Used to resolve the [`toStringTag`](http://ecma-international.org/ecma-262/6.0/#sec-object.prototype.tostring)
- * of values.
- */
-var objectToString = objectProto.toString;
-
-/** Built-in value references. */
-var propertyIsEnumerable = objectProto.propertyIsEnumerable;
-
-/**
- * The base implementation of `_.property` without support for deep paths.
- *
- * @private
- * @param {string} key The key of the property to get.
- * @returns {Function} Returns the new function.
- */
-function baseProperty(key) {
-  return function(object) {
-    return object == null ? undefined : object[key];
-  };
-}
-
-/**
- * Gets the "length" property value of `object`.
- *
- * **Note:** This function is used to avoid a [JIT bug](https://bugs.webkit.org/show_bug.cgi?id=142792)
- * that affects Safari on at least iOS 8.1-8.3 ARM64.
- *
- * @private
- * @param {Object} object The object to query.
- * @returns {*} Returns the "length" value.
- */
-var getLength = baseProperty('length');
-
-/**
- * Checks if `value` is likely an `arguments` object.
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is correctly classified, else `false`.
- * @example
- *
- * _.isArguments(function() { return arguments; }());
- * // => true
- *
- * _.isArguments([1, 2, 3]);
- * // => false
- */
-function isArguments(value) {
-  // Safari 8.1 incorrectly makes `arguments.callee` enumerable in strict mode.
-  return isArrayLikeObject(value) && hasOwnProperty.call(value, 'callee') &&
-    (!propertyIsEnumerable.call(value, 'callee') || objectToString.call(value) == argsTag);
-}
-
-/**
- * Checks if `value` is array-like. A value is considered array-like if it's
- * not a function and has a `value.length` that's an integer greater than or
- * equal to `0` and less than or equal to `Number.MAX_SAFE_INTEGER`.
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is array-like, else `false`.
- * @example
- *
- * _.isArrayLike([1, 2, 3]);
- * // => true
- *
- * _.isArrayLike(document.body.children);
- * // => true
- *
- * _.isArrayLike('abc');
- * // => true
- *
- * _.isArrayLike(_.noop);
- * // => false
- */
-function isArrayLike(value) {
-  return value != null && isLength(getLength(value)) && !isFunction(value);
-}
-
-/**
- * This method is like `_.isArrayLike` except that it also checks if `value`
- * is an object.
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an array-like object, else `false`.
- * @example
- *
- * _.isArrayLikeObject([1, 2, 3]);
- * // => true
- *
- * _.isArrayLikeObject(document.body.children);
- * // => true
- *
- * _.isArrayLikeObject('abc');
- * // => false
- *
- * _.isArrayLikeObject(_.noop);
- * // => false
- */
-function isArrayLikeObject(value) {
-  return isObjectLike(value) && isArrayLike(value);
-}
-
-/**
- * Checks if `value` is classified as a `Function` object.
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is correctly classified, else `false`.
- * @example
- *
- * _.isFunction(_);
- * // => true
- *
- * _.isFunction(/abc/);
- * // => false
- */
-function isFunction(value) {
-  // The use of `Object#toString` avoids issues with the `typeof` operator
-  // in Safari 8 which returns 'object' for typed array and weak map constructors,
-  // and PhantomJS 1.9 which returns 'function' for `NodeList` instances.
-  var tag = isObject(value) ? objectToString.call(value) : '';
-  return tag == funcTag || tag == genTag;
-}
-
-/**
- * Checks if `value` is a valid array-like length.
- *
- * **Note:** This function is loosely based on [`ToLength`](http://ecma-international.org/ecma-262/6.0/#sec-tolength).
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a valid length, else `false`.
- * @example
- *
- * _.isLength(3);
- * // => true
- *
- * _.isLength(Number.MIN_VALUE);
- * // => false
- *
- * _.isLength(Infinity);
- * // => false
- *
- * _.isLength('3');
- * // => false
- */
-function isLength(value) {
-  return typeof value == 'number' &&
-    value > -1 && value % 1 == 0 && value <= MAX_SAFE_INTEGER;
-}
-
-/**
- * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
- * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an object, else `false`.
- * @example
- *
- * _.isObject({});
- * // => true
- *
- * _.isObject([1, 2, 3]);
- * // => true
- *
- * _.isObject(_.noop);
- * // => true
- *
- * _.isObject(null);
- * // => false
- */
-function isObject(value) {
-  var type = typeof value;
-  return !!value && (type == 'object' || type == 'function');
-}
-
-/**
- * Checks if `value` is object-like. A value is object-like if it's not `null`
- * and has a `typeof` result of "object".
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
- * @example
- *
- * _.isObjectLike({});
- * // => true
- *
- * _.isObjectLike([1, 2, 3]);
- * // => true
- *
- * _.isObjectLike(_.noop);
- * // => false
- *
- * _.isObjectLike(null);
- * // => false
- */
-function isObjectLike(value) {
-  return !!value && typeof value == 'object';
-}
-
-module.exports = isArguments;
-
-},{}],24:[function(require,module,exports){
-/**
- * lodash 3.0.1 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-
-/**
- * A specialized version of `baseCallback` which only supports `this` binding
- * and specifying the number of arguments to provide to `func`.
- *
- * @private
- * @param {Function} func The function to bind.
- * @param {*} thisArg The `this` binding of `func`.
- * @param {number} [argCount] The number of arguments to provide to `func`.
- * @returns {Function} Returns the callback.
- */
-function bindCallback(func, thisArg, argCount) {
-  if (typeof func != 'function') {
-    return identity;
-  }
-  if (thisArg === undefined) {
-    return func;
-  }
-  switch (argCount) {
-    case 1: return function(value) {
-      return func.call(thisArg, value);
-    };
-    case 3: return function(value, index, collection) {
-      return func.call(thisArg, value, index, collection);
-    };
-    case 4: return function(accumulator, value, index, collection) {
-      return func.call(thisArg, accumulator, value, index, collection);
-    };
-    case 5: return function(value, other, key, object, source) {
-      return func.call(thisArg, value, other, key, object, source);
-    };
-  }
-  return function() {
-    return func.apply(thisArg, arguments);
-  };
-}
-
-/**
- * This method returns the first argument provided to it.
- *
- * @static
- * @memberOf _
- * @category Utility
- * @param {*} value Any value.
- * @returns {*} Returns `value`.
- * @example
- *
- * var object = { 'user': 'fred' };
- *
- * _.identity(object) === object;
- * // => true
- */
-function identity(value) {
-  return value;
-}
-
-module.exports = bindCallback;
-
-},{}],25:[function(require,module,exports){
-/**
- * lodash 3.0.4 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-
-/** `Object#toString` result references. */
-var arrayTag = '[object Array]',
-    funcTag = '[object Function]';
-
-/** Used to detect host constructors (Safari > 5). */
-var reIsHostCtor = /^\[object .+?Constructor\]$/;
-
-/**
- * Checks if `value` is object-like.
- *
- * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
- */
-function isObjectLike(value) {
-  return !!value && typeof value == 'object';
-}
-
-/** Used for native method references. */
-var objectProto = Object.prototype;
-
-/** Used to resolve the decompiled source of functions. */
-var fnToString = Function.prototype.toString;
-
-/** Used to check objects for own properties. */
-var hasOwnProperty = objectProto.hasOwnProperty;
-
-/**
- * Used to resolve the [`toStringTag`](http://ecma-international.org/ecma-262/6.0/#sec-object.prototype.tostring)
- * of values.
- */
-var objToString = objectProto.toString;
-
-/** Used to detect if a method is native. */
-var reIsNative = RegExp('^' +
-  fnToString.call(hasOwnProperty).replace(/[\\^$.*+?()[\]{}|]/g, '\\$&')
-  .replace(/hasOwnProperty|(function).*?(?=\\\()| for .+?(?=\\\])/g, '$1.*?') + '$'
-);
-
-/* Native method references for those with the same name as other `lodash` methods. */
-var nativeIsArray = getNative(Array, 'isArray');
-
-/**
- * Used as the [maximum length](http://ecma-international.org/ecma-262/6.0/#sec-number.max_safe_integer)
- * of an array-like value.
- */
-var MAX_SAFE_INTEGER = 9007199254740991;
-
-/**
- * Gets the native function at `key` of `object`.
- *
- * @private
- * @param {Object} object The object to query.
- * @param {string} key The key of the method to get.
- * @returns {*} Returns the function if it's native, else `undefined`.
- */
-function getNative(object, key) {
-  var value = object == null ? undefined : object[key];
-  return isNative(value) ? value : undefined;
-}
-
-/**
- * Checks if `value` is a valid array-like length.
- *
- * **Note:** This function is based on [`ToLength`](http://ecma-international.org/ecma-262/6.0/#sec-tolength).
- *
- * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a valid length, else `false`.
- */
-function isLength(value) {
-  return typeof value == 'number' && value > -1 && value % 1 == 0 && value <= MAX_SAFE_INTEGER;
-}
-
-/**
- * Checks if `value` is classified as an `Array` object.
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is correctly classified, else `false`.
- * @example
- *
- * _.isArray([1, 2, 3]);
- * // => true
- *
- * _.isArray(function() { return arguments; }());
- * // => false
- */
-var isArray = nativeIsArray || function(value) {
-  return isObjectLike(value) && isLength(value.length) && objToString.call(value) == arrayTag;
-};
-
-/**
- * Checks if `value` is classified as a `Function` object.
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is correctly classified, else `false`.
- * @example
- *
- * _.isFunction(_);
- * // => true
- *
- * _.isFunction(/abc/);
- * // => false
- */
-function isFunction(value) {
-  // The use of `Object#toString` avoids issues with the `typeof` operator
-  // in older versions of Chrome and Safari which return 'function' for regexes
-  // and Safari 8 equivalents which return 'object' for typed array constructors.
-  return isObject(value) && objToString.call(value) == funcTag;
-}
-
-/**
- * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
- * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an object, else `false`.
- * @example
- *
- * _.isObject({});
- * // => true
- *
- * _.isObject([1, 2, 3]);
- * // => true
- *
- * _.isObject(1);
- * // => false
- */
-function isObject(value) {
-  // Avoid a V8 JIT bug in Chrome 19-20.
-  // See https://code.google.com/p/v8/issues/detail?id=2291 for more details.
-  var type = typeof value;
-  return !!value && (type == 'object' || type == 'function');
-}
-
-/**
- * Checks if `value` is a native function.
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a native function, else `false`.
- * @example
- *
- * _.isNative(Array.prototype.push);
- * // => true
- *
- * _.isNative(_);
- * // => false
- */
-function isNative(value) {
-  if (value == null) {
-    return false;
-  }
-  if (isFunction(value)) {
-    return reIsNative.test(fnToString.call(value));
-  }
-  return isObjectLike(value) && reIsHostCtor.test(value);
-}
-
-module.exports = isArray;
-
-},{}],26:[function(require,module,exports){
-/**
- * lodash 3.1.2 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-var baseGet = require('lodash._baseget'),
-    toPath = require('lodash._topath'),
-    isArray = require('lodash.isarray'),
-    map = require('lodash.map');
-
-/** Used to match property names within property paths. */
-var reIsDeepProp = /\.|\[(?:[^[\]]*|(["'])(?:(?!\1)[^\n\\]|\\.)*?\1)\]/,
-    reIsPlainProp = /^\w*$/;
-
-/**
- * The base implementation of `_.property` without support for deep paths.
- *
- * @private
- * @param {string} key The key of the property to get.
- * @returns {Function} Returns the new function.
- */
-function baseProperty(key) {
-  return function(object) {
-    return object == null ? undefined : object[key];
-  };
-}
-
-/**
- * A specialized version of `baseProperty` which supports deep paths.
- *
- * @private
- * @param {Array|string} path The path of the property to get.
- * @returns {Function} Returns the new function.
- */
-function basePropertyDeep(path) {
-  var pathKey = (path + '');
-  path = toPath(path);
-  return function(object) {
-    return baseGet(object, path, pathKey);
-  };
-}
-
-/**
- * Checks if `value` is a property name and not a property path.
- *
- * @private
- * @param {*} value The value to check.
- * @param {Object} [object] The object to query keys on.
- * @returns {boolean} Returns `true` if `value` is a property name, else `false`.
- */
-function isKey(value, object) {
-  var type = typeof value;
-  if ((type == 'string' && reIsPlainProp.test(value)) || type == 'number') {
-    return true;
-  }
-  if (isArray(value)) {
-    return false;
-  }
-  var result = !reIsDeepProp.test(value);
-  return result || (object != null && value in toObject(object));
-}
-
-/**
- * Converts `value` to an object if it's not one.
- *
- * @private
- * @param {*} value The value to process.
- * @returns {Object} Returns the object.
- */
-function toObject(value) {
-  return isObject(value) ? value : Object(value);
-}
-
-/**
- * Gets the property value of `path` from all elements in `collection`.
- *
- * @static
- * @memberOf _
- * @category Collection
- * @param {Array|Object|string} collection The collection to iterate over.
- * @param {Array|string} path The path of the property to pluck.
- * @returns {Array} Returns the property values.
- * @example
- *
- * var users = [
- *   { 'user': 'barney', 'age': 36 },
- *   { 'user': 'fred',   'age': 40 }
- * ];
- *
- * _.pluck(users, 'user');
- * // => ['barney', 'fred']
- *
- * var userIndex = _.indexBy(users, 'user');
- * _.pluck(userIndex, 'age');
- * // => [36, 40] (iteration order is not guaranteed)
- */
-function pluck(collection, path) {
-  return map(collection, property(path));
-}
-
-/**
- * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
- * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an object, else `false`.
- * @example
- *
- * _.isObject({});
- * // => true
- *
- * _.isObject([1, 2, 3]);
- * // => true
- *
- * _.isObject(1);
- * // => false
- */
-function isObject(value) {
-  // Avoid a V8 JIT bug in Chrome 19-20.
-  // See https://code.google.com/p/v8/issues/detail?id=2291 for more details.
-  var type = typeof value;
-  return !!value && (type == 'object' || type == 'function');
-}
-
-/**
- * Creates a function which returns the property value at `path` on a
- * given object.
- *
- * @static
- * @memberOf _
- * @category Utility
- * @param {Array|string} path The path of the property to get.
- * @returns {Function} Returns the new function.
- * @example
- *
- * var objects = [
- *   { 'a': { 'b': { 'c': 2 } } },
- *   { 'a': { 'b': { 'c': 1 } } }
- * ];
- *
- * _.map(objects, _.property('a.b.c'));
- * // => [2, 1]
- *
- * _.pluck(_.sortBy(objects, _.property(['a', 'b', 'c'])), 'a.b.c');
- * // => [1, 2]
- */
-function property(path) {
-  return isKey(path) ? baseProperty(path) : basePropertyDeep(path);
-}
-
-module.exports = pluck;
-
-},{"lodash._baseget":27,"lodash._topath":28,"lodash.isarray":29,"lodash.map":30}],27:[function(require,module,exports){
-/**
- * lodash 3.7.2 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-
-/**
- * The base implementation of `get` without support for string paths
- * and default values.
- *
- * @private
- * @param {Object} object The object to query.
- * @param {Array} path The path of the property to get.
- * @param {string} [pathKey] The key representation of path.
- * @returns {*} Returns the resolved value.
- */
-function baseGet(object, path, pathKey) {
-  if (object == null) {
-    return;
-  }
-  if (pathKey !== undefined && pathKey in toObject(object)) {
-    path = [pathKey];
-  }
-  var index = 0,
-      length = path.length;
-
-  while (object != null && index < length) {
-    object = object[path[index++]];
-  }
-  return (index && index == length) ? object : undefined;
-}
-
-/**
- * Converts `value` to an object if it's not one.
- *
- * @private
- * @param {*} value The value to process.
- * @returns {Object} Returns the object.
- */
-function toObject(value) {
-  return isObject(value) ? value : Object(value);
-}
-
-/**
- * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
- * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an object, else `false`.
- * @example
- *
- * _.isObject({});
- * // => true
- *
- * _.isObject([1, 2, 3]);
- * // => true
- *
- * _.isObject(1);
- * // => false
- */
-function isObject(value) {
-  // Avoid a V8 JIT bug in Chrome 19-20.
-  // See https://code.google.com/p/v8/issues/detail?id=2291 for more details.
-  var type = typeof value;
-  return !!value && (type == 'object' || type == 'function');
-}
-
-module.exports = baseGet;
-
-},{}],28:[function(require,module,exports){
-/**
- * lodash 3.8.1 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-var isArray = require('lodash.isarray');
-
-/** Used to match property names within property paths. */
-var rePropName = /[^.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\n\\]|\\.)*?)\2)\]/g;
-
-/** Used to match backslashes in property paths. */
-var reEscapeChar = /\\(\\)?/g;
-
-/**
- * Converts `value` to a string if it's not one. An empty string is returned
- * for `null` or `undefined` values.
- *
- * @private
- * @param {*} value The value to process.
- * @returns {string} Returns the string.
- */
-function baseToString(value) {
-  return value == null ? '' : (value + '');
-}
-
-/**
- * Converts `value` to property path array if it's not one.
- *
- * @private
- * @param {*} value The value to process.
- * @returns {Array} Returns the property path array.
- */
-function toPath(value) {
-  if (isArray(value)) {
-    return value;
-  }
-  var result = [];
-  baseToString(value).replace(rePropName, function(match, number, quote, string) {
-    result.push(quote ? string.replace(reEscapeChar, '$1') : (number || match));
-  });
-  return result;
-}
-
-module.exports = toPath;
-
-},{"lodash.isarray":29}],29:[function(require,module,exports){
-arguments[4][25][0].apply(exports,arguments)
-},{"dup":25}],30:[function(require,module,exports){
-/**
- * lodash 3.1.4 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-var arrayMap = require('lodash._arraymap'),
-    baseCallback = require('lodash._basecallback'),
-    baseEach = require('lodash._baseeach'),
-    isArray = require('lodash.isarray');
-
-/**
- * Used as the [maximum length](https://people.mozilla.org/~jorendorff/es6-draft.html#sec-number.max_safe_integer)
- * of an array-like value.
- */
-var MAX_SAFE_INTEGER = 9007199254740991;
-
-/**
- * The base implementation of `_.map` without support for callback shorthands
- * and `this` binding.
- *
- * @private
- * @param {Array|Object|string} collection The collection to iterate over.
- * @param {Function} iteratee The function invoked per iteration.
- * @returns {Array} Returns the new mapped array.
- */
-function baseMap(collection, iteratee) {
-  var index = -1,
-      result = isArrayLike(collection) ? Array(collection.length) : [];
-
-  baseEach(collection, function(value, key, collection) {
-    result[++index] = iteratee(value, key, collection);
-  });
-  return result;
-}
-
-/**
- * The base implementation of `_.property` without support for deep paths.
- *
- * @private
- * @param {string} key The key of the property to get.
- * @returns {Function} Returns the new function.
- */
-function baseProperty(key) {
-  return function(object) {
-    return object == null ? undefined : object[key];
-  };
-}
-
-/**
- * Gets the "length" property value of `object`.
- *
- * **Note:** This function is used to avoid a [JIT bug](https://bugs.webkit.org/show_bug.cgi?id=142792)
- * that affects Safari on at least iOS 8.1-8.3 ARM64.
- *
- * @private
- * @param {Object} object The object to query.
- * @returns {*} Returns the "length" value.
- */
-var getLength = baseProperty('length');
-
-/**
- * Checks if `value` is array-like.
- *
- * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is array-like, else `false`.
- */
-function isArrayLike(value) {
-  return value != null && isLength(getLength(value));
-}
-
-/**
- * Checks if `value` is a valid array-like length.
- *
- * **Note:** This function is based on [`ToLength`](https://people.mozilla.org/~jorendorff/es6-draft.html#sec-tolength).
- *
- * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a valid length, else `false`.
- */
-function isLength(value) {
-  return typeof value == 'number' && value > -1 && value % 1 == 0 && value <= MAX_SAFE_INTEGER;
-}
-
-/**
- * Creates an array of values by running each element in `collection` through
- * `iteratee`. The `iteratee` is bound to `thisArg` and invoked with three
- * arguments: (value, index|key, collection).
- *
- * If a property name is provided for `iteratee` the created `_.property`
- * style callback returns the property value of the given element.
- *
- * If a value is also provided for `thisArg` the created `_.matchesProperty`
- * style callback returns `true` for elements that have a matching property
- * value, else `false`.
- *
- * If an object is provided for `iteratee` the created `_.matches` style
- * callback returns `true` for elements that have the properties of the given
- * object, else `false`.
- *
- * Many lodash methods are guarded to work as iteratees for methods like
- * `_.every`, `_.filter`, `_.map`, `_.mapValues`, `_.reject`, and `_.some`.
- *
- * The guarded methods are:
- * `ary`, `callback`, `chunk`, `clone`, `create`, `curry`, `curryRight`,
- * `drop`, `dropRight`, `every`, `fill`, `flatten`, `invert`, `max`, `min`,
- * `parseInt`, `slice`, `sortBy`, `take`, `takeRight`, `template`, `trim`,
- * `trimLeft`, `trimRight`, `trunc`, `random`, `range`, `sample`, `some`,
- * `sum`, `uniq`, and `words`
- *
- * @static
- * @memberOf _
- * @alias collect
- * @category Collection
- * @param {Array|Object|string} collection The collection to iterate over.
- * @param {Function|Object|string} [iteratee=_.identity] The function invoked
- *  per iteration.
- * @param {*} [thisArg] The `this` binding of `iteratee`.
- * @returns {Array} Returns the new mapped array.
- * @example
- *
- * function timesThree(n) {
- *   return n * 3;
- * }
- *
- * _.map([1, 2], timesThree);
- * // => [3, 6]
- *
- * _.map({ 'a': 1, 'b': 2 }, timesThree);
- * // => [3, 6] (iteration order is not guaranteed)
- *
- * var users = [
- *   { 'user': 'barney' },
- *   { 'user': 'fred' }
- * ];
- *
- * // using the `_.property` callback shorthand
- * _.map(users, 'user');
- * // => ['barney', 'fred']
- */
-function map(collection, iteratee, thisArg) {
-  var func = isArray(collection) ? arrayMap : baseMap;
-  iteratee = baseCallback(iteratee, thisArg, 3);
-  return func(collection, iteratee);
-}
-
-module.exports = map;
-
-},{"lodash._arraymap":31,"lodash._basecallback":32,"lodash._baseeach":37,"lodash.isarray":29}],31:[function(require,module,exports){
-/**
- * lodash 3.0.0 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.7.0 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-
-/**
- * A specialized version of `_.map` for arrays without support for callback
- * shorthands or `this` binding.
- *
- * @private
- * @param {Array} array The array to iterate over.
- * @param {Function} iteratee The function invoked per iteration.
- * @returns {Array} Returns the new mapped array.
- */
-function arrayMap(array, iteratee) {
-  var index = -1,
-      length = array.length,
-      result = Array(length);
-
-  while (++index < length) {
-    result[index] = iteratee(array[index], index, array);
-  }
-  return result;
-}
-
-module.exports = arrayMap;
-
-},{}],32:[function(require,module,exports){
-/**
- * lodash 3.3.1 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-var baseIsEqual = require('lodash._baseisequal'),
-    bindCallback = require('lodash._bindcallback'),
-    isArray = require('lodash.isarray'),
-    pairs = require('lodash.pairs');
-
-/** Used to match property names within property paths. */
-var reIsDeepProp = /\.|\[(?:[^[\]]*|(["'])(?:(?!\1)[^\n\\]|\\.)*?\1)\]/,
-    reIsPlainProp = /^\w*$/,
-    rePropName = /[^.[\]]+|\[(?:(-?\d+(?:\.\d+)?)|(["'])((?:(?!\2)[^\n\\]|\\.)*?)\2)\]/g;
-
-/** Used to match backslashes in property paths. */
-var reEscapeChar = /\\(\\)?/g;
-
-/**
- * Converts `value` to a string if it's not one. An empty string is returned
- * for `null` or `undefined` values.
- *
- * @private
- * @param {*} value The value to process.
- * @returns {string} Returns the string.
- */
-function baseToString(value) {
-  return value == null ? '' : (value + '');
-}
-
-/**
- * The base implementation of `_.callback` which supports specifying the
- * number of arguments to provide to `func`.
- *
- * @private
- * @param {*} [func=_.identity] The value to convert to a callback.
- * @param {*} [thisArg] The `this` binding of `func`.
- * @param {number} [argCount] The number of arguments to provide to `func`.
- * @returns {Function} Returns the callback.
- */
-function baseCallback(func, thisArg, argCount) {
-  var type = typeof func;
-  if (type == 'function') {
-    return thisArg === undefined
-      ? func
-      : bindCallback(func, thisArg, argCount);
-  }
-  if (func == null) {
-    return identity;
-  }
-  if (type == 'object') {
-    return baseMatches(func);
-  }
-  return thisArg === undefined
-    ? property(func)
-    : baseMatchesProperty(func, thisArg);
-}
-
-/**
- * The base implementation of `get` without support for string paths
- * and default values.
- *
- * @private
- * @param {Object} object The object to query.
- * @param {Array} path The path of the property to get.
- * @param {string} [pathKey] The key representation of path.
- * @returns {*} Returns the resolved value.
- */
-function baseGet(object, path, pathKey) {
-  if (object == null) {
-    return;
-  }
-  if (pathKey !== undefined && pathKey in toObject(object)) {
-    path = [pathKey];
-  }
-  var index = 0,
-      length = path.length;
-
-  while (object != null && index < length) {
-    object = object[path[index++]];
-  }
-  return (index && index == length) ? object : undefined;
-}
-
-/**
- * The base implementation of `_.isMatch` without support for callback
- * shorthands and `this` binding.
- *
- * @private
- * @param {Object} object The object to inspect.
- * @param {Array} matchData The propery names, values, and compare flags to match.
- * @param {Function} [customizer] The function to customize comparing objects.
- * @returns {boolean} Returns `true` if `object` is a match, else `false`.
- */
-function baseIsMatch(object, matchData, customizer) {
-  var index = matchData.length,
-      length = index,
-      noCustomizer = !customizer;
-
-  if (object == null) {
-    return !length;
-  }
-  object = toObject(object);
-  while (index--) {
-    var data = matchData[index];
-    if ((noCustomizer && data[2])
-          ? data[1] !== object[data[0]]
-          : !(data[0] in object)
-        ) {
-      return false;
-    }
-  }
-  while (++index < length) {
-    data = matchData[index];
-    var key = data[0],
-        objValue = object[key],
-        srcValue = data[1];
-
-    if (noCustomizer && data[2]) {
-      if (objValue === undefined && !(key in object)) {
-        return false;
-      }
-    } else {
-      var result = customizer ? customizer(objValue, srcValue, key) : undefined;
-      if (!(result === undefined ? baseIsEqual(srcValue, objValue, customizer, true) : result)) {
-        return false;
-      }
-    }
-  }
-  return true;
-}
-
-/**
- * The base implementation of `_.matches` which does not clone `source`.
- *
- * @private
- * @param {Object} source The object of property values to match.
- * @returns {Function} Returns the new function.
- */
-function baseMatches(source) {
-  var matchData = getMatchData(source);
-  if (matchData.length == 1 && matchData[0][2]) {
-    var key = matchData[0][0],
-        value = matchData[0][1];
-
-    return function(object) {
-      if (object == null) {
-        return false;
-      }
-      return object[key] === value && (value !== undefined || (key in toObject(object)));
-    };
-  }
-  return function(object) {
-    return baseIsMatch(object, matchData);
-  };
-}
-
-/**
- * The base implementation of `_.matchesProperty` which does not clone `srcValue`.
- *
- * @private
- * @param {string} path The path of the property to get.
- * @param {*} srcValue The value to compare.
- * @returns {Function} Returns the new function.
- */
-function baseMatchesProperty(path, srcValue) {
-  var isArr = isArray(path),
-      isCommon = isKey(path) && isStrictComparable(srcValue),
-      pathKey = (path + '');
-
-  path = toPath(path);
-  return function(object) {
-    if (object == null) {
-      return false;
-    }
-    var key = pathKey;
-    object = toObject(object);
-    if ((isArr || !isCommon) && !(key in object)) {
-      object = path.length == 1 ? object : baseGet(object, baseSlice(path, 0, -1));
-      if (object == null) {
-        return false;
-      }
-      key = last(path);
-      object = toObject(object);
-    }
-    return object[key] === srcValue
-      ? (srcValue !== undefined || (key in object))
-      : baseIsEqual(srcValue, object[key], undefined, true);
-  };
-}
-
-/**
- * The base implementation of `_.property` without support for deep paths.
- *
- * @private
- * @param {string} key The key of the property to get.
- * @returns {Function} Returns the new function.
- */
-function baseProperty(key) {
-  return function(object) {
-    return object == null ? undefined : object[key];
-  };
-}
-
-/**
- * A specialized version of `baseProperty` which supports deep paths.
- *
- * @private
- * @param {Array|string} path The path of the property to get.
- * @returns {Function} Returns the new function.
- */
-function basePropertyDeep(path) {
-  var pathKey = (path + '');
-  path = toPath(path);
-  return function(object) {
-    return baseGet(object, path, pathKey);
-  };
-}
-
-/**
- * The base implementation of `_.slice` without an iteratee call guard.
- *
- * @private
- * @param {Array} array The array to slice.
- * @param {number} [start=0] The start position.
- * @param {number} [end=array.length] The end position.
- * @returns {Array} Returns the slice of `array`.
- */
-function baseSlice(array, start, end) {
-  var index = -1,
-      length = array.length;
-
-  start = start == null ? 0 : (+start || 0);
-  if (start < 0) {
-    start = -start > length ? 0 : (length + start);
-  }
-  end = (end === undefined || end > length) ? length : (+end || 0);
-  if (end < 0) {
-    end += length;
-  }
-  length = start > end ? 0 : ((end - start) >>> 0);
-  start >>>= 0;
-
-  var result = Array(length);
-  while (++index < length) {
-    result[index] = array[index + start];
-  }
-  return result;
-}
-
-/**
- * Gets the propery names, values, and compare flags of `object`.
- *
- * @private
- * @param {Object} object The object to query.
- * @returns {Array} Returns the match data of `object`.
- */
-function getMatchData(object) {
-  var result = pairs(object),
-      length = result.length;
-
-  while (length--) {
-    result[length][2] = isStrictComparable(result[length][1]);
-  }
-  return result;
-}
-
-/**
- * Checks if `value` is a property name and not a property path.
- *
- * @private
- * @param {*} value The value to check.
- * @param {Object} [object] The object to query keys on.
- * @returns {boolean} Returns `true` if `value` is a property name, else `false`.
- */
-function isKey(value, object) {
-  var type = typeof value;
-  if ((type == 'string' && reIsPlainProp.test(value)) || type == 'number') {
-    return true;
-  }
-  if (isArray(value)) {
-    return false;
-  }
-  var result = !reIsDeepProp.test(value);
-  return result || (object != null && value in toObject(object));
-}
-
-/**
- * Checks if `value` is suitable for strict equality comparisons, i.e. `===`.
- *
- * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` if suitable for strict
- *  equality comparisons, else `false`.
- */
-function isStrictComparable(value) {
-  return value === value && !isObject(value);
-}
-
-/**
- * Converts `value` to an object if it's not one.
- *
- * @private
- * @param {*} value The value to process.
- * @returns {Object} Returns the object.
- */
-function toObject(value) {
-  return isObject(value) ? value : Object(value);
-}
-
-/**
- * Converts `value` to property path array if it's not one.
- *
- * @private
- * @param {*} value The value to process.
- * @returns {Array} Returns the property path array.
- */
-function toPath(value) {
-  if (isArray(value)) {
-    return value;
-  }
-  var result = [];
-  baseToString(value).replace(rePropName, function(match, number, quote, string) {
-    result.push(quote ? string.replace(reEscapeChar, '$1') : (number || match));
-  });
-  return result;
-}
-
-/**
- * Gets the last element of `array`.
- *
- * @static
- * @memberOf _
- * @category Array
- * @param {Array} array The array to query.
- * @returns {*} Returns the last element of `array`.
- * @example
- *
- * _.last([1, 2, 3]);
- * // => 3
- */
-function last(array) {
-  var length = array ? array.length : 0;
-  return length ? array[length - 1] : undefined;
-}
-
-/**
- * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
- * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an object, else `false`.
- * @example
- *
- * _.isObject({});
- * // => true
- *
- * _.isObject([1, 2, 3]);
- * // => true
- *
- * _.isObject(1);
- * // => false
- */
-function isObject(value) {
-  // Avoid a V8 JIT bug in Chrome 19-20.
-  // See https://code.google.com/p/v8/issues/detail?id=2291 for more details.
-  var type = typeof value;
-  return !!value && (type == 'object' || type == 'function');
-}
-
-/**
- * This method returns the first argument provided to it.
- *
- * @static
- * @memberOf _
- * @category Utility
- * @param {*} value Any value.
- * @returns {*} Returns `value`.
- * @example
- *
- * var object = { 'user': 'fred' };
- *
- * _.identity(object) === object;
- * // => true
- */
-function identity(value) {
-  return value;
-}
-
-/**
- * Creates a function that returns the property value at `path` on a
- * given object.
- *
- * @static
- * @memberOf _
- * @category Utility
- * @param {Array|string} path The path of the property to get.
- * @returns {Function} Returns the new function.
- * @example
- *
- * var objects = [
- *   { 'a': { 'b': { 'c': 2 } } },
- *   { 'a': { 'b': { 'c': 1 } } }
- * ];
- *
- * _.map(objects, _.property('a.b.c'));
- * // => [2, 1]
- *
- * _.pluck(_.sortBy(objects, _.property(['a', 'b', 'c'])), 'a.b.c');
- * // => [1, 2]
- */
-function property(path) {
-  return isKey(path) ? baseProperty(path) : basePropertyDeep(path);
-}
-
-module.exports = baseCallback;
-
-},{"lodash._baseisequal":33,"lodash._bindcallback":35,"lodash.isarray":29,"lodash.pairs":36}],33:[function(require,module,exports){
-/**
- * lodash 3.0.7 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-var isArray = require('lodash.isarray'),
-    isTypedArray = require('lodash.istypedarray'),
-    keys = require('lodash.keys');
-
-/** `Object#toString` result references. */
-var argsTag = '[object Arguments]',
-    arrayTag = '[object Array]',
-    boolTag = '[object Boolean]',
-    dateTag = '[object Date]',
-    errorTag = '[object Error]',
-    numberTag = '[object Number]',
-    objectTag = '[object Object]',
-    regexpTag = '[object RegExp]',
-    stringTag = '[object String]';
-
-/**
- * Checks if `value` is object-like.
- *
- * @private
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
- */
-function isObjectLike(value) {
-  return !!value && typeof value == 'object';
-}
-
-/** Used for native method references. */
-var objectProto = Object.prototype;
-
-/** Used to check objects for own properties. */
-var hasOwnProperty = objectProto.hasOwnProperty;
-
-/**
- * Used to resolve the [`toStringTag`](https://people.mozilla.org/~jorendorff/es6-draft.html#sec-object.prototype.tostring)
- * of values.
- */
-var objToString = objectProto.toString;
-
-/**
- * A specialized version of `_.some` for arrays without support for callback
- * shorthands and `this` binding.
- *
- * @private
- * @param {Array} array The array to iterate over.
- * @param {Function} predicate The function invoked per iteration.
- * @returns {boolean} Returns `true` if any element passes the predicate check,
- *  else `false`.
- */
-function arraySome(array, predicate) {
-  var index = -1,
-      length = array.length;
-
-  while (++index < length) {
-    if (predicate(array[index], index, array)) {
-      return true;
-    }
-  }
-  return false;
-}
-
-/**
- * The base implementation of `_.isEqual` without support for `this` binding
- * `customizer` functions.
- *
- * @private
- * @param {*} value The value to compare.
- * @param {*} other The other value to compare.
- * @param {Function} [customizer] The function to customize comparing values.
- * @param {boolean} [isLoose] Specify performing partial comparisons.
- * @param {Array} [stackA] Tracks traversed `value` objects.
- * @param {Array} [stackB] Tracks traversed `other` objects.
- * @returns {boolean} Returns `true` if the values are equivalent, else `false`.
- */
-function baseIsEqual(value, other, customizer, isLoose, stackA, stackB) {
-  if (value === other) {
-    return true;
-  }
-  if (value == null || other == null || (!isObject(value) && !isObjectLike(other))) {
-    return value !== value && other !== other;
-  }
-  return baseIsEqualDeep(value, other, baseIsEqual, customizer, isLoose, stackA, stackB);
-}
-
-/**
- * A specialized version of `baseIsEqual` for arrays and objects which performs
- * deep comparisons and tracks traversed objects enabling objects with circular
- * references to be compared.
- *
- * @private
- * @param {Object} object The object to compare.
- * @param {Object} other The other object to compare.
- * @param {Function} equalFunc The function to determine equivalents of values.
- * @param {Function} [customizer] The function to customize comparing objects.
- * @param {boolean} [isLoose] Specify performing partial comparisons.
- * @param {Array} [stackA=[]] Tracks traversed `value` objects.
- * @param {Array} [stackB=[]] Tracks traversed `other` objects.
- * @returns {boolean} Returns `true` if the objects are equivalent, else `false`.
- */
-function baseIsEqualDeep(object, other, equalFunc, customizer, isLoose, stackA, stackB) {
-  var objIsArr = isArray(object),
-      othIsArr = isArray(other),
-      objTag = arrayTag,
-      othTag = arrayTag;
-
-  if (!objIsArr) {
-    objTag = objToString.call(object);
-    if (objTag == argsTag) {
-      objTag = objectTag;
-    } else if (objTag != objectTag) {
-      objIsArr = isTypedArray(object);
-    }
-  }
-  if (!othIsArr) {
-    othTag = objToString.call(other);
-    if (othTag == argsTag) {
-      othTag = objectTag;
-    } else if (othTag != objectTag) {
-      othIsArr = isTypedArray(other);
-    }
-  }
-  var objIsObj = objTag == objectTag,
-      othIsObj = othTag == objectTag,
-      isSameTag = objTag == othTag;
-
-  if (isSameTag && !(objIsArr || objIsObj)) {
-    return equalByTag(object, other, objTag);
-  }
-  if (!isLoose) {
-    var objIsWrapped = objIsObj && hasOwnProperty.call(object, '__wrapped__'),
-        othIsWrapped = othIsObj && hasOwnProperty.call(other, '__wrapped__');
-
-    if (objIsWrapped || othIsWrapped) {
-      return equalFunc(objIsWrapped ? object.value() : object, othIsWrapped ? other.value() : other, customizer, isLoose, stackA, stackB);
-    }
-  }
-  if (!isSameTag) {
-    return false;
-  }
-  // Assume cyclic values are equal.
-  // For more information on detecting circular references see https://es5.github.io/#JO.
-  stackA || (stackA = []);
-  stackB || (stackB = []);
-
-  var length = stackA.length;
-  while (length--) {
-    if (stackA[length] == object) {
-      return stackB[length] == other;
-    }
-  }
-  // Add `object` and `other` to the stack of traversed objects.
-  stackA.push(object);
-  stackB.push(other);
-
-  var result = (objIsArr ? equalArrays : equalObjects)(object, other, equalFunc, customizer, isLoose, stackA, stackB);
-
-  stackA.pop();
-  stackB.pop();
-
-  return result;
-}
-
-/**
- * A specialized version of `baseIsEqualDeep` for arrays with support for
- * partial deep comparisons.
- *
- * @private
- * @param {Array} array The array to compare.
- * @param {Array} other The other array to compare.
- * @param {Function} equalFunc The function to determine equivalents of values.
- * @param {Function} [customizer] The function to customize comparing arrays.
- * @param {boolean} [isLoose] Specify performing partial comparisons.
- * @param {Array} [stackA] Tracks traversed `value` objects.
- * @param {Array} [stackB] Tracks traversed `other` objects.
- * @returns {boolean} Returns `true` if the arrays are equivalent, else `false`.
- */
-function equalArrays(array, other, equalFunc, customizer, isLoose, stackA, stackB) {
-  var index = -1,
-      arrLength = array.length,
-      othLength = other.length;
-
-  if (arrLength != othLength && !(isLoose && othLength > arrLength)) {
-    return false;
-  }
-  // Ignore non-index properties.
-  while (++index < arrLength) {
-    var arrValue = array[index],
-        othValue = other[index],
-        result = customizer ? customizer(isLoose ? othValue : arrValue, isLoose ? arrValue : othValue, index) : undefined;
-
-    if (result !== undefined) {
-      if (result) {
-        continue;
-      }
-      return false;
-    }
-    // Recursively compare arrays (susceptible to call stack limits).
-    if (isLoose) {
-      if (!arraySome(other, function(othValue) {
-            return arrValue === othValue || equalFunc(arrValue, othValue, customizer, isLoose, stackA, stackB);
-          })) {
-        return false;
-      }
-    } else if (!(arrValue === othValue || equalFunc(arrValue, othValue, customizer, isLoose, stackA, stackB))) {
-      return false;
-    }
-  }
-  return true;
-}
-
-/**
- * A specialized version of `baseIsEqualDeep` for comparing objects of
- * the same `toStringTag`.
- *
- * **Note:** This function only supports comparing values with tags of
- * `Boolean`, `Date`, `Error`, `Number`, `RegExp`, or `String`.
- *
- * @private
- * @param {Object} value The object to compare.
- * @param {Object} other The other object to compare.
- * @param {string} tag The `toStringTag` of the objects to compare.
- * @returns {boolean} Returns `true` if the objects are equivalent, else `false`.
- */
-function equalByTag(object, other, tag) {
-  switch (tag) {
-    case boolTag:
-    case dateTag:
-      // Coerce dates and booleans to numbers, dates to milliseconds and booleans
-      // to `1` or `0` treating invalid dates coerced to `NaN` as not equal.
-      return +object == +other;
-
-    case errorTag:
-      return object.name == other.name && object.message == other.message;
-
-    case numberTag:
-      // Treat `NaN` vs. `NaN` as equal.
-      return (object != +object)
-        ? other != +other
-        : object == +other;
-
-    case regexpTag:
-    case stringTag:
-      // Coerce regexes to strings and treat strings primitives and string
-      // objects as equal. See https://es5.github.io/#x15.10.6.4 for more details.
-      return object == (other + '');
-  }
-  return false;
-}
-
-/**
- * A specialized version of `baseIsEqualDeep` for objects with support for
- * partial deep comparisons.
- *
- * @private
- * @param {Object} object The object to compare.
- * @param {Object} other The other object to compare.
- * @param {Function} equalFunc The function to determine equivalents of values.
- * @param {Function} [customizer] The function to customize comparing values.
- * @param {boolean} [isLoose] Specify performing partial comparisons.
- * @param {Array} [stackA] Tracks traversed `value` objects.
- * @param {Array} [stackB] Tracks traversed `other` objects.
- * @returns {boolean} Returns `true` if the objects are equivalent, else `false`.
- */
-function equalObjects(object, other, equalFunc, customizer, isLoose, stackA, stackB) {
-  var objProps = keys(object),
-      objLength = objProps.length,
-      othProps = keys(other),
-      othLength = othProps.length;
-
-  if (objLength != othLength && !isLoose) {
-    return false;
-  }
-  var index = objLength;
-  while (index--) {
-    var key = objProps[index];
-    if (!(isLoose ? key in other : hasOwnProperty.call(other, key))) {
-      return false;
-    }
-  }
-  var skipCtor = isLoose;
-  while (++index < objLength) {
-    key = objProps[index];
-    var objValue = object[key],
-        othValue = other[key],
-        result = customizer ? customizer(isLoose ? othValue : objValue, isLoose? objValue : othValue, key) : undefined;
-
-    // Recursively compare objects (susceptible to call stack limits).
-    if (!(result === undefined ? equalFunc(objValue, othValue, customizer, isLoose, stackA, stackB) : result)) {
-      return false;
-    }
-    skipCtor || (skipCtor = key == 'constructor');
-  }
-  if (!skipCtor) {
-    var objCtor = object.constructor,
-        othCtor = other.constructor;
-
-    // Non `Object` object instances with different constructors are not equal.
-    if (objCtor != othCtor &&
-        ('constructor' in object && 'constructor' in other) &&
-        !(typeof objCtor == 'function' && objCtor instanceof objCtor &&
-          typeof othCtor == 'function' && othCtor instanceof othCtor)) {
-      return false;
-    }
-  }
-  return true;
-}
-
-/**
- * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
- * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an object, else `false`.
- * @example
- *
- * _.isObject({});
- * // => true
- *
- * _.isObject([1, 2, 3]);
- * // => true
- *
- * _.isObject(1);
- * // => false
- */
-function isObject(value) {
-  // Avoid a V8 JIT bug in Chrome 19-20.
-  // See https://code.google.com/p/v8/issues/detail?id=2291 for more details.
-  var type = typeof value;
-  return !!value && (type == 'object' || type == 'function');
-}
-
-module.exports = baseIsEqual;
-
-},{"lodash.isarray":29,"lodash.istypedarray":34,"lodash.keys":38}],34:[function(require,module,exports){
-/**
- * lodash 3.0.6 (Custom Build) <https://lodash.com/>
- * Build: `lodash modularize exports="npm" -o ./`
- * Copyright jQuery Foundation and other contributors <https://jquery.org/>
- * Released under MIT license <https://lodash.com/license>
- * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
- * Copyright Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- */
-
-/** Used as references for various `Number` constants. */
-var MAX_SAFE_INTEGER = 9007199254740991;
-
-/** `Object#toString` result references. */
-var argsTag = '[object Arguments]',
-    arrayTag = '[object Array]',
-    boolTag = '[object Boolean]',
-    dateTag = '[object Date]',
-    errorTag = '[object Error]',
-    funcTag = '[object Function]',
-    mapTag = '[object Map]',
-    numberTag = '[object Number]',
-    objectTag = '[object Object]',
-    regexpTag = '[object RegExp]',
-    setTag = '[object Set]',
-    stringTag = '[object String]',
-    weakMapTag = '[object WeakMap]';
-
-var arrayBufferTag = '[object ArrayBuffer]',
-    dataViewTag = '[object DataView]',
-    float32Tag = '[object Float32Array]',
-    float64Tag = '[object Float64Array]',
-    int8Tag = '[object Int8Array]',
-    int16Tag = '[object Int16Array]',
-    int32Tag = '[object Int32Array]',
-    uint8Tag = '[object Uint8Array]',
-    uint8ClampedTag = '[object Uint8ClampedArray]',
-    uint16Tag = '[object Uint16Array]',
-    uint32Tag = '[object Uint32Array]';
-
-/** Used to identify `toStringTag` values of typed arrays. */
-var typedArrayTags = {};
-typedArrayTags[float32Tag] = typedArrayTags[float64Tag] =
-typedArrayTags[int8Tag] = typedArrayTags[int16Tag] =
-typedArrayTags[int32Tag] = typedArrayTags[uint8Tag] =
-typedArrayTags[uint8ClampedTag] = typedArrayTags[uint16Tag] =
-typedArrayTags[uint32Tag] = true;
-typedArrayTags[argsTag] = typedArrayTags[arrayTag] =
-typedArrayTags[arrayBufferTag] = typedArrayTags[boolTag] =
-typedArrayTags[dataViewTag] = typedArrayTags[dateTag] =
-typedArrayTags[errorTag] = typedArrayTags[funcTag] =
-typedArrayTags[mapTag] = typedArrayTags[numberTag] =
-typedArrayTags[objectTag] = typedArrayTags[regexpTag] =
-typedArrayTags[setTag] = typedArrayTags[stringTag] =
-typedArrayTags[weakMapTag] = false;
-
-/** Used for built-in method references. */
-var objectProto = Object.prototype;
-
-/**
- * Used to resolve the [`toStringTag`](http://ecma-international.org/ecma-262/6.0/#sec-object.prototype.tostring)
- * of values.
- */
-var objectToString = objectProto.toString;
-
-/**
- * Checks if `value` is a valid array-like length.
- *
- * **Note:** This function is loosely based on
- * [`ToLength`](http://ecma-international.org/ecma-262/6.0/#sec-tolength).
- *
- * @static
- * @memberOf _
- * @since 4.0.0
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is a valid length,
- *  else `false`.
- * @example
- *
- * _.isLength(3);
- * // => true
- *
- * _.isLength(Number.MIN_VALUE);
- * // => false
- *
- * _.isLength(Infinity);
- * // => false
- *
- * _.isLength('3');
- * // => false
- */
-function isLength(value) {
-  return typeof value == 'number' &&
-    value > -1 && value % 1 == 0 && value <= MAX_SAFE_INTEGER;
-}
-
-/**
- * Checks if `value` is object-like. A value is object-like if it's not `null`
- * and has a `typeof` result of "object".
- *
- * @static
- * @memberOf _
- * @since 4.0.0
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is object-like, else `false`.
- * @example
- *
- * _.isObjectLike({});
- * // => true
- *
- * _.isObjectLike([1, 2, 3]);
- * // => true
- *
- * _.isObjectLike(_.noop);
- * // => false
- *
- * _.isObjectLike(null);
- * // => false
- */
-function isObjectLike(value) {
-  return !!value && typeof value == 'object';
-}
-
-/**
- * Checks if `value` is classified as a typed array.
- *
- * @static
- * @memberOf _
- * @since 3.0.0
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is correctly classified,
- *  else `false`.
- * @example
- *
- * _.isTypedArray(new Uint8Array);
- * // => true
- *
- * _.isTypedArray([]);
- * // => false
- */
-function isTypedArray(value) {
-  return isObjectLike(value) &&
-    isLength(value.length) && !!typedArrayTags[objectToString.call(value)];
-}
-
-module.exports = isTypedArray;
-
-},{}],35:[function(require,module,exports){
-arguments[4][24][0].apply(exports,arguments)
-},{"dup":24}],36:[function(require,module,exports){
-/**
- * lodash 3.0.1 (Custom Build) <https://lodash.com/>
- * Build: `lodash modern modularize exports="npm" -o ./`
- * Copyright 2012-2015 The Dojo Foundation <http://dojofoundation.org/>
- * Based on Underscore.js 1.8.3 <http://underscorejs.org/LICENSE>
- * Copyright 2009-2015 Jeremy Ashkenas, DocumentCloud and Investigative Reporters & Editors
- * Available under MIT license <https://lodash.com/license>
- */
-var keys = require('lodash.keys');
-
-/**
- * Converts `value` to an object if it's not one.
- *
- * @private
- * @param {*} value The value to process.
- * @returns {Object} Returns the object.
- */
-function toObject(value) {
-  return isObject(value) ? value : Object(value);
-}
-
-/**
- * Checks if `value` is the [language type](https://es5.github.io/#x8) of `Object`.
- * (e.g. arrays, functions, objects, regexes, `new Number(0)`, and `new String('')`)
- *
- * @static
- * @memberOf _
- * @category Lang
- * @param {*} value The value to check.
- * @returns {boolean} Returns `true` if `value` is an object, else `false`.
- * @example
- *
- * _.isObject({});
- * // => true
- *
- * _.isObject([1, 2, 3]);
- * // => true
- *
- * _.isObject(1);
- * // => false
- */
-function isObject(value) {
-  // Avoid a V8 JIT bug in Chrome 19-20.
-  // See https://code.google.com/p/v8/issues/detail?id=2291 for more details.
-  var type = typeof value;
-  return !!value && (type == 'object' || type == 'function');
-}
-
-/**
- * Creates a two dimensional array of the key-value pairs for `object`,
- * e.g. `[[key1, value1], [key2, value2]]`.
- *
- * @static
- * @memberOf _
- * @category Object
- * @param {Object} object The object to query.
- * @returns {Array} Returns the new array of key-value pairs.
- * @example
- *
- * _.pairs({ 'barney': 36, 'fred': 40 });
- * // => [['barney', 36], ['fred', 40]] (iteration order is not guaranteed)
- */
-function pairs(object) {
-  object = toObject(object);
-
-  var index = -1,
-      props = keys(object),
-      length = props.length,
-      result = Array(length);
-
-  while (++index < length) {
-    var key = props[index];
-    result[index] = [key, object[key]];
-  }
-  return result;
-}
-
-module.exports = pairs;
-
-},{"lodash.keys":38}],37:[function(require,module,exports){
-arguments[4][20][0].apply(exports,arguments)
-},{"dup":20,"lodash.keys":38}],38:[function(require,module,exports){
-arguments[4][21][0].apply(exports,arguments)
-},{"dup":21,"lodash._getnative":39,"lodash.isarguments":40,"lodash.isarray":29}],39:[function(require,module,exports){
-arguments[4][22][0].apply(exports,arguments)
-},{"dup":22}],40:[function(require,module,exports){
-arguments[4][23][0].apply(exports,arguments)
-},{"dup":23}],41:[function(require,module,exports){
+},{}],19:[function(require,module,exports){
 var toSDP = require('./lib/tosdp');
 var toJSON = require('./lib/tojson');
 
@@ -6175,7 +3721,7 @@ exports.toCandidateJSON = toJSON.toCandidateJSON;
 exports.toMediaJSON = toJSON.toMediaJSON;
 exports.toSessionJSON = toJSON.toSessionJSON;
 
-},{"./lib/tojson":44,"./lib/tosdp":45}],42:[function(require,module,exports){
+},{"./lib/tojson":22,"./lib/tosdp":23}],20:[function(require,module,exports){
 exports.lines = function (sdp) {
     return sdp.split('\r\n').filter(function (line) {
         return line.length > 0;
@@ -6446,7 +3992,7 @@ exports.msid = function (line) {
     };
 };
 
-},{}],43:[function(require,module,exports){
+},{}],21:[function(require,module,exports){
 module.exports = {
     initiator: {
         incoming: {
@@ -6494,7 +4040,7 @@ module.exports = {
     }
 };
 
-},{}],44:[function(require,module,exports){
+},{}],22:[function(require,module,exports){
 var SENDERS = require('./senders');
 var parsers = require('./parsers');
 var idCounter = Math.random();
@@ -6718,7 +4264,7 @@ exports.toCandidateJSON = function (line) {
     return candidate;
 };
 
-},{"./parsers":42,"./senders":43}],45:[function(require,module,exports){
+},{"./parsers":20,"./senders":21}],23:[function(require,module,exports){
 var SENDERS = require('./senders');
 
 
@@ -6957,7 +4503,7 @@ exports.toCandidateSDP = function (candidate) {
     return 'a=candidate:' + sdp.join(' ');
 };
 
-},{"./senders":43}],46:[function(require,module,exports){
+},{"./senders":21}],24:[function(require,module,exports){
 // based on https://github.com/ESTOS/strophe.jingle/
 // adds wildemitter support
 var util = require('util');
@@ -7083,7 +4629,9 @@ TraceablePeerConnection.prototype.createDataChannel = function (label, opts) {
 TraceablePeerConnection.prototype.setLocalDescription = function (description, successCallback, failureCallback) {
     var self = this;
     this.trace('setLocalDescription', dumpSDP(description));
-    this.peerconnection.setLocalDescription(description,
+    return this.peerconnection.setLocalDescription(
+        description
+    ).then(
         function () {
             self.trace('setLocalDescriptionOnSuccess');
             if (successCallback) successCallback();
@@ -7098,7 +4646,9 @@ TraceablePeerConnection.prototype.setLocalDescription = function (description, s
 TraceablePeerConnection.prototype.setRemoteDescription = function (description, successCallback, failureCallback) {
     var self = this;
     this.trace('setRemoteDescription', dumpSDP(description));
-    this.peerconnection.setRemoteDescription(description,
+    return this.peerconnection.setRemoteDescription(
+        description
+    ).then(
         function () {
             self.trace('setRemoteDescriptionOnSuccess');
             if (successCallback) successCallback();
@@ -7120,7 +4670,9 @@ TraceablePeerConnection.prototype.close = function () {
 TraceablePeerConnection.prototype.createOffer = function (successCallback, failureCallback, constraints) {
     var self = this;
     this.trace('createOffer', constraints);
-    this.peerconnection.createOffer(
+    return this.peerconnection.createOffer(
+        constraints
+    ).then(
         function (offer) {
             self.trace('createOfferOnSuccess', dumpSDP(offer));
             if (successCallback) successCallback(offer);
@@ -7128,15 +4680,16 @@ TraceablePeerConnection.prototype.createOffer = function (successCallback, failu
         function (err) {
             self.trace('createOfferOnFailure', err);
             if (failureCallback) failureCallback(err);
-        },
-        constraints
+        }
     );
 };
 
 TraceablePeerConnection.prototype.createAnswer = function (successCallback, failureCallback, constraints) {
     var self = this;
     this.trace('createAnswer', constraints);
-    this.peerconnection.createAnswer(
+    return this.peerconnection.createAnswer(
+        constraints
+    ).then(
         function (answer) {
             self.trace('createAnswerOnSuccess', dumpSDP(answer));
             if (successCallback) successCallback(answer);
@@ -7144,15 +4697,16 @@ TraceablePeerConnection.prototype.createAnswer = function (successCallback, fail
         function (err) {
             self.trace('createAnswerOnFailure', err);
             if (failureCallback) failureCallback(err);
-        },
-        constraints
+        }
     );
 };
 
 TraceablePeerConnection.prototype.addIceCandidate = function (candidate, successCallback, failureCallback) {
     var self = this;
     this.trace('addIceCandidate', candidate);
-    this.peerconnection.addIceCandidate(candidate,
+    return this.peerconnection.addIceCandidate(
+        candidate
+    ).then(
         function () {
             //self.trace('addIceCandidateOnSuccess');
             if (successCallback) successCallback();
@@ -7170,30 +4724,30 @@ TraceablePeerConnection.prototype.getStats = function () {
 
 module.exports = TraceablePeerConnection;
 
-},{"util":72,"webrtc-adapter":47,"wildemitter":56}],47:[function(require,module,exports){
+},{"util":54,"webrtc-adapter":26,"wildemitter":35}],25:[function(require,module,exports){
 arguments[4][4][0].apply(exports,arguments)
-},{"./chrome/chrome_shim":48,"./edge/edge_shim":51,"./firefox/firefox_shim":52,"./safari/safari_shim":54,"./utils":55,"dup":4}],48:[function(require,module,exports){
+},{"dup":4}],26:[function(require,module,exports){
 arguments[4][5][0].apply(exports,arguments)
-},{"../utils.js":55,"./getusermedia":49,"dup":5}],49:[function(require,module,exports){
+},{"./chrome/chrome_shim":27,"./edge/edge_shim":29,"./firefox/firefox_shim":31,"./safari/safari_shim":33,"./utils":34,"dup":5}],27:[function(require,module,exports){
 arguments[4][6][0].apply(exports,arguments)
-},{"../utils.js":55,"dup":6}],50:[function(require,module,exports){
+},{"../utils.js":34,"./getusermedia":28,"dup":6}],28:[function(require,module,exports){
 arguments[4][7][0].apply(exports,arguments)
-},{"dup":7}],51:[function(require,module,exports){
+},{"../utils.js":34,"dup":7}],29:[function(require,module,exports){
 arguments[4][8][0].apply(exports,arguments)
-},{"../utils":55,"./edge_sdp":50,"dup":8}],52:[function(require,module,exports){
+},{"../utils":34,"./getusermedia":30,"dup":8,"sdp":25}],30:[function(require,module,exports){
 arguments[4][9][0].apply(exports,arguments)
-},{"../utils":55,"./getusermedia":53,"dup":9}],53:[function(require,module,exports){
+},{"dup":9}],31:[function(require,module,exports){
 arguments[4][10][0].apply(exports,arguments)
-},{"../utils":55,"dup":10}],54:[function(require,module,exports){
+},{"../utils":34,"./getusermedia":32,"dup":10}],32:[function(require,module,exports){
 arguments[4][11][0].apply(exports,arguments)
-},{"dup":11}],55:[function(require,module,exports){
+},{"../utils":34,"dup":11}],33:[function(require,module,exports){
 arguments[4][12][0].apply(exports,arguments)
-},{"dup":12}],56:[function(require,module,exports){
-arguments[4][17][0].apply(exports,arguments)
-},{"dup":17}],57:[function(require,module,exports){
+},{"dup":12}],34:[function(require,module,exports){
+arguments[4][13][0].apply(exports,arguments)
+},{"dup":13}],35:[function(require,module,exports){
+arguments[4][18][0].apply(exports,arguments)
+},{"dup":18}],36:[function(require,module,exports){
 var util = require('util');
-var each = require('lodash.foreach');
-var pluck = require('lodash.pluck');
 var SJJ = require('sdp-jingle-json');
 var WildEmitter = require('wildemitter');
 var Peerconn = require('traceablepeerconnection');
@@ -7339,11 +4893,15 @@ function PeerConnection(config, constraints) {
 
     this.config = {
         debug: false,
-        ice: {},
         sid: '',
         isInitiator: true,
         sdpSessionID: Date.now(),
         useJingle: false
+    };
+
+    this.iceCredentials = {
+        local: {},
+        remote: {}
     };
 
     // apply our config
@@ -7439,7 +4997,7 @@ PeerConnection.prototype.processIce = function (update, cb) {
     if (this.pc.signalingState === 'closed') return cb();
 
     if (update.contents || (update.jingle && update.jingle.contents)) {
-        var contentNames = pluck(this.remoteDescription.contents, 'name');
+        var contentNames = this.remoteDescription.contents.map(function (c) { return c.name; });
         var contents = update.contents || update.jingle.contents;
 
         contents.forEach(function (content) {
@@ -7447,24 +5005,61 @@ PeerConnection.prototype.processIce = function (update, cb) {
             var candidates = transport.candidates || [];
             var mline = contentNames.indexOf(content.name);
             var mid = content.name;
-
-            candidates.forEach(
-                function (candidate) {
-                var iceCandidate = SJJ.toCandidateSDP(candidate) + '\r\n';
-                self.pc.addIceCandidate(
-                    new RTCIceCandidate({
-                        candidate: iceCandidate,
-                        sdpMLineIndex: mline,
-                        sdpMid: mid
-                    }), function () {
-                        // well, this success callback is pretty meaningless
-                    },
-                    function (err) {
-                        self.emit('error', err);
-                    }
-                );
-                self._checkRemoteCandidate(iceCandidate);
+            var remoteContent = self.remoteDescription.contents.find(function (c) {
+                return c.name === content.name;
             });
+
+            // process candidates as a callback, in case we need to
+            // update ufrag and pwd with offer/answer
+            var processCandidates = function () {
+                candidates.forEach(
+                    function (candidate) {
+                    var iceCandidate = SJJ.toCandidateSDP(candidate) + '\r\n';
+                    self.pc.addIceCandidate(
+                        new RTCIceCandidate({
+                            candidate: iceCandidate,
+                            sdpMLineIndex: mline,
+                            sdpMid: mid
+                        }), function () {
+                            // well, this success callback is pretty meaningless
+                        },
+                        function (err) {
+                            self.emit('error', err);
+                        }
+                    );
+                    self._checkRemoteCandidate(iceCandidate);
+                });
+                cb();
+            };
+
+            if (self.iceCredentials.remote[content.name] && transport.ufrag &&
+                self.iceCredentials.remote[content.name].ufrag !== transport.ufrag) {
+                if (remoteContent) {
+                    remoteContent.transport.ufrag = transport.ufrag;
+                    remoteContent.transport.pwd = transport.pwd;
+                    var offer = {
+                        type: 'offer',
+                        jingle: self.remoteDescription
+                    };
+                    offer.sdp = SJJ.toSessionSDP(offer.jingle, {
+                        sid: self.config.sdpSessionID,
+                        role: self._role(),
+                        direction: 'incoming'
+                    });
+                    self.pc.setRemoteDescription(new RTCSessionDescription(offer),
+                        function () {
+                            processCandidates();
+                        },
+                        function (err) {
+                            self.emit('error', err);
+                        }
+                    );
+                } else {
+                    self.emit('error', 'ice restart failed to find matching content');
+                }
+            } else {
+                processCandidates();
+            }
         });
     } else {
         // working around https://code.google.com/p/webrtc/issues/detail?id=3669
@@ -7488,8 +5083,8 @@ PeerConnection.prototype.processIce = function (update, cb) {
             }
         );
         self._checkRemoteCandidate(update.candidate.candidate);
+        cb();
     }
-    cb();
 };
 
 // Generate and emit an offer with the given constraints
@@ -7531,10 +5126,10 @@ PeerConnection.prototype.offer = function (constraints, cb) {
                         self.localDescription = jingle;
 
                         // Save ICE credentials
-                        each(jingle.contents, function (content) {
+                        jingle.contents.forEach(function (content) {
                             var transport = content.transport || {};
                             if (transport.ufrag) {
-                                self.config.ice[content.name] = {
+                                self.iceCredentials.local[content.name] = {
                                     ufrag: transport.ufrag,
                                     pwd: transport.pwd
                                 };
@@ -7581,6 +5176,7 @@ PeerConnection.prototype.handleOffer = function (offer, cb) {
                 if (content.name === 'video') {
                     content.application.googConferenceFlag = true;
                 }
+
             });
         }
         if (this.enableMultiStreamHacks) {
@@ -7621,6 +5217,16 @@ PeerConnection.prototype.handleOffer = function (offer, cb) {
                 }
             }
         }
+        // Save ICE credentials
+        offer.jingle.contents.forEach(function (content) {
+            var transport = content.transport || {};
+            if (transport.ufrag) {
+                self.iceCredentials.remote[content.name] = {
+                    ufrag: transport.ufrag,
+                    pwd: transport.pwd
+                };
+            }
+        });
         offer.sdp = SJJ.toSessionSDP(offer.jingle, {
             sid: self.config.sdpSessionID,
             role: self._role(),
@@ -7688,6 +5294,17 @@ PeerConnection.prototype.handleAnswer = function (answer, cb) {
             direction: 'incoming'
         });
         self.remoteDescription = answer.jingle;
+
+        // Save ICE credentials
+        answer.jingle.contents.forEach(function (content) {
+            var transport = content.transport || {};
+            if (transport.ufrag) {
+                self.iceCredentials.remote[content.name] = {
+                    ufrag: transport.ufrag,
+                    pwd: transport.pwd
+                };
+            }
+        });
     }
     answer.sdp.split('\r\n').forEach(function (line) {
         if (line.indexOf('a=candidate:') === 0) {
@@ -7924,15 +5541,15 @@ PeerConnection.prototype._onIce = function (event) {
                     ice.sdpMid = self.localDescription.contents[ice.sdpMLineIndex].name;
                 }
             }
-            if (!self.config.ice[ice.sdpMid]) {
+            if (!self.iceCredentials.local[ice.sdpMid]) {
                 var jingle = SJJ.toSessionJSON(self.pc.localDescription.sdp, {
                     role: self._role(),
                     direction: 'outgoing'
                 });
-                each(jingle.contents, function (content) {
+                jingle.contents.forEach(function (content) {
                     var transport = content.transport || {};
                     if (transport.ufrag) {
-                        self.config.ice[content.name] = {
+                        self.iceCredentials.local[content.name] = {
                             ufrag: transport.ufrag,
                             pwd: transport.pwd
                         };
@@ -7945,8 +5562,8 @@ PeerConnection.prototype._onIce = function (event) {
                     creator: self._role(),
                     transport: {
                         transportType: 'iceUdp',
-                        ufrag: self.config.ice[ice.sdpMid].ufrag,
-                        pwd: self.config.ice[ice.sdpMid].pwd,
+                        ufrag: self.iceCredentials.local[ice.sdpMid].ufrag,
+                        pwd: self.iceCredentials.local[ice.sdpMid].pwd,
                         candidates: [
                             cand
                         ]
@@ -8019,28 +5636,1319 @@ PeerConnection.prototype.getStats = function (cb) {
 
 module.exports = PeerConnection;
 
-},{"lodash.foreach":18,"lodash.pluck":26,"sdp-jingle-json":41,"traceablepeerconnection":46,"util":72,"webrtc-adapter":47,"wildemitter":56}],58:[function(require,module,exports){
+},{"sdp-jingle-json":19,"traceablepeerconnection":24,"util":54,"webrtc-adapter":26,"wildemitter":35}],37:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
-    value: true
+  value: true
+});
+exports.VideoBandwidthTest = exports.ThroughputTest = exports.AdvancedCameraTest = exports.ConnectivityTest = exports.VideoTest = exports.AudioTest = undefined;
+
+var _AudioTest = require('./tests/AudioTest');
+
+var _AudioTest2 = _interopRequireDefault(_AudioTest);
+
+var _VideoTest = require('./tests/VideoTest');
+
+var _VideoTest2 = _interopRequireDefault(_VideoTest);
+
+var _ConnectivityTest = require('./tests/ConnectivityTest');
+
+var _ConnectivityTest2 = _interopRequireDefault(_ConnectivityTest);
+
+var _AdvancedCameraTest = require('./tests/AdvancedCameraTest');
+
+var _AdvancedCameraTest2 = _interopRequireDefault(_AdvancedCameraTest);
+
+var _DataThroughputTest = require('./tests/DataThroughputTest');
+
+var _DataThroughputTest2 = _interopRequireDefault(_DataThroughputTest);
+
+var _VideoBandwidthTest = require('./tests/VideoBandwidthTest');
+
+var _VideoBandwidthTest2 = _interopRequireDefault(_VideoBandwidthTest);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+exports.AudioTest = _AudioTest2.default;
+exports.VideoTest = _VideoTest2.default;
+exports.ConnectivityTest = _ConnectivityTest2.default;
+exports.AdvancedCameraTest = _AdvancedCameraTest2.default;
+exports.ThroughputTest = _DataThroughputTest2.default;
+exports.VideoBandwidthTest = _VideoBandwidthTest2.default;
+
+},{"./tests/AdvancedCameraTest":39,"./tests/AudioTest":40,"./tests/ConnectivityTest":41,"./tests/DataThroughputTest":42,"./tests/VideoBandwidthTest":43,"./tests/VideoTest":44}],38:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
 });
 
 var _TestSuite = require('./utils/TestSuite');
 
-var _defaultTests = require('./utils/tests/defaultTests');
+var _TestSuite2 = _interopRequireDefault(_TestSuite);
+
+var _defaultTests = require('./defaultTests');
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 exports.default = {
-    TestSuite: _TestSuite.TestSuite,
-    AudioTest: _defaultTests.AudioTest,
-    VideoTest: _defaultTests.VideoTest,
-    ConnectivityTest: _defaultTests.ConnectivityTest,
-    AdvancedCameraTest: _defaultTests.AdvancedCameraTest,
-    ThroughputTest: _defaultTests.ThroughputTest,
-    VideoBandwidthTest: _defaultTests.VideoBandwidthTest
-};
+  TestSuite: _TestSuite2.default,
+  AudioTest: _defaultTests.AudioTest,
+  VideoTest: _defaultTests.VideoTest,
+  ConnectivityTest: _defaultTests.ConnectivityTest,
+  AdvancedCameraTest: _defaultTests.AdvancedCameraTest,
+  ThroughputTest: _defaultTests.ThroughputTest,
+  VideoBandwidthTest: _defaultTests.VideoBandwidthTest };
 
-},{"./utils/TestSuite":59,"./utils/tests/defaultTests":68}],59:[function(require,module,exports){
+},{"./defaultTests":37,"./utils/TestSuite":48}],39:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
+
+var _Test2 = require('../utils/Test');
+
+var _Test3 = _interopRequireDefault(_Test2);
+
+var _VideoFrameChecker = require('../utils/VideoFrameChecker');
+
+var _VideoFrameChecker2 = _interopRequireDefault(_VideoFrameChecker);
+
+var _WebrtcCall = require('../utils/WebrtcCall');
+
+var _WebrtcCall2 = _interopRequireDefault(_WebrtcCall);
+
+var _CameraResolutionTest = require('../utils/CameraResolutionTest');
+
+var _CameraResolutionTest2 = _interopRequireDefault(_CameraResolutionTest);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var AdvancedCameraTest = function (_Test) {
+  _inherits(AdvancedCameraTest, _Test);
+
+  function AdvancedCameraTest(options) {
+    _classCallCheck(this, AdvancedCameraTest);
+
+    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(AdvancedCameraTest).apply(this, arguments));
+
+    _this.name = 'Advanced Video Test';
+    _this.tests = [];
+
+    _this.tests.push(new _CameraResolutionTest2.default([[320, 240]], options));
+    _this.tests.push(new _CameraResolutionTest2.default([[640, 480]], options));
+    _this.tests.push(new _CameraResolutionTest2.default([[1280, 720]], options));
+    _this.tests.push(new _CameraResolutionTest2.default([[160, 120], [320, 180], [320, 240], [640, 360], [640, 480], [768, 576], [1024, 576], [1280, 720], [1280, 768], [1280, 800], [1920, 1080], [1920, 1200], [3840, 2160], [4096, 2160]], options));
+    return _this;
+  }
+
+  _createClass(AdvancedCameraTest, [{
+    key: 'start',
+    value: function start() {
+      _get(Object.getPrototypeOf(AdvancedCameraTest.prototype), 'start', this).call(this);
+      var testResults = this.tests.map(function (test) {
+        return test.run();
+      });
+      return Promise.all(testResults).then(this.resolve.bind(this), this.reject.bind(this));
+    }
+  }, {
+    key: 'destroy',
+    value: function destroy() {
+      _get(Object.getPrototypeOf(AdvancedCameraTest.prototype), 'destroy', this).call(this);
+    }
+  }]);
+
+  return AdvancedCameraTest;
+}(_Test3.default);
+
+exports.default = AdvancedCameraTest;
+
+},{"../utils/CameraResolutionTest":45,"../utils/Test":47,"../utils/VideoFrameChecker":49,"../utils/WebrtcCall":50}],40:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
+
+var _Test2 = require('../utils/Test');
+
+var _Test3 = _interopRequireDefault(_Test2);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var localMedia = require('localMedia');
+
+var AudioTest = function (_Test) {
+  _inherits(AudioTest, _Test);
+
+  function AudioTest() {
+    _classCallCheck(this, AudioTest);
+
+    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(AudioTest).apply(this, arguments));
+
+    _this.name = 'Audio Test';
+    _this.volumeTimeout = _this.options.volumeTimeout || 5000;
+
+    _this.localMedia = new localMedia({ detectSpeakingEvents: true });
+    return _this;
+  }
+
+  _createClass(AudioTest, [{
+    key: 'start',
+    value: function start() {
+      var _this2 = this;
+
+      _get(Object.getPrototypeOf(AudioTest.prototype), 'start', this).call(this);
+
+      var volumeCheckFailure = window.setTimeout(function () {
+        _this2.logger.error('No change in mic volume');
+        _this2.reject(new Error('audio timeout'));
+      }, this.volumeTimeout);
+
+      this.localMedia.start(this.options, function (err) {
+        if (err) {
+          _this2.logger.error('Audio Local media start failed');
+          _this2.reject(err);
+        } else {
+          _this2.logger.log('Audio Local media started');
+        }
+      });
+
+      this.localMedia.on('volumeChange', function () {
+        window.clearTimeout(volumeCheckFailure);
+        _this2.resolve();
+      });
+
+      this.localMedia.on('localStream', function (stream) {
+        if (stream.getAudioTracks().length) {
+          var audioTrack = stream.getAudioTracks()[0];
+          if (audioTrack) {
+            _this2.logger.log('Audio stream passed');
+          } else {
+            _this2.logger.error('Audio stream failed');
+            _this2.reject(new Error('no audio tracks available'));
+          }
+        }
+      });
+      return this._promise.promise;
+    }
+  }, {
+    key: 'destroy',
+    value: function destroy() {
+      _get(Object.getPrototypeOf(AudioTest.prototype), 'destroy', this).call(this);
+      this.localMedia.stop();
+    }
+  }]);
+
+  return AudioTest;
+}(_Test3.default);
+
+exports.default = AudioTest;
+
+},{"../utils/Test":47,"localMedia":1}],41:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
+
+var _Test2 = require('../utils/Test');
+
+var _Test3 = _interopRequireDefault(_Test2);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var PeerConnection = require('rtcpeerconnection');
+
+var ConnectivityTest = function (_Test) {
+  _inherits(ConnectivityTest, _Test);
+
+  function ConnectivityTest() {
+    _classCallCheck(this, ConnectivityTest);
+
+    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(ConnectivityTest).apply(this, arguments));
+
+    _this.name = 'Connectivity Test';
+    return _this;
+  }
+
+  _createClass(ConnectivityTest, [{
+    key: 'logIceServers',
+    value: function logIceServers() {
+      var _this2 = this;
+
+      if (this.options.iceServers) {
+        this.options.iceServers.forEach(function (iceServer) {
+          _this2.logger.log('webrtc-troubleshooter: Using ICE Server: ' + iceServer.url);
+        });
+        if (this.options.iceServers.length === 0) {
+          this.logger.error('webrtc-troubleshooter: no ice servers provided');
+        }
+      } else {
+        this.logger.log('webrtc-troubleshooter: Using default ICE Servers');
+      }
+    }
+  }, {
+    key: 'start',
+    value: function start() {
+      var _this3 = this;
+
+      _get(Object.getPrototypeOf(ConnectivityTest.prototype), 'start', this).call(this);
+      this.pc1 = new PeerConnection(this.options);
+      this.pc2 = new PeerConnection(this.options);
+
+      var connectivityCheckFailure = window.setTimeout(function () {
+        _this3.logger.error('webrtc-troubleshooter: Connectivity timeout error');
+        _this3.reject(new Error('connectivity timeout'));
+      }, 10000);
+      this.pc2.on('ice', function (candidate) {
+        _this3.logger.log('webrtc-troubleshooter: pc2 ICE candidate');
+        _this3.pc1.processIce(candidate);
+      });
+      this.pc1.on('ice', function (candidate) {
+        _this3.logger.log('webrtc-troubleshooter: pc1 ICE candidate');
+        _this3.pc2.processIce(candidate);
+      });
+      this.pc2.on('answer', function (answer) {
+        _this3.logger.log('webrtc-troubleshooter: pc2 handle answer');
+        _this3.pc1.handleAnswer(answer);
+      });
+
+      // when pc1 gets the offer, instantly handle the offer by pc2
+      this.pc1.on('offer', function (offer) {
+        _this3.logger.log('webrtc-troubleshooter: pc1 offer');
+        _this3.pc2.handleOffer(offer, function (err) {
+          if (err) {
+            _this3.logger.error('webrtc-troubleshooter: pc2 failed to handle offer');
+            _this3.reject(err);
+          }
+          _this3.logger.log('webrtc-troubleshooter: pc2 handle offer');
+          _this3.pc2.answer(function (err, answer) {
+            if (err) {
+              _this3.logger.error('webrtc-troubleshooter: pc2 failed answer');
+              _this3.reject(err);
+            }
+            _this3.logger.log('webrtc-troubleshooter: pc2 successful ' + answer.type);
+          });
+        });
+      });
+      this.dataChannel = this.pc1.createDataChannel('testChannel');
+
+      // generate list of messages to send over data channel
+      var messageQueue = Array.apply(null, { length: 100 }).map(function (n, i) {
+        return 'message ' + i;
+      });
+
+      // duplicating this is faster than cloning it
+      var messageQueue2 = Array.apply(null, { length: 100 }).map(function (n, i) {
+        return 'message ' + i;
+      });
+
+      var messagesReceived = 0;
+      // when the data channel receives a message, remove it from the queue
+      this.dataChannel.onmessage = function (msgEvent) {
+        var message = messageQueue.find(function (message) {
+          return message === msgEvent.data;
+        });
+        _this3.logger.log('got a message', message);
+        messageQueue.splice(messageQueue.indexOf(message), 1);
+        messagesReceived++;
+        // when all messages have been received, we're clear
+        if (messageQueue.length === 0) {
+          window.clearTimeout(connectivityCheckFailure);
+          _this3.logger.log('webrtc-troubleshooter: Received ' + messagesReceived + ' messages');
+          _this3.resolve();
+        }
+      };
+      // when pc2 gets a data channel, send all messageQueue items on it
+      this.pc2.on('addChannel', function (channel) {
+        channel.onopen = function () {
+          _this3.logger.log('webrtc-troubleshooter: Sending ' + messageQueue.length + ' messages');
+          messageQueue2.forEach(channel.send.bind(channel));
+        };
+      });
+
+      // kick it off
+      this.pc1.offer();
+      return this._promise.promise;
+    }
+  }, {
+    key: 'destroy',
+    value: function destroy() {
+      _get(Object.getPrototypeOf(ConnectivityTest.prototype), 'destroy', this).call(this);
+      this.pc1.close();
+      this.pc2.close();
+    }
+  }]);
+
+  return ConnectivityTest;
+}(_Test3.default);
+
+exports.default = ConnectivityTest;
+
+},{"../utils/Test":47,"rtcpeerconnection":36}],42:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
+
+var _WebrtcCall = require('../utils/WebrtcCall');
+
+var _WebrtcCall2 = _interopRequireDefault(_WebrtcCall);
+
+var _Test2 = require('../utils/Test');
+
+var _Test3 = _interopRequireDefault(_Test2);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var DataChannelThroughputTest = function (_Test) {
+  _inherits(DataChannelThroughputTest, _Test);
+
+  function DataChannelThroughputTest() {
+    _classCallCheck(this, DataChannelThroughputTest);
+
+    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(DataChannelThroughputTest).apply(this, arguments));
+
+    _this.name = 'Data Throughput Test';
+    _this.testDurationSeconds = 5.0;
+    _this.startTime = null;
+    _this.sentPayloadBytes = 0;
+    _this.receivedPayloadBytes = 0;
+
+    _this.stopSending = false;
+
+    var makeString = function makeString() {
+      _this.samplePacket = '';
+
+      for (var i = 0; i !== 1024; ++i) {
+        _this.samplePacket += 'h';
+      }
+    };
+    makeString();
+
+    _this.maxNumberOfPacketsToSend = 1;
+    _this.bytesToKeepBuffered = 1024 * _this.maxNumberOfPacketsToSend;
+    _this.lastBitrateMeasureTime = null;
+    _this.lastReceivedPayloadBytes = 0;
+
+    _this.call = null;
+    _this.senderChannel = null;
+    _this.receiveChannel = null;
+    return _this;
+  }
+
+  _createClass(DataChannelThroughputTest, [{
+    key: 'start',
+    value: function start() {
+      _get(Object.getPrototypeOf(DataChannelThroughputTest.prototype), 'start', this).call(this);
+
+      if (!this.options.iceServers.length) {
+        this.logger.error('No ice servers were provided');
+        this.reject(new Error('No ice servers'));
+      } else {
+        this.call = new _WebrtcCall2.default(this.options);
+        this.call.setIceCandidateFilter(_WebrtcCall2.default.isRelay);
+        this.senderChannel = this.call.pc1.createDataChannel(null);
+        this.senderChannel.addEventListener('open', this.sendingStep.bind(this));
+        this.call.pc2.addEventListener('datachannel', this.onReceiverChannel.bind(this));
+
+        this.call.establishConnection();
+      }
+      return this._promise.promise;
+    }
+  }, {
+    key: 'onReceiverChannel',
+    value: function onReceiverChannel(event) {
+      this.receiveChannel = event.channel;
+      this.receiveChannel.addEventListener('message', this.onMessageReceived.bind(this));
+    }
+  }, {
+    key: 'sendingStep',
+    value: function sendingStep() {
+      var now = new Date();
+      if (!this.startTime) {
+        this.startTime = now;
+        this.lastBitrateMeasureTime = now;
+      }
+
+      for (var i = 0; i !== this.maxNumberOfPacketsToSend; ++i) {
+        if (this.senderChannel.bufferedAmount >= this.bytesToKeepBuffered) {
+          break;
+        }
+        this.sentPayloadBytes += this.samplePacket.length;
+        this.senderChannel.send(this.samplePacket);
+      }
+
+      if (now - this.startTime >= 1000 * this.testDurationSeconds) {
+        this.stopSending = true;
+      } else {
+        this.throughputTimeout = setTimeout(this.sendingStep.bind(this), 1);
+      }
+    }
+  }, {
+    key: 'onMessageReceived',
+    value: function onMessageReceived(event) {
+      this.receivedPayloadBytes += event.data.length;
+      var now = new Date();
+      if (now - this.lastBitrateMeasureTime >= 1000) {
+        var bitrate = (this.receivedPayloadBytes - this.lastReceivedPayloadBytes) / (now - this.lastBitrateMeasureTime);
+        bitrate = Math.round(bitrate * 1000 * 8) / 1000;
+        this.logger.log('Transmitting at ' + bitrate + ' kbps.');
+        this.lastReceivedPayloadBytes = this.receivedPayloadBytes;
+        this.lastBitrateMeasureTime = now;
+      }
+      if (this.stopSending && this.sentPayloadBytes === this.receivedPayloadBytes) {
+        this.call.close();
+        this.call = null;
+
+        var elapsedTime = Math.round((now - this.startTime) * 10) / 10000.0;
+        var receivedKBits = this.receivedPayloadBytes * 8 / 1000;
+        this.logger.log(receivedKBits + ' kb in ' + elapsedTime + ' seconds.');
+        this.resolve();
+      }
+    }
+  }, {
+    key: 'destroy',
+    value: function destroy() {
+      _get(Object.getPrototypeOf(DataChannelThroughputTest.prototype), 'destroy', this).call(this);
+      window.clearTimeout(this.throughputTimeout);
+      if (this.call) {
+        this.call.close();
+        this.call = null;
+      }
+    }
+  }]);
+
+  return DataChannelThroughputTest;
+}(_Test3.default);
+
+exports.default = DataChannelThroughputTest;
+
+},{"../utils/Test":47,"../utils/WebrtcCall":50}],43:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
+
+var _WebrtcCall = require('../utils/WebrtcCall');
+
+var _WebrtcCall2 = _interopRequireDefault(_WebrtcCall);
+
+var _Test2 = require('../utils/Test');
+
+var _Test3 = _interopRequireDefault(_Test2);
+
+var _StatisticsAggregate = require('../utils/StatisticsAggregate');
+
+var _StatisticsAggregate2 = _interopRequireDefault(_StatisticsAggregate);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } // adapted from https://github.com/webrtc/testrtc/blob/master/src/js/bandwidth_test.js
+
+var VideoBandwidthTest = function (_Test) {
+  _inherits(VideoBandwidthTest, _Test);
+
+  function VideoBandwidthTest() {
+    _classCallCheck(this, VideoBandwidthTest);
+
+    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(VideoBandwidthTest).apply(this, arguments));
+
+    _this.name = 'Bandwidth Test';
+    _this.maxVideoBitrateKbps = 2000;
+    _this.durationMs = 40000;
+    _this.statStepMs = 100;
+    _this.bweStats = new _StatisticsAggregate2.default(0.75 * _this.maxVideoBitrateKbps * 1000);
+    _this.rttStats = new _StatisticsAggregate2.default();
+    _this.packetsLost = null;
+    _this.videoStats = [];
+    _this.startTime = null;
+    _this.call = null;
+    // Open the camera with hd resolution specs to get a correct measurement of ramp-up time.
+    _this.constraints = {
+      audio: false,
+      video: {
+        width: {
+          min: 640,
+          ideal: 1280,
+          max: 1920
+        },
+        height: {
+          min: 480,
+          ideal: 720,
+          max: 1080
+        }
+      }
+
+    };
+    if (_this.options.mediaOptions.video.deviceId) {
+      _this.constraints.video.deviceId = _this.options.mediaOptions.video.deviceId;
+    }
+    _this.log = [];
+    return _this;
+  }
+
+  _createClass(VideoBandwidthTest, [{
+    key: 'start',
+    value: function start() {
+      _get(Object.getPrototypeOf(VideoBandwidthTest.prototype), 'start', this).call(this);
+      this.log = this.results = { log: [] };
+
+      this.addLog('INFO', 'Video Bandwidth Test');
+
+      if (!this.options.iceConfig.iceServers.length) {
+        this.addLog('FATAL', 'No ice servers were provided');
+        return this.reject(this.log);
+      }
+      this.call = new _WebrtcCall2.default(this.options.iceConfig);
+      this.call.setIceCandidateFilter(_WebrtcCall2.default.isRelay);
+      // FEC makes it hard to study bandwidth estimation since there seems to be
+      // a spike when it is enabled and disabled. Disable it for now. FEC issue
+      // tracked on: https://code.google.com/p/webrtc/issues/detail?id=3050
+      this.call.disableVideoFec();
+      this.call.constrainVideoBitrate(this.maxVideoBitrateKbps);
+
+      return this.doGetUserMedia(this.constraints);
+    }
+  }, {
+    key: 'addLog',
+    value: function addLog(level, msg) {
+      if (msg && typeof msg === 'Object') {
+        msg = JSON.stringify(msg);
+      }
+      this.results.log.push(level + ': ' + msg);
+    }
+  }, {
+    key: 'doGetUserMedia',
+    value: function doGetUserMedia(constraints) {
+      var _this2 = this;
+
+      this.addLog('INFO', { 'status': 'pending', 'constraints': constraints });
+      return navigator.mediaDevices.getUserMedia({ audio: true, video: true }).then(function (stream) {
+        var cam = _this2.getDeviceName(stream.getVideoTracks());
+        // this.results.camera = cam;
+        _this2.addLog('INFO', { 'status': 'success', 'camera': cam });
+        return _this2.gotStream(stream).then(_this2.resolve.bind(_this2), _this2.reject.bind(_this2));
+      }, function (error) {
+        _this2.addLog('ERROR', { 'status': 'fail', 'error': error });
+        _this2.addLog('FATAL', 'Failed to get access to local media due to error: ' + error.name);
+        console.warn('rejecting2', _this2);
+        _this2.reject(error);
+      });
+    }
+  }, {
+    key: 'getDeviceName',
+    value: function getDeviceName(tracks) {
+      if (tracks.length === 0) {
+        return null;
+      }
+      return tracks[0].label;
+    }
+  }, {
+    key: 'gotStream',
+    value: function gotStream(stream) {
+      var _this3 = this;
+
+      this.call.pc1.addStream(stream);
+      return this.call.establishConnection().then(function () {
+        _this3.startTime = new Date();
+        _this3.localStream = stream.getVideoTracks()[0];
+
+        return new Promise(function (resolve, reject) {
+          _this3.nextTimeout = setTimeout(function () {
+            _this3.gatherStats().then(resolve, reject);
+          }, _this3.statStepMs);
+        });
+      });
+    }
+  }, {
+    key: 'gatherStats',
+    value: function gatherStats() {
+      var _this4 = this;
+
+      var now = new Date();
+      if (now - this.startTime > this.durationMs) {
+        return this.completed();
+      }
+      return this.call.pc1.getStats(this.localStream).then(this.gotStats.bind(this), function (error) {
+        _this4.addLog('ERROR', 'Failed to getStats: ' + error);
+      });
+    }
+  }, {
+    key: 'gotStats',
+    value: function gotStats(response) {
+      var _this5 = this;
+
+      var isWebkit = 'WebkitAppearance' in document.documentElement.style;
+      var isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
+      if (isWebkit) {
+        response.result().forEach(function (report) {
+          if (report.id === 'bweforvideo') {
+            _this5.bweStats.add(Date.parse(report.timestamp), parseInt(report.stat('googAvailableSendBandwidth'), 10));
+          } else if (report.type === 'ssrc') {
+            _this5.rttStats.add(Date.parse(report.timestamp), parseInt(report.stat('googRtt'), 10));
+            // Grab the last stats.
+            _this5.videoStats[0] = report.stat('googFrameWidthSent');
+            _this5.videoStats[1] = report.stat('googFrameHeightSent');
+            _this5.packetsLost = report.stat('packetsLost');
+          }
+        });
+      } else if (isFirefox) {
+        for (var j in response) {
+          var stats = response[j];
+          if (stats.id === 'outbound_rtcp_video_0') {
+            this.rttStats.add(Date.parse(stats.timestamp), parseInt(stats.mozRtt, 10));
+            // Grab the last stats.
+            this.jitter = stats.jitter;
+            this.packetsLost = stats.packetsLost;
+          } else if (stats.id === 'outbound_rtp_video_0') {
+            // TODO: Get dimensions from getStats when supported in FF.
+            this.videoStats[0] = 'Not supported on Firefox';
+            this.videoStats[1] = 'Not supported on Firefox';
+            this.bitrateMean = stats.bitrateMean;
+            this.bitrateStdDev = stats.bitrateStdDev;
+            this.framerateMean = stats.framerateMean;
+          }
+        }
+      } else {
+        this.addLog('ERROR', 'Only Firefox and Chrome getStats implementations are supported.');
+      }
+      return new Promise(function (resolve, reject) {
+        _this5.nextTimeout = setTimeout(function () {
+          _this5.gatherStats().then(resolve, reject);
+        }, _this5.statStepMs);
+      });
+    }
+  }, {
+    key: 'completed',
+    value: function completed() {
+      var isWebkit = 'WebkitAppearance' in document.documentElement.style;
+      var isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
+      this.call.pc1.getLocalStreams()[0].getTracks().forEach(function (track) {
+        track.stop();
+      });
+      this.call.close();
+      this.call = null;
+      var stats = this.results.stats = {};
+
+      if (isWebkit) {
+        // Checking if greater than 2 because Chrome sometimes reports 2x2 when a camera starts but fails to deliver frames.
+        if (this.videoStats[0] < 2 && this.videoStats[1] < 2) {
+          this.addLog('ERROR', 'Camera failure: ' + this.videoStats[0] + 'x' + this.videoStats[1] + '. Cannot test bandwidth without a working camera.');
+        } else {
+          stats.resolution = this.videoStats[0] + 'x' + this.videoStats[1];
+          stats.bpsAvg = this.bweStats.getAverage();
+          stats.bpsMax = this.bweStats.getMax();
+          stats.rampUpTimeMs = this.bweStats.getRampUpTime();
+
+          this.addLog('INFO', 'Video resolution: ' + stats.resolution);
+          this.addLog('INFO', 'Send bandwidth estimate average: ' + stats.bpsAvg + ' bps');
+          this.addLog('INFO', 'Send bandwidth estimate max: ' + stats.bpsMax + ' bps');
+          this.addLog('INFO', 'Send bandwidth ramp-up time: ' + stats.rampUpTimeMs + ' ms');
+        }
+      } else if (isFirefox) {
+        if (parseInt(this.framerateMean, 10) > 0) {
+          this.addLog('SUCCESS', 'Frame rate mean: ' + parseInt(this.framerateMean, 10));
+        } else {
+          this.addLog('ERROR', 'Frame rate mean is 0, cannot test bandwidth without a working camera.');
+        }
+        stats.framerateMean = this.framerateMean || null;
+
+        stats.bitrateMean = this.bitrateMean;
+        stats.bitrateStdDev = this.bitrateStdDev;
+        this.addLog('INFO', 'Send bitrate mean: ' + stats.bitrateMean + ' bps');
+        this.addLog('INFO', 'Send bitrate standard deviation: ' + stats.bitrateStdDev + ' bps');
+      }
+      stats.rttAverage = this.rttStats.getAverage();
+      stats.rttMax = this.rttStats.getMax();
+      stats.lostPackets = parseInt(this.packetsLost, 10);
+
+      this.addLog('INFO', 'RTT average: ' + stats.rttAverage + ' ms');
+      this.addLog('INFO', 'RTT max: ' + stats.rttMax + ' ms');
+      this.addLog('INFO', 'Lost packets: ' + stats.lostPackets);
+      return this.results;
+    }
+  }, {
+    key: 'destroy',
+    value: function destroy() {
+      _get(Object.getPrototypeOf(VideoBandwidthTest.prototype), 'destroy', this).call(this);
+      window.clearTimeout(this.nextTimeout);
+      if (this.call) {
+        this.call.close();
+        this.call = null;
+      }
+    }
+  }]);
+
+  return VideoBandwidthTest;
+}(_Test3.default);
+
+exports.default = VideoBandwidthTest;
+exports.default = VideoBandwidthTest;
+
+},{"../utils/StatisticsAggregate":46,"../utils/Test":47,"../utils/WebrtcCall":50}],44:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
+
+var _Test2 = require('../utils/Test');
+
+var _Test3 = _interopRequireDefault(_Test2);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
+
+function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
+
+var LocalMedia = require('localMedia');
+
+var VideoTest = function (_Test) {
+  _inherits(VideoTest, _Test);
+
+  function VideoTest() {
+    _classCallCheck(this, VideoTest);
+
+    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(VideoTest).apply(this, arguments));
+
+    _this.name = 'Video Test';
+
+    _this.localMedia = new LocalMedia({ detectSpeakingEvents: true });
+    return _this;
+  }
+
+  _createClass(VideoTest, [{
+    key: 'start',
+    value: function start() {
+      var _this2 = this;
+
+      _get(Object.getPrototypeOf(VideoTest.prototype), 'start', this).call(this);
+
+      this.localMedia.start(this.options, function (err) {
+        if (err) {
+          _this2.logger.log('Video Local media start failed ' + err.name);
+          _this2.reject(err);
+        } else {
+          _this2.logger.log('Video Local media started');
+        }
+      });
+
+      this.localMedia.on('localStream', function (stream) {
+        if (stream.getVideoTracks().length) {
+          var videoTrack = stream.getVideoTracks()[0];
+          if (videoTrack) {
+            _this2.logger.log('Video stream passed');
+            _this2.resolve();
+          } else {
+            _this2.logger.error('Video stream failed');
+            _this2.reject(new Error('no video track available'));
+          }
+        }
+      });
+      return this._promise.promise;
+    }
+  }, {
+    key: 'destroy',
+    value: function destroy() {
+      _get(Object.getPrototypeOf(VideoTest.prototype), 'destroy', this).call(this);
+      this.localMedia.stop();
+    }
+  }]);
+
+  return VideoTest;
+}(_Test3.default);
+
+exports.default = VideoTest;
+
+},{"../utils/Test":47,"localMedia":1}],45:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }(); // adapted from https://github.com/webrtc/testrtc
+
+// This test is "special"
+
+var _VideoFrameChecker = require('./VideoFrameChecker');
+
+var _VideoFrameChecker2 = _interopRequireDefault(_VideoFrameChecker);
+
+var _WebrtcCall = require('./WebrtcCall');
+
+var _WebrtcCall2 = _interopRequireDefault(_WebrtcCall);
+
+function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var CameraResolutionTest = function () {
+  function CameraResolutionTest(resolutions, options) {
+    _classCallCheck(this, CameraResolutionTest);
+
+    this.resolutions = resolutions;
+    this.duration = options.duration;
+    this.logger = options && options.logger ? options.logger : console;
+    this.log = [];
+    this.currentResolution = 0;
+    this.isMuted = false;
+    this.isShuttingDown = false;
+  }
+
+  _createClass(CameraResolutionTest, [{
+    key: 'run',
+    value: function run() {
+      var settings = {
+        resolutions: this.resolutions,
+        duration: this.duration
+      };
+      this.logger.log('Advanced Camera Test with resolutions: ' + JSON.stringify(settings.resolutions) + ' and duration ' + JSON.stringify(settings.duration));
+      return this.startGetUserMedia(this.resolutions[this.currentResolution]);
+    }
+  }, {
+    key: 'getResults',
+    value: function getResults() {
+      var results = {
+        log: this.log,
+        stats: this.stats,
+        resolutions: this.resolutions,
+        duration: this.duration
+      };
+      return results;
+    }
+  }, {
+    key: 'reportSuccess',
+    value: function reportSuccess(str) {
+      this.logger.log('SUCCESS: ' + str);
+    }
+  }, {
+    key: 'reportError',
+    value: function reportError(str) {
+      this.logger.log('ERROR: ' + str);
+    }
+  }, {
+    key: 'reportInfo',
+    value: function reportInfo(str) {
+      this.logger.log('INFO: ' + str);
+    }
+  }, {
+    key: 'startGetUserMedia',
+    value: function startGetUserMedia(resolution) {
+      var _this = this;
+
+      var constraints = {
+        audio: false,
+        video: {
+          width: { exact: resolution[0] },
+          height: { exact: resolution[1] }
+        }
+      };
+
+      return navigator.mediaDevices.getUserMedia(constraints).then(function (stream) {
+        // Do not check actual video frames when more than one resolution is provided.
+        if (_this.resolutions.length > 1) {
+          _this.reportSuccess('Supported: ' + resolution[0] + 'x' + resolution[1]);
+          stream.getTracks().forEach(function (track) {
+            track.stop();
+          });
+          return _this.maybeContinueGetUserMedia();
+        } else {
+          _this.logger.log('collecting');
+          return _this.collectAndAnalyzeStats(stream, resolution);
+        }
+      }, function (error) {
+        if (_this.resolutions.length > 1) {
+          _this.reportInfo(resolution[0] + 'x' + resolution[1] + ' not supported');
+        } else {
+          _this.reportError('getUserMedia failed with error: ' + error);
+        }
+        return _this.maybeContinueGetUserMedia();
+      });
+    }
+  }, {
+    key: 'maybeContinueGetUserMedia',
+    value: function maybeContinueGetUserMedia() {
+      if (this.currentResolution === this.resolutions.length) {
+        return this.getResults();
+      }
+      return this.startGetUserMedia(this.resolutions[this.currentResolution++]);
+    }
+  }, {
+    key: 'collectAndAnalyzeStats',
+    value: function collectAndAnalyzeStats(stream, resolution) {
+      var _this2 = this;
+
+      var tracks = stream.getVideoTracks();
+      if (tracks.length < 1) {
+        this.reportError('No video track in returned stream.');
+        return this.maybeContinueGetUserMedia();
+      }
+
+      // Firefox does not support event handlers on mediaStreamTrack yet.
+      // https://developer.mozilla.org/en-US/docs/Web/API/MediaStreamTrack
+      // TODO: remove if (...) when event handlers are supported by Firefox.
+      var videoTrack = tracks[0];
+      if (typeof videoTrack.addEventListener === 'function') {
+        // Register events.
+        videoTrack.addEventListener('ended', function () {
+          // Ignore events when shutting down the test.
+          if (_this2.isShuttingDown) {
+            return;
+          }
+          _this2.reportError('Video track ended, camera stopped working');
+        });
+        videoTrack.addEventListener('mute', function () {
+          // Ignore events when shutting down the test.
+          if (_this2.isShuttingDown) {
+            return;
+          }
+          _this2.reportError('Your camera reported itself as muted.');
+          // MediaStreamTrack.muted property is not wired up in Chrome yet,
+          // checking isMuted local state.
+          _this2.isMuted = true;
+        });
+        videoTrack.addEventListener('unmute', function () {
+          // Ignore events when shutting down the test.
+          if (_this2.isShuttingDown) {
+            return;
+          }
+          _this2.reportInfo('Your camera reported itself as unmuted.');
+          _this2.isMuted = false;
+        });
+      }
+
+      var videoElement = document.createElement('video');
+      videoElement.setAttribute('autoplay', '');
+      videoElement.setAttribute('muted', '');
+      videoElement.width = resolution[0];
+      videoElement.height = resolution[1];
+      videoElement.srcObject = stream;
+      var frameChecker = new _VideoFrameChecker2.default(videoElement);
+      var call = new _WebrtcCall2.default();
+      call.pc1.addStream(stream);
+
+      setTimeout(this.endCall.bind(this, call, stream), 8000);
+
+      return call.establishConnection().then(function () {
+        return call.gatherStats(call.pc1, 100);
+      }).then(function (stats, statsTime) {
+        var result = _this2.analyzeStats({ resolution: resolution, videoElement: videoElement, stream: stream, frameChecker: frameChecker, stats: stats, statsTime: statsTime });
+        frameChecker.stop();
+        return result;
+      });
+    }
+  }, {
+    key: 'analyzeStats',
+    value: function analyzeStats(_ref) {
+      var resolution = _ref.resolution;
+      var videoElement = _ref.videoElement;
+      var stream = _ref.stream;
+      var frameChecker = _ref.frameChecker;
+      var stats = _ref.stats;
+      var statsTime = _ref.statsTime;
+
+      var googAvgEncodeTime = [];
+      var googAvgFrameRateInput = [];
+      var googAvgFrameRateSent = [];
+      var statsReport = {};
+      var frameStats = frameChecker.frameStats;
+
+      for (var index = 0; index < stats.length - 1; index++) {
+        if (stats[index].type === 'ssrc') {
+          // Make sure to only capture stats after the encoder is setup.
+          if (stats[index].stat('googFrameRateInput') > 0) {
+            googAvgEncodeTime.push(parseInt(stats[index].stat('googAvgEncodeMs'), 10));
+            googAvgFrameRateInput.push(parseInt(stats[index].stat('googFrameRateInput'), 10));
+            googAvgFrameRateSent.push(parseInt(stats[index].stat('googFrameRateSent'), 10));
+          }
+        }
+      }
+
+      statsReport.cameraName = stream.getVideoTracks()[0].label || NaN;
+      statsReport.actualVideoWidth = videoElement.videoWidth;
+      statsReport.actualVideoHeight = videoElement.videoHeight;
+      statsReport.mandatoryWidth = resolution[0];
+      statsReport.mandatoryHeight = resolution[1];
+      statsReport.encodeSetupTimeMs = this.extractEncoderSetupTime(stats, statsTime);
+      statsReport.avgEncodeTimeMs = this.arrayAverage(googAvgEncodeTime);
+      statsReport.minEncodeTimeMs = Math.min.apply(Math, googAvgEncodeTime);
+      statsReport.maxEncodeTimeMs = Math.max.apply(Math, googAvgEncodeTime);
+      statsReport.avgInputFps = this.arrayAverage(googAvgFrameRateInput);
+      statsReport.minInputFps = Math.min.apply(Math, googAvgFrameRateInput);
+      statsReport.maxInputFps = Math.max.apply(Math, googAvgFrameRateInput);
+      statsReport.avgSentFps = this.arrayAverage(googAvgFrameRateSent);
+      statsReport.minSentFps = Math.min.apply(Math, googAvgFrameRateSent);
+      statsReport.maxSentFps = Math.max.apply(Math, googAvgFrameRateSent);
+      statsReport.isMuted = this.isMuted;
+      statsReport.testedFrames = frameStats.numFrames;
+      statsReport.blackFrames = frameStats.numBlackFrames;
+      statsReport.frozenFrames = frameStats.numFrozenFrames;
+
+      this.testExpectations(statsReport);
+      return statsReport;
+    }
+  }, {
+    key: 'endCall',
+    value: function endCall(callObject, stream) {
+      this.isShuttingDown = true;
+      stream.getTracks().forEach(function (track) {
+        track.stop();
+      });
+      callObject.close();
+    }
+  }, {
+    key: 'extractEncoderSetupTime',
+    value: function extractEncoderSetupTime(stats, statsTime) {
+      for (var index = 0; index !== stats.length; index++) {
+        if (stats[index].type === 'ssrc') {
+          if (stats[index].stat('googFrameRateInput') > 0) {
+            return JSON.stringify(statsTime[index] - statsTime[0]);
+          }
+        }
+      }
+      return NaN;
+    }
+  }, {
+    key: 'resolutionMatchesIndependentOfRotationOrCrop',
+    value: function resolutionMatchesIndependentOfRotationOrCrop(aWidth, aHeight, bWidth, bHeight) {
+      var minRes = Math.min(bWidth, bHeight);
+      return aWidth === bWidth && aHeight === bHeight || aWidth === bHeight && aHeight === bWidth || aWidth === minRes && bHeight === minRes;
+    }
+  }, {
+    key: 'testExpectations',
+    value: function testExpectations(report) {
+      var notAvailableStats = [];
+
+      for (var key in report) {
+        if (typeof report[key] === 'number' && isNaN(report[key])) {
+          notAvailableStats.push(key);
+        }
+      }
+
+      if (notAvailableStats.length !== 0) {
+        report.notAvailableStatus = notAvailableStats;
+        this.reportInfo('Not available: ' + notAvailableStats.join(', '));
+      }
+      if (isNaN(report.avgSentFps)) {
+        this.reportInfo('Cannot verify sent FPS.');
+      } else if (report.avgSentFps < 5) {
+        this.reportError('Low average sent FPS: ' + report.avgSentFps);
+      } else {
+        this.reportSuccess('Average FPS above threshold');
+      }
+
+      if (!this.resolutionMatchesIndependentOfRotationOrCrop(report.actualVideoWidth, report.actualVideoHeight, report.mandatoryWidth, report.mandatoryHeight)) {
+        this.reportError('Incorrect captured resolution.');
+      } else {
+        this.reportSuccess('Captured video using expected resolution.');
+      }
+
+      if (report.testedFrames === 0) {
+        this.reportError('Could not analyze any video frame.');
+      } else {
+        if (report.blackFrames > report.testedFrames / 3) {
+          this.reportError('Camera delivering lots of black frames.');
+        }
+        if (report.frozenFrames > report.testedFrames / 3) {
+          this.reportError('Camera delivering lots of frozen frames.');
+        }
+      }
+    }
+  }, {
+    key: 'arrayAverage',
+    value: function arrayAverage(array) {
+      var cnt = array.length;
+      var tot = 0;
+      for (var i = 0; i < cnt; i++) {
+        tot += array[i];
+      }
+      return Math.floor(tot / cnt);
+    }
+  }]);
+
+  return CameraResolutionTest;
+}();
+
+exports.default = CameraResolutionTest;
+
+},{"./VideoFrameChecker":49,"./WebrtcCall":50}],46:[function(require,module,exports){
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var StatisticsAggregate = function () {
+  function StatisticsAggregate(rampUpThreshold) {
+    _classCallCheck(this, StatisticsAggregate);
+
+    this.startTime = 0;
+    this.sum = 0;
+    this.count = 0;
+    this.max = 0;
+    this.rampUpThreshold = rampUpThreshold;
+    this.rampUpTime = Infinity;
+  }
+
+  _createClass(StatisticsAggregate, [{
+    key: "add",
+    value: function add(time, datapoint) {
+      if (this.startTime === 0) {
+        this.startTime = time;
+      }
+      this.sum += datapoint;
+      this.max = Math.max(this.max, datapoint);
+      if (this.rampUpTime === Infinity && datapoint > this.rampUpThreshold) {
+        this.rampUpTime = time;
+      }
+      this.count++;
+    }
+  }, {
+    key: "getAverage",
+    value: function getAverage() {
+      if (this.count === 0) {
+        return 0;
+      }
+      return Math.round(this.sum / this.count);
+    }
+  }, {
+    key: "getMax",
+    value: function getMax() {
+      return this.max;
+    }
+  }, {
+    key: "getRampUpTime",
+    value: function getRampUpTime() {
+      return this.rampUpTime - this.startTime;
+    }
+  }]);
+
+  return StatisticsAggregate;
+}();
+
+exports.default = StatisticsAggregate;
+
+},{}],47:[function(require,module,exports){
+'use strict';
+
+Object.defineProperty(exports, "__esModule", {
+  value: true
+});
+
+var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
+
+function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
+
+var Test = function () {
+  function Test(options) {
+    _classCallCheck(this, Test);
+
+    this.options = options || {};
+    this.logger = this.options.logger || console;
+  }
+
+  _createClass(Test, [{
+    key: 'start',
+    value: function start() {
+      var _this = this;
+
+      this._promise = Promise.defer();
+      this.timeout = window.setTimeout(function () {
+        console.error('test failed', _this);
+        _this._promise.reject('timeout', _this);
+      }, 30000);
+    }
+  }, {
+    key: 'resolve',
+    value: function resolve() {
+      this._promise.resolve();
+      return this._promise.promise;
+    }
+  }, {
+    key: 'reject',
+    value: function reject(err) {
+      this._promise.reject(err);
+      return this._promise.promise;
+    }
+  }, {
+    key: 'destroy',
+    value: function destroy() {
+      window.clearTimeout(this.timeout);
+    }
+  }]);
+
+  return Test;
+}();
+
+exports.default = Test;
+
+},{}],48:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -8068,33 +6976,47 @@ var TestSuite = function () {
       this.queue.push(test);
     }
   }, {
-    key: 'runNextTest',
-    value: function runNextTest(done) {
+    key: 'start',
+    value: function start() {
       var _this = this;
+
+      return new Promise(function (resolve, reject) {
+        return _this.runNextTest().then(resolve, reject);
+      });
+    }
+  }, {
+    key: 'runNextTest',
+    value: function runNextTest() {
+      var _this2 = this;
 
       this.running = true;
       var test = this.queue.shift();
 
       if (!test) {
         this.running = false;
-        this.allTestsComplete = true;
-        return done();
+        return Promise.resolve();
       }
 
       this.activeTest = test;
-      this.logger.log('webrtc-troubleshooter: Starting ' + test.name);
+      this.logger.log('Starting ' + test.name);
 
-      // TODO: There is some repeating functionality here that could be extracted.
-      test.start().then(function () {
-        test.callback(null);
+      var next = function next() {
         test.running = false;
         test.destroy();
-        _this.runNextTest(done);
-      }).catch(function (err) {
-        test.callback(err, test.log);
-        test.running = false;
-        test.destroy();
-        _this.runNextTest(done);
+        return _this2.runNextTest();
+      };
+
+      var testResult = test.start();
+
+      if (!testResult) {
+        debugger;
+      }
+
+      return testResult.then(function () {
+        return next();
+      }, function (err) {
+        test.reject(err);
+        return next();
       });
     }
   }, {
@@ -8108,40 +7030,9 @@ var TestSuite = function () {
   return TestSuite;
 }();
 
-var Test = function () {
-  function Test(options, callback) {
-    _classCallCheck(this, Test);
+exports.default = TestSuite;
 
-    this.options = options || {};
-    this.callback = callback || function () {};
-    this.logger = this.options.logger || console;
-  }
-
-  _createClass(Test, [{
-    key: 'start',
-    value: function start() {
-      var _this2 = this;
-
-      this.timeout = window.setTimeout(function () {
-        if (_this2.reject) {
-          _this2.reject('timeout');
-        }
-      }, 30000);
-    }
-  }, {
-    key: 'destroy',
-    value: function destroy() {
-      window.clearTimeout(this.timeout);
-    }
-  }]);
-
-  return Test;
-}();
-
-exports.TestSuite = TestSuite;
-exports.Test = Test;
-
-},{}],60:[function(require,module,exports){
+},{}],49:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -8384,7 +7275,7 @@ var Ssim = function () {
 
 exports.default = VideoFrameChecker;
 
-},{}],61:[function(require,module,exports){
+},{}],50:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -8414,7 +7305,7 @@ var WebrtcCall = function () {
   _createClass(WebrtcCall, [{
     key: 'establishConnection',
     value: function establishConnection() {
-      this.pc1.createOffer(this.gotOffer.bind(this), console.error.bind(console));
+      return this.pc1.createOffer().then(this.gotOffer.bind(this), console.error.bind(console));
     }
   }, {
     key: 'close',
@@ -8428,43 +7319,45 @@ var WebrtcCall = function () {
 
   }, {
     key: 'gatherStats',
-    value: function gatherStats(peerConnection, statsCb, interval) {
+    value: function gatherStats(peerConnection, interval) {
       var stats = [];
       var statsCollectTime = [];
-      getStats();
 
-      function getStats() {
-        if (peerConnection.signalingState === 'closed') {
-          statsCb(stats, statsCollectTime);
-          return;
-        }
-        // Work around for webrtc/testrtc#74
-        if (typeof mozRTCPeerConnection !== 'undefined' && peerConnection instanceof mozRTCPeerConnection) {
-          setTimeout(getStats, interval);
-        } else {
-          setTimeout(peerConnection.getStats.bind(peerConnection, gotStats), interval);
-        }
-      }
+      return new Promise(function (resolve, reject) {
+        var getStats = function getStats() {
+          if (peerConnection.signalingState === 'closed') {
+            return resolve(stats, statsCollectTime);
+          }
+          // Work around for webrtc/testrtc#74
+          if (typeof mozRTCPeerConnection !== 'undefined' && peerConnection instanceof mozRTCPeerConnection) {
+            setTimeout(getStats, interval);
+          } else {
+            setTimeout(peerConnection.getStats.bind(peerConnection, gotStats), interval);
+          }
+        };
 
-      function gotStats(response) {
-        for (var index in response.result()) {
-          stats.push(response.result()[index]);
-          statsCollectTime.push(Date.now());
-        }
+        var gotStats = function gotStats(response) {
+          for (var index in response.result()) {
+            stats.push(response.result()[index]);
+            statsCollectTime.push(Date.now());
+          }
+          getStats();
+        };
+
         getStats();
-      }
+      });
     }
   }, {
     key: 'gotOffer',
     value: function gotOffer(offer) {
-      if (this.constrainOfferToRemoveVideoFec) {
-        offer.sdp = offer.sdp.replace(/(m=video 1 [^\r]+)(116 117)(\r\n)/g, '$1\r\n');
-        offer.sdp = offer.sdp.replace(/a=rtpmap:116 red\/90000\r\n/g, '');
-        offer.sdp = offer.sdp.replace(/a=rtpmap:117 ulpfec\/90000\r\n/g, '');
-      }
+      // if (this.constrainOfferToRemoveVideoFec) {
+      //   offer.sdp = offer.sdp.replace(/(m=video 1 [^\r]+)(116 117)(\r\n)/g, '$1\r\n');
+      //   offer.sdp = offer.sdp.replace(/a=rtpmap:116 red\/90000\r\n/g, '');
+      //   offer.sdp = offer.sdp.replace(/a=rtpmap:117 ulpfec\/90000\r\n/g, '');
+      // }
       this.pc1.setLocalDescription(offer);
       this.pc2.setRemoteDescription(offer);
-      this.pc2.createAnswer(this.gotAnswer.bind(this), console.error.bind(console));
+      return this.pc2.createAnswer().then(this.gotAnswer.bind(this), console.error.bind(console));
     }
   }, {
     key: 'gotAnswer',
@@ -8473,7 +7366,7 @@ var WebrtcCall = function () {
         answer.sdp = answer.sdp.replace(/a=mid:video\r\n/g, 'a=mid:video\r\nb=AS:' + this.constrainVideoBitrateKbps + '\r\n');
       }
       this.pc2.setLocalDescription(answer);
-      this.pc1.setRemoteDescription(answer);
+      return this.pc1.setRemoteDescription(answer);
     }
   }, {
     key: 'onIceCandidate',
@@ -8535,1246 +7428,7 @@ var WebrtcCall = function () {
 
 exports.default = WebrtcCall;
 
-},{}],62:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _TestSuite = require('../TestSuite');
-
-var _VideoFrameChecker = require('../VideoFrameChecker');
-
-var _VideoFrameChecker2 = _interopRequireDefault(_VideoFrameChecker);
-
-var _WebrtcCall = require('../WebrtcCall');
-
-var _WebrtcCall2 = _interopRequireDefault(_WebrtcCall);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var AdvancedCameraTest = function (_Test) {
-  _inherits(AdvancedCameraTest, _Test);
-
-  function AdvancedCameraTest() {
-    _classCallCheck(this, AdvancedCameraTest);
-
-    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(AdvancedCameraTest).apply(this, arguments));
-
-    _this.name = 'Advanced Video Test';
-    _this.tests = [];
-
-    _this.tests.push(new CameraResolutionTest([[320, 240]]));
-    _this.tests.push(new CameraResolutionTest([[640, 480]]));
-    _this.tests.push(new CameraResolutionTest([[1280, 720]]));
-    _this.tests.push(new CameraResolutionTest([[160, 120], [320, 180], [320, 240], [640, 360], [640, 480], [768, 576], [1024, 576], [1280, 720], [1280, 768], [1280, 800], [1920, 1080], [1920, 1200], [3840, 2160], [4096, 2160]]));
-    return _this;
-  }
-
-  _createClass(AdvancedCameraTest, [{
-    key: 'start',
-    value: function start() {
-      var _this2 = this;
-
-      _get(Object.getPrototypeOf(AdvancedCameraTest.prototype), 'start', this).call(this);
-
-      return new Promise(function (resolve, reject) {
-        _this2.reject = reject;
-        var testNum = 0;
-
-        while (testNum < _this2.tests.length) {
-          _this2.tests[testNum].run(function (results) {
-            _this2.logger.log(results.log);
-            _this2.logger.log(results.stats);
-            if (testNum == _this2.tests.length) {
-              resolve(_this2.log);
-            }
-          });
-          testNum++;
-        }
-      });
-    }
-  }, {
-    key: 'destroy',
-    value: function destroy() {
-      _get(Object.getPrototypeOf(AdvancedCameraTest.prototype), 'destroy', this).call(this);
-    }
-  }]);
-
-  return AdvancedCameraTest;
-}(_TestSuite.Test);
-
-// adapted from https://github.com/webrtc/testrtc
-
-var CameraResolutionTest = function () {
-  function CameraResolutionTest(resolutions) {
-    var duration = arguments.length <= 1 || arguments[1] === undefined ? 8000 : arguments[1];
-
-    _classCallCheck(this, CameraResolutionTest);
-
-    this.resolutions = resolutions;
-    this.duration = duration;
-    this.log = [];
-    this.currentResolution = 0;
-    this.isMuted = false;
-    this.isShuttingDown = false;
-  }
-
-  _createClass(CameraResolutionTest, [{
-    key: 'run',
-    value: function run(cb) {
-      this.cb = cb || function () {};
-      var settings = {
-        resolutions: this.resolutions,
-        duration: this.duration
-      };
-      this.logger.log('Advanced Camera Test with resolutions: ' + JSON.stringify(settings.resolutions) + ' and duration ' + JSON.stringify(settings.duration));
-      this.startGetUserMedia(this.resolutions[this.currentResolution]);
-    }
-  }, {
-    key: 'done',
-    value: function done() {
-      var results = {
-        log: this.log,
-        stats: this.stats,
-        resolutions: this.resolutions,
-        duration: this.duration
-      };
-      this.cb(results);
-    }
-  }, {
-    key: 'reportSuccess',
-    value: function reportSuccess(str) {
-      this.logger.log('SUCCESS: ' + str);
-    }
-  }, {
-    key: 'reportError',
-    value: function reportError(str) {
-      this.logger.log('ERROR: ' + str);
-    }
-  }, {
-    key: 'reportInfo',
-    value: function reportInfo(str) {
-      this.logger.log('INFO: ' + str);
-    }
-  }, {
-    key: 'startGetUserMedia',
-    value: function startGetUserMedia(resolution) {
-      var _this3 = this;
-
-      var constraints = {
-        audio: false,
-        video: {
-          width: { exact: resolution[0] },
-          height: { exact: resolution[1] }
-        }
-      };
-
-      navigator.mediaDevices.getUserMedia(constraints).then(function (stream) {
-        // Do not check actual video frames when more than one resolution is provided.
-        if (_this3.resolutions.length > 1) {
-          _this3.reportSuccess('Supported: ' + resolution[0] + 'x' + resolution[1]);
-          stream.getTracks().forEach(function (track) {
-            track.stop();
-          });
-          _this3.maybeContinueGetUserMedia();
-        } else {
-          _this3.collectAndAnalyzeStats(stream, resolution);
-        }
-      }).catch(function (error) {
-        if (_this3.resolutions.length > 1) {
-          _this3.reportInfo(resolution[0] + 'x' + resolution[1] + ' not supported');
-        } else {
-          _this3.reportError('getUserMedia failed with error: ' + error);
-        }
-        _this3.maybeContinueGetUserMedia();
-      });
-    }
-  }, {
-    key: 'maybeContinueGetUserMedia',
-    value: function maybeContinueGetUserMedia() {
-      if (this.currentResolution === this.resolutions.length) {
-        return this.done();
-      }
-      this.startGetUserMedia(this.resolutions[this.currentResolution++]);
-    }
-  }, {
-    key: 'collectAndAnalyzeStats',
-    value: function collectAndAnalyzeStats(stream, resolution) {
-      var _this4 = this;
-
-      var tracks = stream.getVideoTracks();
-      if (tracks.length < 1) {
-        this.reportError('No video track in returned stream.');
-        this.maybeContinueGetUserMedia();
-        return;
-      }
-
-      // Firefox does not support event handlers on mediaStreamTrack yet.
-      // https://developer.mozilla.org/en-US/docs/Web/API/MediaStreamTrack
-      // TODO: remove if (...) when event handlers are supported by Firefox.
-      var videoTrack = tracks[0];
-      if (typeof videoTrack.addEventListener === 'function') {
-        // Register events.
-        videoTrack.addEventListener('ended', function () {
-          // Ignore events when shutting down the
-          if (_this4.isShuttingDown) {
-            return;
-          }
-          _this4.reportError('Video track ended, camera stopped working');
-        });
-        videoTrack.addEventListener('mute', function () {
-          // Ignore events when shutting down the test.
-          if (_this4.isShuttingDown) {
-            return;
-          }
-          _this4.reportError('Your camera reported itself as muted.');
-          // MediaStreamTrack.muted property is not wired up in Chrome yet,
-          // checking isMuted local state.
-          _this4.isMuted = true;
-        });
-        videoTrack.addEventListener('unmute', function () {
-          // Ignore events when shutting down the test.
-          if (_this4.isShuttingDown) {
-            return;
-          }
-          _this4.reportInfo('Your camera reported itself as unmuted.');
-          _this4.isMuted = false;
-        });
-      }
-
-      var video = document.createElement('video');
-      video.setAttribute('autoplay', '');
-      video.setAttribute('muted', '');
-      video.width = resolution[0];
-      video.height = resolution[1];
-      video.srcObject = stream;
-      var frameChecker = new _VideoFrameChecker2.default(video);
-      var call = new _WebrtcCall2.default();
-      call.pc1.addStream(stream);
-      call.establishConnection();
-      call.gatherStats(call.pc1, this.onCallEnded.bind(this, resolution, video, stream, frameChecker), 100);
-      setTimeout(this.endCall(call, stream), 8000);
-    }
-  }, {
-    key: 'onCallEnded',
-    value: function onCallEnded(resolution, videoElement, stream, frameChecker, stats, statsTime) {
-      this.analyzeStats(resolution, videoElement, stream, frameChecker, stats, statsTime);
-
-      frameChecker.stop();
-
-      this.done();
-    }
-  }, {
-    key: 'analyzeStats',
-    value: function analyzeStats(resolution, videoElement, stream, frameChecker, stats, statsTime) {
-      var googAvgEncodeTime = [];
-      var googAvgFrameRateInput = [];
-      var googAvgFrameRateSent = [];
-      var statsReport = {};
-      var frameStats = frameChecker.frameStats;
-
-      for (var index = 0; index < stats.length - 1; index++) {
-        if (stats[index].type === 'ssrc') {
-          // Make sure to only capture stats after the encoder is setup.
-          if (stats[index].stat('googFrameRateInput') > 0) {
-            googAvgEncodeTime.push(parseInt(stats[index].stat('googAvgEncodeMs'), 10));
-            googAvgFrameRateInput.push(parseInt(stats[index].stat('googFrameRateInput'), 10));
-            googAvgFrameRateSent.push(parseInt(stats[index].stat('googFrameRateSent'), 10));
-          }
-        }
-      }
-
-      statsReport.cameraName = stream.getVideoTracks()[0].label || NaN;
-      statsReport.actualVideoWidth = videoElement.videoWidth;
-      statsReport.actualVideoHeight = videoElement.videoHeight;
-      statsReport.mandatoryWidth = resolution[0];
-      statsReport.mandatoryHeight = resolution[1];
-      statsReport.encodeSetupTimeMs = this.extractEncoderSetupTime(stats, statsTime);
-      statsReport.avgEncodeTimeMs = this.arrayAverage(googAvgEncodeTime);
-      statsReport.minEncodeTimeMs = Math.min.apply(Math, googAvgEncodeTime);
-      statsReport.maxEncodeTimeMs = Math.max.apply(Math, googAvgEncodeTime);
-      statsReport.avgInputFps = this.arrayAverage(googAvgFrameRateInput);
-      statsReport.minInputFps = Math.min.apply(Math, googAvgFrameRateInput);
-      statsReport.maxInputFps = Math.max.apply(Math, googAvgFrameRateInput);
-      statsReport.avgSentFps = this.arrayAverage(googAvgFrameRateSent);
-      statsReport.minSentFps = Math.min.apply(Math, googAvgFrameRateSent);
-      statsReport.maxSentFps = Math.max.apply(Math, googAvgFrameRateSent);
-      statsReport.isMuted = this.isMuted;
-      statsReport.testedFrames = frameStats.numFrames;
-      statsReport.blackFrames = frameStats.numBlackFrames;
-      statsReport.frozenFrames = frameStats.numFrozenFrames;
-
-      this.testExpectations(statsReport);
-      this.stats = statsReport;
-    }
-  }, {
-    key: 'endCall',
-    value: function endCall(callObject, stream) {
-      this.isShuttingDown = true;
-      stream.getTracks().forEach(function (track) {
-        track.stop();
-      });
-      callObject.close();
-    }
-  }, {
-    key: 'extractEncoderSetupTime',
-    value: function extractEncoderSetupTime(stats, statsTime) {
-      for (var index = 0; index !== stats.length; index++) {
-        if (stats[index].type === 'ssrc') {
-          if (stats[index].stat('googFrameRateInput') > 0) {
-            return JSON.stringify(statsTime[index] - statsTime[0]);
-          }
-        }
-      }
-      return NaN;
-    }
-  }, {
-    key: 'resolutionMatchesIndependentOfRotationOrCrop',
-    value: function resolutionMatchesIndependentOfRotationOrCrop(aWidth, aHeight, bWidth, bHeight) {
-      var minRes = Math.min(bWidth, bHeight);
-      return aWidth === bWidth && aHeight === bHeight || aWidth === bHeight && aHeight === bWidth || aWidth === minRes && bHeight === minRes;
-    }
-  }, {
-    key: 'testExpectations',
-    value: function testExpectations(report) {
-      var notAvailableStats = [];
-
-      report.forEach(function (value, key) {
-        if (typeof value === 'number' && isNaN(value)) {
-          notAvailableStats.push(key);
-        }
-      });
-
-      if (notAvailableStats.length !== 0) {
-        report.notAvailableStatus = notAvailableStats;
-        this.reportInfo('Not available: ' + notAvailableStats.join(', '));
-      }
-      if (isNaN(report.avgSentFps)) {
-        this.reportInfo('Cannot verify sent FPS.');
-      } else if (report.avgSentFps < 5) {
-        this.reportError('Low average sent FPS: ' + report.avgSentFps);
-      } else {
-        this.reportSuccess('Average FPS above threshold');
-      }
-
-      if (!this.resolutionMatchesIndependentOfRotationOrCrop(report.actualVideoWidth, report.actualVideoHeight, report.mandatoryWidth, report.mandatoryHeight)) {
-        this.reportError('Incorrect captured resolution.');
-      } else {
-        this.reportSuccess('Captured video using expected resolution.');
-      }
-
-      if (report.testedFrames === 0) {
-        this.reportError('Could not analyze any video frame.');
-      } else {
-        if (report.blackFrames > report.testedFrames / 3) {
-          this.reportError('Camera delivering lots of black frames.');
-        }
-        if (report.frozenFrames > report.testedFrames / 3) {
-          this.reportError('Camera delivering lots of frozen frames.');
-        }
-      }
-    }
-  }, {
-    key: 'arrayAverage',
-    value: function arrayAverage(array) {
-      var cnt = array.length;
-      var tot = 0;
-      for (var i = 0; i < cnt; i++) {
-        tot += array[i];
-      }
-      return Math.floor(tot / cnt);
-    }
-  }]);
-
-  return CameraResolutionTest;
-}();
-
-exports.default = AdvancedCameraTest;
-
-},{"../TestSuite":59,"../VideoFrameChecker":60,"../WebrtcCall":61}],63:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _TestSuite = require('../TestSuite');
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var localMedia = require('localMedia');
-
-var AudioTest = function (_Test) {
-  _inherits(AudioTest, _Test);
-
-  function AudioTest() {
-    _classCallCheck(this, AudioTest);
-
-    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(AudioTest).apply(this, arguments));
-
-    _this.name = 'Audio Test';
-    _this.volumeTimeout = _this.options.volumeTimeout || 5000;
-
-    _this.localMedia = new localMedia({ detectSpeakingEvents: true });
-    return _this;
-  }
-
-  _createClass(AudioTest, [{
-    key: 'start',
-    value: function start() {
-      var _this2 = this;
-
-      _get(Object.getPrototypeOf(AudioTest.prototype), 'start', this).call(this);
-
-      return new Promise(function (resolve, reject) {
-        _this2.reject = reject;
-
-        var volumeCheckFailure = window.setTimeout(function () {
-          _this2.logger.error('webrtc-troubleshooter: No change in mic volume');
-          reject('audio timeout');
-        }, _this2.volumeTimeout);
-
-        _this2.localMedia.start(_this2.options, function (err) {
-          if (err) {
-            _this2.logger.error('webrtc-troubleshooter: Audio Local media start failed');
-            reject(err);
-          } else {
-            _this2.logger.log('webrtc-troubleshooter: Audio Local media started');
-          }
-        });
-
-        _this2.localMedia.on('volumeChange', function () {
-          window.clearTimeout(volumeCheckFailure);
-          resolve();
-        });
-
-        _this2.localMedia.on('localStream', function (stream) {
-          if (stream.getAudioTracks().length) {
-            var audioTrack = stream.getAudioTracks()[0];
-            if (audioTrack) {
-              _this2.logger.log('webrtc-troubleshooter: Audio stream passed');
-            } else {
-              _this2.logger.error('webrtc-troubleshooter: Audio stream failed');
-              reject('no audio tracks available');
-            }
-          }
-        });
-      });
-    }
-  }, {
-    key: 'destroy',
-    value: function destroy() {
-      _get(Object.getPrototypeOf(AudioTest.prototype), 'destroy', this).call(this);
-      this.localMedia.stop();
-    }
-  }]);
-
-  return AudioTest;
-}(_TestSuite.Test);
-
-exports.default = AudioTest;
-
-},{"../TestSuite":59,"localMedia":1}],64:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _TestSuite = require('../TestSuite');
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var PeerConnection = require('rtcpeerconnection');
-
-var ConnectivityTest = function (_Test) {
-  _inherits(ConnectivityTest, _Test);
-
-  function ConnectivityTest() {
-    _classCallCheck(this, ConnectivityTest);
-
-    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(ConnectivityTest).apply(this, arguments));
-
-    _this.name = 'Connectivity Test';
-    return _this;
-  }
-
-  _createClass(ConnectivityTest, [{
-    key: 'logIceServers',
-    value: function logIceServers() {
-      var _this2 = this;
-
-      if (this.options.iceServers) {
-        this.options.iceServers.forEach(function (iceServer) {
-          _this2.logger.log('webrtc-troubleshooter: Using ICE Server: ' + iceServer.url);
-        });
-        if (this.options.iceServers.length === 0) {
-          this.logger.error('webrtc-troubleshooter: no ice servers provided');
-        }
-      } else {
-        this.logger.log('webrtc-troubleshooter: Using default ICE Servers');
-      }
-    }
-  }, {
-    key: 'start',
-    value: function start() {
-      var _this3 = this;
-
-      _get(Object.getPrototypeOf(ConnectivityTest.prototype), 'start', this).call(this);
-      this.pc1 = new PeerConnection(this.options);
-      this.pc2 = new PeerConnection(this.options);
-
-      return new Promise(function (resolve, reject) {
-        _this3.reject = reject;
-        var connectivityCheckFailure = window.setTimeout(function () {
-          _this3.logger.error('webrtc-troubleshooter: Connectivity timeout error');
-          reject('connectivity timeout');
-        }, 10000);
-        _this3.pc2.on('ice', function (candidate) {
-          _this3.logger.log('webrtc-troubleshooter: pc2 ICE candidate');
-          _this3.pc1.processIce(candidate);
-        });
-        _this3.pc1.on('ice', function (candidate) {
-          _this3.logger.log('webrtc-troubleshooter: pc1 ICE candidate');
-          _this3.pc2.processIce(candidate);
-        });
-        _this3.pc2.on('answer', function (answer) {
-          _this3.logger.log('webrtc-troubleshooter: pc2 handle answer');
-          _this3.pc1.handleAnswer(answer);
-        });
-
-        // when pc1 gets the offer, instantly handle the offer by pc2
-        _this3.pc1.on('offer', function (offer) {
-          _this3.logger.log('webrtc-troubleshooter: pc1 offer');
-          _this3.pc2.handleOffer(offer, function (err) {
-            if (err) {
-              _this3.logger.error('webrtc-troubleshooter: pc2 failed to handle offer');
-              reject(err);
-            }
-            _this3.logger.log('webrtc-troubleshooter: pc2 handle offer');
-            _this3.pc2.answer(function (err, answer) {
-              if (err) {
-                _this3.logger.error('webrtc-troubleshooter: pc2 failed answer');
-                reject(err);
-              }
-              _this3.logger.log('webrtc-troubleshooter: pc2 successful ' + answer.type);
-            });
-          });
-        });
-        _this3.dataChannel = _this3.pc1.createDataChannel('testChannel');
-
-        // generate list of messages to send over data channel
-        var messageQueue = Array.apply(null, { length: 100 }).map(function (n, i) {
-          return 'message ' + i;
-        });
-
-        // duplicating this is faster than cloning it
-        var messageQueue2 = Array.apply(null, { length: 100 }).map(function (n, i) {
-          return 'message ' + i;
-        });
-
-        var messagesReceived = 0;
-        // when the data channel receives a message, remove it from the queue
-        _this3.dataChannel.onmessage = function (msgEvent) {
-          var message = messageQueue.find(function (message) {
-            return message === msgEvent.data;
-          });
-          console.log('got a message', message);
-          messageQueue.splice(messageQueue.indexOf(message), 1);
-          messagesReceived++;
-          // when all messages have been received, we're clear
-          if (messageQueue.length === 0) {
-            window.clearTimeout(connectivityCheckFailure);
-            _this3.logger.log('webrtc-troubleshooter: Received ' + messagesReceived + ' messages');
-            resolve();
-          }
-        };
-        // when pc2 gets a data channel, send all messageQueue items on it
-        _this3.pc2.on('addChannel', function (channel) {
-          channel.onopen = function () {
-            _this3.logger.log('webrtc-troubleshooter: Sending ' + messageQueue.length + ' messages');
-            messageQueue2.forEach(channel.send.bind(channel));
-          };
-        });
-
-        // kick it off
-        _this3.pc1.offer();
-      });
-    }
-  }, {
-    key: 'destroy',
-    value: function destroy() {
-      _get(Object.getPrototypeOf(ConnectivityTest.prototype), 'destroy', this).call(this);
-      this.pc1.close();
-      this.pc2.close();
-    }
-  }]);
-
-  return ConnectivityTest;
-}(_TestSuite.Test);
-
-exports.default = ConnectivityTest;
-
-},{"../TestSuite":59,"rtcpeerconnection":57}],65:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _WebrtcCall = require('../WebrtcCall');
-
-var _WebrtcCall2 = _interopRequireDefault(_WebrtcCall);
-
-var _TestSuite = require('../TestSuite');
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var DataChannelThroughputTest = function (_Test) {
-  _inherits(DataChannelThroughputTest, _Test);
-
-  function DataChannelThroughputTest() {
-    _classCallCheck(this, DataChannelThroughputTest);
-
-    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(DataChannelThroughputTest).apply(this, arguments));
-
-    _this.name = 'Data Throughput Test';
-    _this.testDurationSeconds = 5.0;
-    _this.startTime = null;
-    _this.sentPayloadBytes = 0;
-    _this.receivedPayloadBytes = 0;
-
-    _this.stopSending = false;
-
-    var makeString = function makeString() {
-      _this.samplePacket = '';
-
-      for (var i = 0; i !== 1024; ++i) {
-        _this.samplePacket += 'h';
-      }
-    };
-    makeString();
-
-    _this.maxNumberOfPacketsToSend = 1;
-    _this.bytesToKeepBuffered = 1024 * _this.maxNumberOfPacketsToSend;
-    _this.lastBitrateMeasureTime = null;
-    _this.lastReceivedPayloadBytes = 0;
-
-    _this.call = null;
-    _this.senderChannel = null;
-    _this.receiveChannel = null;
-    return _this;
-  }
-
-  _createClass(DataChannelThroughputTest, [{
-    key: 'start',
-    value: function start() {
-      var _this2 = this;
-
-      _get(Object.getPrototypeOf(DataChannelThroughputTest.prototype), 'start', this).call(this);
-
-      return new Promise(function (resolve, reject) {
-        _this2.resolve = resolve;
-        _this2.reject = reject;
-
-        if (!_this2.options.iceServers.length) {
-          _this2.logger.error('webrtc-troubleshooter: No ice servers were provided');
-          reject('No ice servers');
-        } else {
-          _this2.call = new _WebrtcCall2.default(_this2.options);
-          _this2.call.setIceCandidateFilter(_WebrtcCall2.default.isRelay);
-          _this2.senderChannel = _this2.call.pc1.createDataChannel(null);
-          _this2.senderChannel.addEventListener('open', _this2.sendingStep.bind(_this2));
-          _this2.call.pc2.addEventListener('datachannel', _this2.onReceiverChannel.bind(_this2));
-
-          _this2.call.establishConnection();
-        }
-      });
-    }
-  }, {
-    key: 'done',
-    value: function done() {
-      this.resolve();
-    }
-  }, {
-    key: 'onReceiverChannel',
-    value: function onReceiverChannel(event) {
-      this.receiveChannel = event.channel;
-      this.receiveChannel.addEventListener('message', this.onMessageReceived.bind(this));
-    }
-  }, {
-    key: 'sendingStep',
-    value: function sendingStep() {
-      var now = new Date();
-      if (!this.startTime) {
-        this.startTime = now;
-        this.lastBitrateMeasureTime = now;
-      }
-
-      for (var i = 0; i !== this.maxNumberOfPacketsToSend; ++i) {
-        if (this.senderChannel.bufferedAmount >= this.bytesToKeepBuffered) {
-          break;
-        }
-        this.sentPayloadBytes += this.samplePacket.length;
-        this.senderChannel.send(this.samplePacket);
-      }
-
-      if (now - this.startTime >= 1000 * this.testDurationSeconds) {
-        this.stopSending = true;
-      } else {
-        this.throughputTimeout = setTimeout(this.sendingStep.bind(this), 1);
-      }
-    }
-  }, {
-    key: 'onMessageReceived',
-    value: function onMessageReceived(event) {
-      this.receivedPayloadBytes += event.data.length;
-      var now = new Date();
-      if (now - this.lastBitrateMeasureTime >= 1000) {
-        var bitrate = (this.receivedPayloadBytes - this.lastReceivedPayloadBytes) / (now - this.lastBitrateMeasureTime);
-        bitrate = Math.round(bitrate * 1000 * 8) / 1000;
-        this.logger.log('webrtc-troubleshooter: Transmitting at ' + bitrate + ' kbps.');
-        this.lastReceivedPayloadBytes = this.receivedPayloadBytes;
-        this.lastBitrateMeasureTime = now;
-      }
-      if (this.stopSending && this.sentPayloadBytes === this.receivedPayloadBytes) {
-        this.call.close();
-        this.call = null;
-
-        var elapsedTime = Math.round((now - this.startTime) * 10) / 10000.0;
-        var receivedKBits = this.receivedPayloadBytes * 8 / 1000;
-        this.logger.log('webrtc-troubleshooter: ' + receivedKBits + ' kilo-bits in ' + elapsedTime + ' seconds.');
-        this.done();
-      }
-    }
-  }, {
-    key: 'destroy',
-    value: function destroy() {
-      _get(Object.getPrototypeOf(DataChannelThroughputTest.prototype), 'destroy', this).call(this);
-      window.clearTimeout(this.throughputTimeout);
-      if (this.call) {
-        this.call.close();
-        this.call = null;
-      }
-    }
-  }]);
-
-  return DataChannelThroughputTest;
-}(_TestSuite.Test);
-
-exports.default = DataChannelThroughputTest;
-
-},{"../TestSuite":59,"../WebrtcCall":61}],66:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _WebrtcCall = require('../WebrtcCall');
-
-var _WebrtcCall2 = _interopRequireDefault(_WebrtcCall);
-
-var _TestSuite = require('../TestSuite');
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; } /* global webrtcsupport */
-
-// adapted from https://github.com/webrtc/testrtc/blob/master/src/js/bandwidth_test.js
-
-var VideoBandwidthTest = function (_Test) {
-  _inherits(VideoBandwidthTest, _Test);
-
-  function VideoBandwidthTest() {
-    _classCallCheck(this, VideoBandwidthTest);
-
-    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(VideoBandwidthTest).apply(this, arguments));
-
-    _this.name = 'Bandwidth Test';
-    _this.maxVideoBitrateKbps = 2000;
-    _this.durationMs = 40000;
-    _this.statStepMs = 100;
-    _this.bweStats = new StatisticsAggregate(0.75 * _this.maxVideoBitrateKbps * 1000);
-    _this.rttStats = new StatisticsAggregate();
-    _this.packetsLost = null;
-    _this.videoStats = [];
-    _this.startTime = null;
-    _this.call = null;
-    // Open the camera with hd resolution specs to get a correct measurement of ramp-up time.
-    _this.constraints = {
-      audio: false,
-      video: {
-        width: {
-          min: 640,
-          ideal: 1280,
-          max: 1920
-        },
-        height: {
-          min: 480,
-          ideal: 720,
-          max: 1080
-        }
-      }
-
-    };
-    if (_this.options.mediaOptions.video.deviceId) {
-      _this.constraints.video.deviceId = _this.options.mediaOptions.video.deviceId;
-    }
-    _this.log = [];
-    return _this;
-  }
-
-  _createClass(VideoBandwidthTest, [{
-    key: 'start',
-    value: function start() {
-      var _this2 = this,
-          _arguments = arguments;
-
-      _get(Object.getPrototypeOf(VideoBandwidthTest.prototype), 'start', this).call(this);
-      this.log = this.results = { log: [] };
-
-      return new Promise(function (resolve, reject) {
-        _this2.reject = reject;
-
-        _this2.addLog('INFO', 'Video Bandwidth Test');
-
-        if (!_this2.options.iceConfig.iceServers.length) {
-          _this2.addLog('FATAL', 'No ice servers were provided');
-          reject(_this2.log);
-        } else {
-          _this2.call = new _WebrtcCall2.default(_this2.options.iceConfig);
-          _this2.call.setIceCandidateFilter(_WebrtcCall2.default.isRelay);
-          // FEC makes it hard to study bandwidth estimation since there seems to be
-          // a spike when it is enabled and disabled. Disable it for now. FEC issue
-          // tracked on: https://code.google.com/p/webrtc/issues/detail?id=3050
-          _this2.call.disableVideoFec();
-          _this2.call.constrainVideoBitrate(_this2.maxVideoBitrateKbps);
-
-          // this.doGetUserMedia(this.constraints, this.gotStream.bind(this)); // returns fail in two cases
-          var failFunc = function failFunc(error) {
-            _this2.addLog('ERROR', { 'status': 'fail', 'error': error });
-            if (onFail) {
-              onFail.apply(_this2, _arguments);
-            } else {
-              _this2.addLog('FATAL', 'Failed to get access to local media due to error: ' + error.name);
-              reject();
-            }
-          };
-          try {
-            _this2.addLog('INFO', { 'status': 'pending', 'constraints': _this2.constraints });
-            window.navigator.getUserMedia({ audio: true, video: true }, function (stream) {
-              var cam = _this2.getDeviceName(stream.getVideoTracks());
-              _this2.results.camera = cam;
-              _this2.addLog('INFO', { 'status': 'success', 'camera': cam });
-              _this2.gotStream(stream);
-            }, failFunc);
-          } catch (e) {
-            _this2.addLog('FATAL', { 'status': 'exception', 'error': e.message });
-            reject();
-          }
-
-          // completed returns resolve
-        }
-      });
-    }
-  }, {
-    key: 'fail',
-    value: function fail() {
-      console.log('stuff got rejected bandwidth');
-    }
-  }, {
-    key: 'done',
-    value: function done() {
-      console.log('stuff got resolved bandwidth');
-    }
-  }, {
-    key: 'addLog',
-    value: function addLog(level, msg) {
-      if (msg && typeof msg === 'Object') {
-        msg = JSON.stringify(msg);
-      }
-      this.results.log.push(level + ': ' + msg);
-    }
-  }, {
-    key: 'doGetUserMedia',
-    value: function doGetUserMedia(constraints, onSuccess, onFail) {
-      var _this3 = this,
-          _arguments2 = arguments;
-
-      var failFunc = function failFunc(error) {
-        _this3.addLog('ERROR', { 'status': 'fail', 'error': error });
-        if (onFail) {
-          onFail.apply(_this3, _arguments2);
-        } else {
-          _this3.addLog('FATAL', 'Failed to get access to local media due to error: ' + error.name);
-          return _this3.fail();
-        }
-      };
-      try {
-        this.addLog('INFO', { 'status': 'pending', 'constraints': constraints });
-        window.navigator.getUserMedia({ audio: true, video: true }, function (stream) {
-          var cam = _this3.getDeviceName(stream.getVideoTracks());
-          // this.results.camera = cam;
-          _this3.addLog('INFO', { 'status': 'success', 'camera': cam });
-          onSuccess(stream);
-        }, failFunc);
-      } catch (e) {
-        this.addLog('FATAL', { 'status': 'exception', 'error': e.message });
-        this.fail();
-      }
-    }
-  }, {
-    key: 'getDeviceName',
-    value: function getDeviceName(tracks) {
-      if (tracks.length === 0) {
-        return null;
-      }
-      return tracks[0].label;
-    }
-  }, {
-    key: 'gotStream',
-    value: function gotStream(stream) {
-      this.call.pc1.addStream(stream);
-      this.call.establishConnection();
-      this.startTime = new Date();
-      this.localStream = stream.getVideoTracks()[0];
-      this.nextTimeout = setTimeout(this.gatherStats.bind(this), this.statStepMs);
-    }
-  }, {
-    key: 'gatherStats',
-    value: function gatherStats() {
-      var _this4 = this;
-
-      var now = new Date();
-      if (now - this.startTime > this.durationMs) {
-        this.completed();
-      } else {
-        this.call.pc1.getStats(this.localStream).then(this.gotStats.bind(this)).catch(function (error) {
-          _this4.addLog('ERROR', 'Failed to getStats: ' + error);
-        });
-      }
-    }
-  }, {
-    key: 'gotStats',
-    value: function gotStats(response) {
-      var _this5 = this;
-
-      if (webrtcsupport.prefix === 'webkit') {
-        response.result().forEach(function (report) {
-          if (report.id === 'bweforvideo') {
-            _this5.bweStats.add(Date.parse(report.timestamp), parseInt(report.stat('googAvailableSendBandwidth'), 10));
-          } else if (report.type === 'ssrc') {
-            _this5.rttStats.add(Date.parse(report.timestamp), parseInt(report.stat('googRtt'), 10));
-            // Grab the last stats.
-            _this5.videoStats[0] = report.stat('googFrameWidthSent');
-            _this5.videoStats[1] = report.stat('googFrameHeightSent');
-            _this5.packetsLost = report.stat('packetsLost');
-          }
-        });
-      } else if (webrtcsupport.prefix === 'moz') {
-        for (var j in response) {
-          var stats = response[j];
-          if (stats.id === 'outbound_rtcp_video_0') {
-            this.rttStats.add(Date.parse(stats.timestamp), parseInt(stats.mozRtt, 10));
-            // Grab the last stats.
-            this.jitter = stats.jitter;
-            this.packetsLost = stats.packetsLost;
-          } else if (stats.id === 'outbound_rtp_video_0') {
-            // TODO: Get dimensions from getStats when supported in FF.
-            this.videoStats[0] = 'Not supported on Firefox';
-            this.videoStats[1] = 'Not supported on Firefox';
-            this.bitrateMean = stats.bitrateMean;
-            this.bitrateStdDev = stats.bitrateStdDev;
-            this.framerateMean = stats.framerateMean;
-          }
-        }
-      } else {
-        this.addLog('ERROR', 'Only Firefox and Chrome getStats implementations are supported.');
-      }
-      this.nextTimeout = setTimeout(this.gatherStats.bind(this), this.statStepMs);
-    }
-  }, {
-    key: 'completed',
-    value: function completed() {
-      this.call.pc1.getLocalStreams()[0].getTracks().forEach(function (track) {
-        track.stop();
-      });
-      this.call.close();
-      this.call = null;
-      var stats = this.results.stats = {};
-
-      if (webrtcsupport.prefix === 'webkit') {
-        // Checking if greater than 2 because Chrome sometimes reports 2x2 when a camera starts but fails to deliver frames.
-        if (this.videoStats[0] < 2 && this.videoStats[1] < 2) {
-          this.addLog('ERROR', 'Camera failure: ' + this.videoStats[0] + 'x' + this.videoStats[1] + '. Cannot test bandwidth without a working camera.');
-        } else {
-          stats.resolution = this.videoStats[0] + 'x' + this.videoStats[1];
-          stats.bpsAvg = this.bweStats.getAverage();
-          stats.bpsMax = this.bweStats.getMax();
-          stats.rampUpTimeMs = this.bweStats.getRampUpTime();
-
-          this.addLog('INFO', 'Video resolution: ' + stats.resolution);
-          this.addLog('INFO', 'Send bandwidth estimate average: ' + stats.bpsAvg + ' bps');
-          this.addLog('INFO', 'Send bandwidth estimate max: ' + stats.bpsMax + ' bps');
-          this.addLog('INFO', 'Send bandwidth ramp-up time: ' + stats.rampUpTimeMs + ' ms');
-        }
-      } else if (webrtcsupport.prefix === 'moz') {
-        if (parseInt(this.framerateMean, 10) > 0) {
-          this.addLog('SUCCESS', 'Frame rate mean: ' + parseInt(this.framerateMean, 10));
-        } else {
-          this.addLog('ERROR', 'Frame rate mean is 0, cannot test bandwidth without a working camera.');
-        }
-        stats.framerateMean = this.framerateMean || null;
-
-        stats.bitrateMean = this.bitrateMean;
-        stats.bitrateStdDev = this.bitrateStdDev;
-        this.addLog('INFO', 'Send bitrate mean: ' + stats.bitrateMean + ' bps');
-        this.addLog('INFO', 'Send bitrate standard deviation: ' + stats.bitrateStdDev + ' bps');
-      }
-      stats.rttAverage = this.rttStats.getAverage();
-      stats.rttMax = this.rttStats.getMax();
-      stats.lostPackets = parseInt(this.packetsLost, 10);
-
-      this.addLog('INFO', 'RTT average: ' + stats.rttAverage + ' ms');
-      this.addLog('INFO', 'RTT max: ' + stats.rttMax + ' ms');
-      this.addLog('INFO', 'Lost packets: ' + stats.lostPackets);
-
-      this.done();
-    }
-  }, {
-    key: 'destroy',
-    value: function destroy() {
-      window.clearTimeout(this.nextTimeout);
-      if (this.call) {
-        this.call.close();
-        this.call = null;
-      }
-    }
-  }]);
-
-  return VideoBandwidthTest;
-}(_TestSuite.Test);
-
-var StatisticsAggregate = function () {
-  function StatisticsAggregate(rampUpThreshold) {
-    _classCallCheck(this, StatisticsAggregate);
-
-    this.startTime = 0;
-    this.sum = 0;
-    this.count = 0;
-    this.max = 0;
-    this.rampUpThreshold = rampUpThreshold;
-    this.rampUpTime = Infinity;
-  }
-
-  _createClass(StatisticsAggregate, [{
-    key: 'add',
-    value: function add(time, datapoint) {
-      if (this.startTime === 0) {
-        this.startTime = time;
-      }
-      this.sum += datapoint;
-      this.max = Math.max(this.max, datapoint);
-      if (this.rampUpTime === Infinity && datapoint > this.rampUpThreshold) {
-        this.rampUpTime = time;
-      }
-      this.count++;
-    }
-  }, {
-    key: 'getAverage',
-    value: function getAverage() {
-      if (this.count === 0) {
-        return 0;
-      }
-      return Math.round(this.sum / this.count);
-    }
-  }, {
-    key: 'getMax',
-    value: function getMax() {
-      return this.max;
-    }
-  }, {
-    key: 'getRampUpTime',
-    value: function getRampUpTime() {
-      return this.rampUpTime - this.startTime;
-    }
-  }]);
-
-  return StatisticsAggregate;
-}();
-
-exports.default = VideoBandwidthTest;
-
-},{"../TestSuite":59,"../WebrtcCall":61}],67:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-var _get = function get(object, property, receiver) { if (object === null) object = Function.prototype; var desc = Object.getOwnPropertyDescriptor(object, property); if (desc === undefined) { var parent = Object.getPrototypeOf(object); if (parent === null) { return undefined; } else { return get(parent, property, receiver); } } else if ("value" in desc) { return desc.value; } else { var getter = desc.get; if (getter === undefined) { return undefined; } return getter.call(receiver); } };
-
-var _TestSuite = require('../TestSuite');
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
-function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
-
-function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var LocalMedia = require('localMedia');
-
-var VideoTest = function (_Test) {
-  _inherits(VideoTest, _Test);
-
-  function VideoTest() {
-    _classCallCheck(this, VideoTest);
-
-    var _this = _possibleConstructorReturn(this, Object.getPrototypeOf(VideoTest).apply(this, arguments));
-
-    _this.name = 'Video Test';
-
-    _this.localMedia = new LocalMedia({ detectSpeakingEvents: true });
-    return _this;
-  }
-
-  _createClass(VideoTest, [{
-    key: 'start',
-    value: function start() {
-      var _this2 = this;
-
-      _get(Object.getPrototypeOf(VideoTest.prototype), 'start', this).call(this);
-
-      return new Promise(function (resolve, reject) {
-        _this2.reject = reject;
-
-        _this2.localMedia.start(_this2.options, function (err) {
-          if (err) {
-            _this2.logger.log('webrtc-troubleshooter: Video Local media start failed ' + err.name);
-            reject(err);
-          } else {
-            _this2.logger.log('webrtc-troubleshooter: Video Local media started');
-          }
-        });
-
-        _this2.localMedia.on('localStream', function (stream) {
-          if (stream.getVideoTracks().length) {
-            var videoTrack = stream.getVideoTracks()[0];
-            if (videoTrack) {
-              _this2.logger.log('webrtc-troubleshooter: Video stream passed');
-              resolve();
-            } else {
-              _this2.logger.error('webrtc-troubleshooter: Video stream failed');
-              reject('no video track available');
-            }
-          }
-        });
-      });
-    }
-  }, {
-    key: 'destroy',
-    value: function destroy() {
-      _get(Object.getPrototypeOf(VideoTest.prototype), 'destroy', this).call(this);
-      this.localMedia.stop();
-    }
-  }]);
-
-  return VideoTest;
-}(_TestSuite.Test);
-
-exports.default = VideoTest;
-
-},{"../TestSuite":59,"localMedia":1}],68:[function(require,module,exports){
-'use strict';
-
-Object.defineProperty(exports, "__esModule", {
-  value: true
-});
-exports.VideoBandwidthTest = exports.ThroughputTest = exports.AdvancedCameraTest = exports.ConnectivityTest = exports.VideoTest = exports.AudioTest = undefined;
-
-var _AudioTest = require('./AudioTest');
-
-var _AudioTest2 = _interopRequireDefault(_AudioTest);
-
-var _VideoTest = require('./VideoTest');
-
-var _VideoTest2 = _interopRequireDefault(_VideoTest);
-
-var _ConnectivityTest = require('./ConnectivityTest');
-
-var _ConnectivityTest2 = _interopRequireDefault(_ConnectivityTest);
-
-var _AdvancedCameraTest = require('./AdvancedCameraTest');
-
-var _AdvancedCameraTest2 = _interopRequireDefault(_AdvancedCameraTest);
-
-var _DataThroughputTest = require('./DataThroughputTest');
-
-var _DataThroughputTest2 = _interopRequireDefault(_DataThroughputTest);
-
-var _VideoBandwidthTest = require('./VideoBandwidthTest');
-
-var _VideoBandwidthTest2 = _interopRequireDefault(_VideoBandwidthTest);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
-
-exports.AudioTest = _AudioTest2.default;
-exports.VideoTest = _VideoTest2.default;
-exports.ConnectivityTest = _ConnectivityTest2.default;
-exports.AdvancedCameraTest = _AdvancedCameraTest2.default;
-exports.ThroughputTest = _DataThroughputTest2.default;
-exports.VideoBandwidthTest = _VideoBandwidthTest2.default;
-
-},{"./AdvancedCameraTest":62,"./AudioTest":63,"./ConnectivityTest":64,"./DataThroughputTest":65,"./VideoBandwidthTest":66,"./VideoTest":67}],69:[function(require,module,exports){
+},{}],51:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -9799,7 +7453,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],70:[function(require,module,exports){
+},{}],52:[function(require,module,exports){
 // shim for using process in browser
 
 var process = module.exports = {};
@@ -9892,14 +7546,14 @@ process.chdir = function (dir) {
 };
 process.umask = function() { return 0; };
 
-},{}],71:[function(require,module,exports){
+},{}],53:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],72:[function(require,module,exports){
+},{}],54:[function(require,module,exports){
 (function (process,global){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -10489,5 +8143,5 @@ function hasOwnProperty(obj, prop) {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./support/isBuffer":71,"_process":70,"inherits":69}]},{},[58])(58)
+},{"./support/isBuffer":53,"_process":52,"inherits":51}]},{},[38])(38)
 });

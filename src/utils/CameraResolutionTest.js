@@ -1,124 +1,95 @@
-import { Test } from '../TestSuite';
-import VideoFrameChecker from '../VideoFrameChecker';
-import WebrtcCall from '../WebrtcCall';
-
-class AdvancedCameraTest extends Test {
-  constructor () {
-    super(...arguments);
-    this.name = 'Advanced Video Test';
-    this.tests = [];
-
-    this.tests.push(new CameraResolutionTest([[320, 240]]));
-    this.tests.push(new CameraResolutionTest([[640, 480]]));
-    this.tests.push(new CameraResolutionTest([[1280, 720]]));
-    this.tests.push(new CameraResolutionTest([[160, 120], [320, 180], [320, 240], [640, 360], [640, 480], [768, 576],
-      [1024, 576], [1280, 720], [1280, 768], [1280, 800], [1920, 1080],
-      [1920, 1200], [3840, 2160], [4096, 2160]]));
-  }
-  start () {
-    super.start();
-
-    return new Promise((resolve, reject) => {
-      this.reject = reject;
-      var testNum = 0;
-
-      while (testNum < this.tests.length) {
-        this.tests[testNum].run((results) => {
-          this.logger.log(results.log);
-          this.logger.log(results.stats);
-          if (testNum == this.tests.length) {
-            resolve(this.log);
-          }
-        });
-        testNum++;
-      }
-    });
-  }
-
-  destroy () {
-    super.destroy();
-  }
-}
-
 // adapted from https://github.com/webrtc/testrtc
 
-class CameraResolutionTest {
-  constructor (resolutions, duration = 8000) {
+// This test is "special"
+
+import VideoFrameChecker from './VideoFrameChecker';
+import WebrtcCall from './WebrtcCall';
+
+export default class CameraResolutionTest {
+  constructor(resolutions, options) {
     this.resolutions = resolutions;
-    this.duration = duration;
+    this.duration = options.duration;
+    this.logger = options && options.logger ? options.logger : console;
     this.log = [];
     this.currentResolution = 0;
     this.isMuted = false;
     this.isShuttingDown = false;
   }
-  run (cb) {
-    this.cb = cb || function () {};
+
+  run() {
     const settings = {
       resolutions: this.resolutions,
       duration: this.duration
     };
     this.logger.log(`Advanced Camera Test with resolutions: ${JSON.stringify(settings.resolutions)} and duration ${JSON.stringify(settings.duration)}`);
-    this.startGetUserMedia(this.resolutions[this.currentResolution]);
+    return this.startGetUserMedia(this.resolutions[this.currentResolution]);
   }
-  done () {
+
+  getResults() {
     const results = {
       log: this.log,
       stats: this.stats,
       resolutions: this.resolutions,
       duration: this.duration
     };
-    this.cb(results);
+    return results;
   }
-  reportSuccess (str) {
+
+  reportSuccess(str) {
     this.logger.log(`SUCCESS: ${str}`);
   }
-  reportError (str) {
+
+  reportError(str) {
     this.logger.log(`ERROR: ${str}`);
   }
-  reportInfo (str) {
+
+  reportInfo(str) {
     this.logger.log(`INFO: ${str}`);
   }
-  startGetUserMedia (resolution) {
+
+  startGetUserMedia(resolution) {
     const constraints = {
       audio: false,
       video: {
-        width: {exact: resolution[0]},
-        height: {exact: resolution[1]}
+        width: { exact: resolution[0] },
+        height: { exact: resolution[1] }
       }
     };
 
-    navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
+    return navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
       // Do not check actual video frames when more than one resolution is provided.
       if (this.resolutions.length > 1) {
         this.reportSuccess('Supported: ' + resolution[0] + 'x' + resolution[1]);
         stream.getTracks().forEach((track) => {
           track.stop();
         });
-        this.maybeContinueGetUserMedia();
+        return this.maybeContinueGetUserMedia();
       } else {
-        this.collectAndanalyzeStats(stream, resolution);
+        this.logger.log('collecting');
+        return this.collectAndAnalyzeStats(stream, resolution);
       }
-    }).catch((error) => {
+    }, (error) => {
       if (this.resolutions.length > 1) {
         this.reportInfo(resolution[0] + 'x' + resolution[1] + ' not supported');
       } else {
         this.reportError('getUserMedia failed with error: ' + error);
       }
-      this.maybeContinueGetUserMedia();
+      return this.maybeContinueGetUserMedia();
     });
   }
-  maybeContinueGetUserMedia () {
+
+  maybeContinueGetUserMedia() {
     if (this.currentResolution === this.resolutions.length) {
-      return this.done();
+      return this.getResults();
     }
-    this.startGetUserMedia(this.resolutions[this.currentResolution++]);
+    return this.startGetUserMedia(this.resolutions[this.currentResolution++]);
   }
-  collectAndanalyzeStats (stream, resolution) {
+
+  collectAndAnalyzeStats(stream, resolution) {
     const tracks = stream.getVideoTracks();
     if (tracks.length < 1) {
       this.reportError('No video track in returned stream.');
-      this.maybeContinueGetUserMedia();
-      return;
+      return this.maybeContinueGetUserMedia();
     }
 
     // Firefox does not support event handlers on mediaStreamTrack yet.
@@ -128,7 +99,7 @@ class CameraResolutionTest {
     if (typeof videoTrack.addEventListener === 'function') {
       // Register events.
       videoTrack.addEventListener('ended', () => {
-        // Ignore events when shutting down the
+        // Ignore events when shutting down the test.
         if (this.isShuttingDown) {
           return;
         }
@@ -154,27 +125,28 @@ class CameraResolutionTest {
       });
     }
 
-    const video = document.createElement('video');
-    video.setAttribute('autoplay', '');
-    video.setAttribute('muted', '');
-    video.width = resolution[0];
-    video.height = resolution[1];
-    video.srcObject = stream;
-    const frameChecker = new VideoFrameChecker(video);
+    const videoElement = document.createElement('video');
+    videoElement.setAttribute('autoplay', '');
+    videoElement.setAttribute('muted', '');
+    videoElement.width = resolution[0];
+    videoElement.height = resolution[1];
+    videoElement.srcObject = stream;
+    const frameChecker = new VideoFrameChecker(videoElement);
     const call = new WebrtcCall();
     call.pc1.addStream(stream);
-    call.establishConnection();
-    call.gatherStats(call.pc1, this.onCallEnded.bind(this, resolution, video, stream, frameChecker), 100);
-    setTimeout(this.endCall(call, stream), 8000);
-  }
-  onCallEnded (resolution, videoElement, stream, frameChecker, stats, statsTime) {
-    this.analyzeStats(resolution, videoElement, stream, frameChecker, stats, statsTime);
 
-    frameChecker.stop();
+    setTimeout(this.endCall.bind(this, call, stream), 8000);
 
-    this.done();
+    return call.establishConnection().then(() => {
+      return call.gatherStats(call.pc1, 100);
+    }).then((stats, statsTime) => {
+      const result = this.analyzeStats({resolution, videoElement, stream, frameChecker, stats, statsTime});
+      frameChecker.stop();
+      return result;
+    });
   }
-  analyzeStats (resolution, videoElement, stream, frameChecker, stats, statsTime) {
+
+  analyzeStats({resolution, videoElement, stream, frameChecker, stats, statsTime}) {
     const googAvgEncodeTime = [];
     const googAvgFrameRateInput = [];
     const googAvgFrameRateSent = [];
@@ -216,16 +188,18 @@ class CameraResolutionTest {
     statsReport.frozenFrames = frameStats.numFrozenFrames;
 
     this.testExpectations(statsReport);
-    this.stats = statsReport;
+    return statsReport;
   }
-  endCall (callObject, stream) {
+
+  endCall(callObject, stream) {
     this.isShuttingDown = true;
     stream.getTracks().forEach((track) => {
       track.stop();
     });
     callObject.close();
   }
-  extractEncoderSetupTime (stats, statsTime) {
+
+  extractEncoderSetupTime(stats, statsTime) {
     for (let index = 0; index !== stats.length; index++) {
       if (stats[index].type === 'ssrc') {
         if (stats[index].stat('googFrameRateInput') > 0) {
@@ -235,20 +209,22 @@ class CameraResolutionTest {
     }
     return NaN;
   }
-  resolutionMatchesIndependentOfRotationOrCrop (aWidth, aHeight, bWidth, bHeight) {
+
+  resolutionMatchesIndependentOfRotationOrCrop(aWidth, aHeight, bWidth, bHeight) {
     const minRes = Math.min(bWidth, bHeight);
     return (aWidth === bWidth && aHeight === bHeight) ||
     (aWidth === bHeight && aHeight === bWidth) ||
     (aWidth === minRes && bHeight === minRes);
   }
-  testExpectations (report) {
+
+  testExpectations(report) {
     const notAvailableStats = [];
 
-    report.forEach((value, key) => {
-      if (typeof value === 'number' && isNaN(value)) {
+    for (let key in report) {
+      if (typeof report[key] === 'number' && isNaN(report[key])) {
         notAvailableStats.push(key);
       }
-    });
+    }
 
     if (notAvailableStats.length !== 0) {
       report.notAvailableStatus = notAvailableStats;
@@ -281,7 +257,8 @@ class CameraResolutionTest {
       }
     }
   }
-  arrayAverage (array) {
+
+  arrayAverage(array) {
     const cnt = array.length;
     let tot = 0;
     for (let i = 0; i < cnt; i++) {
@@ -290,5 +267,3 @@ class CameraResolutionTest {
     return Math.floor(tot / cnt);
   }
 }
-
-export default AdvancedCameraTest;

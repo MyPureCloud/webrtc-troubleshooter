@@ -1,37 +1,41 @@
 /* global WebRTCTroubleshooter */
-var video = true;
-var audio = true;
+let video = true;
+let audio = true;
 
-var iceServers = [];
+let iceServers = [];
 WebRTCTroubleshooter = WebRTCTroubleshooter.default;
-var testSuite = new WebRTCTroubleshooter.TestSuite();
+const testSuite = new WebRTCTroubleshooter.TestSuite();
 
-document.getElementById('run-button').onclick = function startTroubleshooter () {
+const iceServersEntry = document.getElementById('ice-servers');
+const runButton = document.getElementById('run-button');
+
+runButton.onclick = function startTroubleshooter () {
     if (!navigator.mediaDevices) {
       video = false;
       audio = false;
     }
 
-    var servers = document.getElementById('ice-servers').value;
+    const servers = iceServersEntry.value;
     if (servers) {
       iceServers = JSON.parse(servers);
+      window.localStorage.setItem('iceServers', servers);
     }
-    var iceConfig = {
+    const iceConfig = {
       iceServers: iceServers,
       iceTransports: 'relay'
     };
-    var mediaOptions = mediaOptions || { audio: true, video: true };
+    const mediaOptions = { audio: true, video: true };
 
     if (audio) {
-      var audioTest = new WebRTCTroubleshooter.AudioTest(mediaOptions);
+      const audioTest = new WebRTCTroubleshooter.AudioTest(mediaOptions);
 
       testSuite.addTest(audioTest);
     }
 
     if (video) {
-      var videoTest = new WebRTCTroubleshooter.VideoTest(mediaOptions);
-      var advancedCameraTest = new WebRTCTroubleshooter.AdvancedCameraTest(mediaOptions);
-      var bandwidthTest = new WebRTCTroubleshooter.VideoBandwidthTest({ iceConfig: iceConfig, mediaOptions: mediaOptions});
+      const videoTest = new WebRTCTroubleshooter.VideoTest(mediaOptions);
+      const advancedCameraTest = new WebRTCTroubleshooter.AdvancedCameraTest(mediaOptions);
+      const bandwidthTest = new WebRTCTroubleshooter.VideoBandwidthTest({ iceConfig: iceConfig, mediaOptions: mediaOptions});
 
       testSuite.addTest(videoTest);
       testSuite.addTest(advancedCameraTest);
@@ -39,17 +43,22 @@ document.getElementById('run-button').onclick = function startTroubleshooter () 
     }
 
     if (window.RTCPeerConnection) {
-      var connectivityTest = new WebRTCTroubleshooter.ConnectivityTest(iceConfig);
-      var throughputTest = new WebRTCTroubleshooter.ThroughputTest(iceConfig);
+      const connectivityTest = new WebRTCTroubleshooter.ConnectivityTest(iceConfig);
+      const throughputTest = new WebRTCTroubleshooter.ThroughputTest(iceConfig);
 
       testSuite.addTest(connectivityTest);
       testSuite.addTest(throughputTest);
     }
 
-    testSuite.runNextTest(function() {
-        console.log('Finished the tests');
+    testSuite.start().then(function () {
+      console.log('Finished the tests');
     });
 };
+
+const savedIceServers = window.localStorage.getItem('iceServers');
+if (iceServers) {
+  iceServersEntry.value = savedIceServers;
+}
 
 function willDestroyElement () {
   try {
