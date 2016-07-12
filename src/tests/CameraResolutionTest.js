@@ -2,11 +2,13 @@
 
 // This test is "special"
 
-import VideoFrameChecker from './VideoFrameChecker';
-import WebrtcCall from './WebrtcCall';
+import VideoFrameChecker from '../utils/VideoFrameChecker';
+import WebrtcCall from '../utils/WebrtcCall';
+import Test from '../utils/Test';
 
-export default class CameraResolutionTest {
+export default class CameraResolutionTest extends Test {
   constructor (resolutions, options) {
+    super(options);
     this.resolutions = resolutions;
     this.duration = options.duration;
     this.logger = options && options.logger ? options.logger : console;
@@ -16,7 +18,8 @@ export default class CameraResolutionTest {
     this.isShuttingDown = false;
   }
 
-  run () {
+  start () {
+    super.start();
     const settings = {
       resolutions: this.resolutions,
       duration: this.duration
@@ -82,7 +85,11 @@ export default class CameraResolutionTest {
     if (this.currentResolution === this.resolutions.length) {
       return this.getResults();
     }
-    return this.startGetUserMedia(this.resolutions[this.currentResolution++]);
+    return new Promise((resolve, reject) => {
+      setTimeout(() => {
+        this.startGetUserMedia(this.resolutions[this.currentResolution++]).then(resolve, reject);
+      }, 1000);
+    });
   }
 
   collectAndAnalyzeStats (stream, resolution) {
