@@ -44,10 +44,10 @@ export default class VideoBandwidthTest extends Test {
     super.start();
     this.log = this.results = {log: []};
 
-    this.addLog('INFO', 'Video Bandwidth Test');
+    this.addLog('info', 'Video Bandwidth Test');
 
     if (!this.options.iceConfig.iceServers.length) {
-      this.addLog('FATAL', 'No ice servers were provided');
+      this.addLog('error', 'No ice servers were provided');
       return this.reject(this.log);
     }
     this.call = new WebrtcCall(this.options.iceConfig);
@@ -70,14 +70,14 @@ export default class VideoBandwidthTest extends Test {
   }
 
   doGetUserMedia (constraints) {
-    this.addLog('INFO', { status: 'pending', constraints });
+    this.addLog('info', { status: 'pending', constraints });
     return navigator.mediaDevices.getUserMedia({ audio: true, video: true }).then((stream) => {
       const camera = this.getDeviceName(stream.getVideoTracks());
-      this.addLog('INFO', { status: 'success', camera });
+      this.addLog('info', { status: 'success', camera });
       return this.gotStream(stream).then(this.resolve.bind(this), this.reject.bind(this));
     }, (error) => {
-      this.addLog('ERROR', {'status': 'fail', 'error': error});
-      this.addLog('FATAL', `Failed to get access to local media due to error: ${error.name}`);
+      this.addLog('error', {'status': 'fail', 'error': error});
+      this.addLog('error', `Failed to get access to local media due to error: ${error.name}`);
       console.warn('rejecting2', this);
       this.reject(error);
     });
@@ -93,7 +93,7 @@ export default class VideoBandwidthTest extends Test {
   gotStream (stream) {
     this.call.pc1.addStream(stream);
     return this.call.establishConnection().then(() => {
-      this.addLog('INFO', { status: 'success', message: 'establishing connection' });
+      this.addLog('info', { status: 'success', message: 'establishing connection' });
       this.startTime = new Date();
       this.localStream = stream.getVideoTracks()[0];
 
@@ -103,7 +103,7 @@ export default class VideoBandwidthTest extends Test {
         }, this.statStepMs);
       });
     }, (error) => {
-      this.addLog('WARN', { status: 'error', error });
+      this.addLog('warn', { status: 'error', error });
       return Promise.reject(error);
     });
   }
@@ -115,7 +115,7 @@ export default class VideoBandwidthTest extends Test {
     }
     return this.call.pc1.getStats(this.localStream)
       .then(this.gotStats.bind(this), (error) => {
-        this.addLog('ERROR', 'Failed to getStats: ' + error);
+        this.addLog('error', 'Failed to getStats: ' + error);
       });
   }
 
@@ -152,7 +152,7 @@ export default class VideoBandwidthTest extends Test {
         }
       }
     } else {
-      this.addLog('ERROR', 'Only Firefox and Chrome getStats implementations are supported.');
+      this.addLog('error', 'Only Firefox and Chrome getStats implementations are supported.');
     }
     return new Promise((resolve, reject) => {
       this.nextTimeout = setTimeout(() => {
@@ -173,38 +173,38 @@ export default class VideoBandwidthTest extends Test {
     if (isWebkit) {
       // Checking if greater than 2 because Chrome sometimes reports 2x2 when a camera starts but fails to deliver frames.
       if (this.videoStats[0] < 2 && this.videoStats[1] < 2) {
-        this.addLog('ERROR', `Camera failure: ${this.videoStats[0]}x${this.videoStats[1]}. Cannot test bandwidth without a working camera.`);
+        this.addLog('error', `Camera failure: ${this.videoStats[0]}x${this.videoStats[1]}. Cannot test bandwidth without a working camera.`);
       } else {
         stats.resolution = `${this.videoStats[0]}x${this.videoStats[1]}`;
         stats.bpsAvg = this.bweStats.getAverage();
         stats.bpsMax = this.bweStats.getMax();
         stats.rampUpTimeMs = this.bweStats.getRampUpTime();
 
-        this.addLog('INFO', `Video resolution: ${stats.resolution}`);
-        this.addLog('INFO', `Send bandwidth estimate average: ${stats.bpsAvg} bps`);
-        this.addLog('INFO', `Send bandwidth estimate max: ${stats.bpsMax} bps`);
-        this.addLog('INFO', `Send bandwidth ramp-up time: ${stats.rampUpTimeMs} ms`);
+        this.addLog('info', `Video resolution: ${stats.resolution}`);
+        this.addLog('info', `Send bandwidth estimate average: ${stats.bpsAvg} bps`);
+        this.addLog('info', `Send bandwidth estimate max: ${stats.bpsMax} bps`);
+        this.addLog('info', `Send bandwidth ramp-up time: ${stats.rampUpTimeMs} ms`);
       }
     } else if (isFirefox) {
       if (parseInt(this.framerateMean, 10) > 0) {
         this.addLog('SUCCESS', `Frame rate mean: ${parseInt(this.framerateMean, 10)}`);
       } else {
-        this.addLog('ERROR', 'Frame rate mean is 0, cannot test bandwidth without a working camera.');
+        this.addLog('error', 'Frame rate mean is 0, cannot test bandwidth without a working camera.');
       }
       stats.framerateMean = this.framerateMean || null;
 
       stats.bitrateMean = this.bitrateMean;
       stats.bitrateStdDev = this.bitrateStdDev;
-      this.addLog('INFO', `Send bitrate mean: ${stats.bitrateMean} bps`);
-      this.addLog('INFO', `Send bitrate standard deviation: ${stats.bitrateStdDev} bps`);
+      this.addLog('info', `Send bitrate mean: ${stats.bitrateMean} bps`);
+      this.addLog('info', `Send bitrate standard deviation: ${stats.bitrateStdDev} bps`);
     }
     stats.rttAverage = this.rttStats.getAverage();
     stats.rttMax = this.rttStats.getMax();
     stats.lostPackets = parseInt(this.packetsLost, 10);
 
-    this.addLog('INFO', `RTT average: ${stats.rttAverage} ms`);
-    this.addLog('INFO', `RTT max: ${stats.rttMax} ms`);
-    this.addLog('INFO', `Lost packets: ${stats.lostPackets}`);
+    this.addLog('info', `RTT average: ${stats.rttAverage} ms`);
+    this.addLog('info', `RTT max: ${stats.rttMax} ms`);
+    this.addLog('info', `Lost packets: ${stats.lostPackets}`);
     return this.results;
   }
 
