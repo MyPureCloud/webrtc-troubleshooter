@@ -10,49 +10,49 @@ const iceServersEntry = document.getElementById('ice-servers');
 const runButton = document.getElementById('run-button');
 
 runButton.onclick = function startTroubleshooter () {
-    if (!navigator.mediaDevices) {
-      video = false;
-      audio = false;
-    }
+  if (!navigator.mediaDevices) {
+    video = false
+    audio = false
+  }
 
-    const servers = iceServersEntry.value;
-    if (servers) {
-      iceServers = JSON.parse(servers);
-      window.localStorage.setItem('iceServers', servers);
-    }
-    const iceConfig = {
-      iceServers: iceServers,
-      iceTransports: 'relay'
-    };
-    const mediaOptions = { audio: true, video: true };
+  const servers = iceServersEntry.value;
+  if (servers) {
+    iceServers = JSON.parse(servers);
+    window.localStorage.setItem('iceServers', servers);
+  }
+  const iceConfig = {
+    iceServers: iceServers,
+    iceTransports: 'relay'
+  };
+  const mediaOptions = { audio: true, video: true };
 
-    if (audio) {
-      const audioTest = new WebRTCTroubleshooter.AudioTest(mediaOptions);
+  if (audio) {
+    const audioTest = new WebRTCTroubleshooter.AudioTest(mediaOptions);
 
-      testSuite.addTest(audioTest);
-    }
+    testSuite.addTest(audioTest);
+  }
 
-    if (video) {
-      const videoTest = new WebRTCTroubleshooter.VideoTest(mediaOptions);
-      const advancedCameraTest = new WebRTCTroubleshooter.AdvancedCameraTest(mediaOptions);
-      const bandwidthTest = new WebRTCTroubleshooter.VideoBandwidthTest({ iceConfig: iceConfig, mediaOptions: mediaOptions});
+  if (video) {
+    const videoTest = new WebRTCTroubleshooter.VideoTest(mediaOptions);
+    const advancedCameraTest = new WebRTCTroubleshooter.AdvancedCameraTest(mediaOptions);
+    const bandwidthTest = new WebRTCTroubleshooter.VideoBandwidthTest({ iceConfig: iceConfig, mediaOptions: mediaOptions});
 
-      testSuite.addTest(videoTest);
-      testSuite.addTest(advancedCameraTest);
-      testSuite.addTest(bandwidthTest);
-    }
+    testSuite.addTest(videoTest);
+    testSuite.addTest(advancedCameraTest);
+    testSuite.addTest(bandwidthTest);
+  }
 
-    if (window.RTCPeerConnection) {
-      const connectivityTest = new WebRTCTroubleshooter.ConnectivityTest(iceConfig);
-      const throughputTest = new WebRTCTroubleshooter.ThroughputTest(iceConfig);
+  if (window.RTCPeerConnection) {
+    const connectivityTest = new WebRTCTroubleshooter.ConnectivityTest(iceConfig);
+    const throughputTest = new WebRTCTroubleshooter.ThroughputTest(iceConfig);
 
-      testSuite.addTest(connectivityTest);
-      testSuite.addTest(throughputTest);
-    }
+    testSuite.addTest(connectivityTest);
+    testSuite.addTest(throughputTest);
+  }
 
-    testSuite.start().then(function () {
-      console.log('Finished the tests');
-    });
+  testSuite.start().then(function () {
+    console.log('Finished the tests');
+  });
 };
 
 const savedIceServers = window.localStorage.getItem('iceServers');
