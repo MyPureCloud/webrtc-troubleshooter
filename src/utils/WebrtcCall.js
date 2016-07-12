@@ -38,7 +38,7 @@ class WebrtcCall {
         } else {
           setTimeout(peerConnection.getStats.bind(peerConnection, gotStats), interval);
         }
-      }
+      };
 
       const gotStats = (response) => {
         for (let index in response.result()) {
@@ -46,7 +46,7 @@ class WebrtcCall {
           statsCollectTime.push(Date.now());
         }
         getStats();
-      }
+      };
 
       getStats();
     });

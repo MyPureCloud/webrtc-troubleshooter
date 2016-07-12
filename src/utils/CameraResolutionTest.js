@@ -51,8 +51,8 @@ export default class CameraResolutionTest {
     const constraints = {
       audio: false,
       video: {
-        width: { exact: resolution[0] },
-        height: { exact: resolution[1] }
+        width: { exact: resolution[0]},
+        height: { exact: resolution[1]}
       }
     };
 
