@@ -1,6 +1,6 @@
 {
   "name": "webrtc-troubleshoot",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "A way to add webrtc troubleshooting to your app",
   "main": "index.js",
   "scripts": {
