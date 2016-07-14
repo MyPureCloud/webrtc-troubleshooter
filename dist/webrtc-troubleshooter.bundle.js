@@ -325,7 +325,7 @@ Object.defineProperty(LocalMedia.prototype, 'localScreen', {
 
 module.exports = LocalMedia;
 
-},{"getscreenmedia":3,"getusermedia":4,"hark":15,"mediastream-gain":16,"mockconsole":17,"util":40,"webrtcsupport":18,"wildemitter":19}],3:[function(require,module,exports){
+},{"getscreenmedia":3,"getusermedia":4,"hark":15,"mediastream-gain":16,"mockconsole":17,"util":30,"webrtcsupport":18,"wildemitter":19}],3:[function(require,module,exports){
 // getScreenMedia helper by @HenrikJoreteg
 var getUserMedia = require('getusermedia');
 
@@ -3746,1153 +3746,6 @@ process.chdir = function (dir) {
 process.umask = function() { return 0; };
 
 },{}],21:[function(require,module,exports){
-var toSDP = require('./lib/tosdp');
-var toJSON = require('./lib/tojson');
-
-
-// Converstion from JSON to SDP
-
-exports.toIncomingSDPOffer = function (session) {
-    return toSDP.toSessionSDP(session, {
-        role: 'responder',
-        direction: 'incoming'
-    });
-};
-exports.toOutgoingSDPOffer = function (session) {
-    return toSDP.toSessionSDP(session, {
-        role: 'initiator',
-        direction: 'outgoing'
-    });
-};
-exports.toIncomingSDPAnswer = function (session) {
-    return toSDP.toSessionSDP(session, {
-        role: 'initiator',
-        direction: 'incoming'
-    });
-};
-exports.toOutgoingSDPAnswer = function (session) {
-    return toSDP.toSessionSDP(session, {
-        role: 'responder',
-        direction: 'outgoing'
-    });
-};
-exports.toIncomingMediaSDPOffer = function (media) {
-    return toSDP.toMediaSDP(media, {
-        role: 'responder',
-        direction: 'incoming'
-    });
-};
-exports.toOutgoingMediaSDPOffer = function (media) {
-    return toSDP.toMediaSDP(media, {
-        role: 'initiator',
-        direction: 'outgoing'
-    });
-};
-exports.toIncomingMediaSDPAnswer = function (media) {
-    return toSDP.toMediaSDP(media, {
-        role: 'initiator',
-        direction: 'incoming'
-    });
-};
-exports.toOutgoingMediaSDPAnswer = function (media) {
-    return toSDP.toMediaSDP(media, {
-        role: 'responder',
-        direction: 'outgoing'
-    });
-};
-exports.toCandidateSDP = toSDP.toCandidateSDP;
-exports.toMediaSDP = toSDP.toMediaSDP;
-exports.toSessionSDP = toSDP.toSessionSDP;
-
-
-// Conversion from SDP to JSON
-
-exports.toIncomingJSONOffer = function (sdp, creators) {
-    return toJSON.toSessionJSON(sdp, {
-        role: 'responder',
-        direction: 'incoming',
-        creators: creators
-    });
-};
-exports.toOutgoingJSONOffer = function (sdp, creators) {
-    return toJSON.toSessionJSON(sdp, {
-        role: 'initiator',
-        direction: 'outgoing',
-        creators: creators
-    });
-};
-exports.toIncomingJSONAnswer = function (sdp, creators) {
-    return toJSON.toSessionJSON(sdp, {
-        role: 'initiator',
-        direction: 'incoming',
-        creators: creators
-    });
-};
-exports.toOutgoingJSONAnswer = function (sdp, creators) {
-    return toJSON.toSessionJSON(sdp, {
-        role: 'responder',
-        direction: 'outgoing',
-        creators: creators
-    });
-};
-exports.toIncomingMediaJSONOffer = function (sdp, creator) {
-    return toJSON.toMediaJSON(sdp, {
-        role: 'responder',
-        direction: 'incoming',
-        creator: creator
-    });
-};
-exports.toOutgoingMediaJSONOffer = function (sdp, creator) {
-    return toJSON.toMediaJSON(sdp, {
-        role: 'initiator',
-        direction: 'outgoing',
-        creator: creator
-    });
-};
-exports.toIncomingMediaJSONAnswer = function (sdp, creator) {
-    return toJSON.toMediaJSON(sdp, {
-        role: 'initiator',
-        direction: 'incoming',
-        creator: creator
-    });
-};
-exports.toOutgoingMediaJSONAnswer = function (sdp, creator) {
-    return toJSON.toMediaJSON(sdp, {
-        role: 'responder',
-        direction: 'outgoing',
-        creator: creator
-    });
-};
-exports.toCandidateJSON = toJSON.toCandidateJSON;
-exports.toMediaJSON = toJSON.toMediaJSON;
-exports.toSessionJSON = toJSON.toSessionJSON;
-
-},{"./lib/tojson":24,"./lib/tosdp":25}],22:[function(require,module,exports){
-exports.lines = function (sdp) {
-    return sdp.split('\r\n').filter(function (line) {
-        return line.length > 0;
-    });
-};
-
-exports.findLine = function (prefix, mediaLines, sessionLines) {
-    var prefixLength = prefix.length;
-    for (var i = 0; i < mediaLines.length; i++) {
-        if (mediaLines[i].substr(0, prefixLength) === prefix) {
-            return mediaLines[i];
-        }
-    }
-    // Continue searching in parent session section
-    if (!sessionLines) {
-        return false;
-    }
-
-    for (var j = 0; j < sessionLines.length; j++) {
-        if (sessionLines[j].substr(0, prefixLength) === prefix) {
-            return sessionLines[j];
-        }
-    }
-
-    return false;
-};
-
-exports.findLines = function (prefix, mediaLines, sessionLines) {
-    var results = [];
-    var prefixLength = prefix.length;
-    for (var i = 0; i < mediaLines.length; i++) {
-        if (mediaLines[i].substr(0, prefixLength) === prefix) {
-            results.push(mediaLines[i]);
-        }
-    }
-    if (results.length || !sessionLines) {
-        return results;
-    }
-    for (var j = 0; j < sessionLines.length; j++) {
-        if (sessionLines[j].substr(0, prefixLength) === prefix) {
-            results.push(sessionLines[j]);
-        }
-    }
-    return results;
-};
-
-exports.mline = function (line) {
-    var parts = line.substr(2).split(' ');
-    var parsed = {
-        media: parts[0],
-        port: parts[1],
-        proto: parts[2],
-        formats: []
-    };
-    for (var i = 3; i < parts.length; i++) {
-        if (parts[i]) {
-            parsed.formats.push(parts[i]);
-        }
-    }
-    return parsed;
-};
-
-exports.rtpmap = function (line) {
-    var parts = line.substr(9).split(' ');
-    var parsed = {
-        id: parts.shift()
-    };
-
-    parts = parts[0].split('/');
-
-    parsed.name = parts[0];
-    parsed.clockrate = parts[1];
-    parsed.channels = parts.length == 3 ? parts[2] : '1';
-    return parsed;
-};
-
-exports.sctpmap = function (line) {
-    // based on -05 draft
-    var parts = line.substr(10).split(' ');
-    var parsed = {
-        number: parts.shift(),
-        protocol: parts.shift(),
-        streams: parts.shift()
-    };
-    return parsed;
-};
-
-
-exports.fmtp = function (line) {
-    var kv, key, value;
-    var parts = line.substr(line.indexOf(' ') + 1).split(';');
-    var parsed = [];
-    for (var i = 0; i < parts.length; i++) {
-        kv = parts[i].split('=');
-        key = kv[0].trim();
-        value = kv[1];
-        if (key && value) {
-            parsed.push({key: key, value: value});
-        } else if (key) {
-            parsed.push({key: '', value: key});
-        }
-    }
-    return parsed;
-};
-
-exports.crypto = function (line) {
-    var parts = line.substr(9).split(' ');
-    var parsed = {
-        tag: parts[0],
-        cipherSuite: parts[1],
-        keyParams: parts[2],
-        sessionParams: parts.slice(3).join(' ')
-    };
-    return parsed;
-};
-
-exports.fingerprint = function (line) {
-    var parts = line.substr(14).split(' ');
-    return {
-        hash: parts[0],
-        value: parts[1]
-    };
-};
-
-exports.extmap = function (line) {
-    var parts = line.substr(9).split(' ');
-    var parsed = {};
-
-    var idpart = parts.shift();
-    var sp = idpart.indexOf('/');
-    if (sp >= 0) {
-        parsed.id = idpart.substr(0, sp);
-        parsed.senders = idpart.substr(sp + 1);
-    } else {
-        parsed.id = idpart;
-        parsed.senders = 'sendrecv';
-    }
-
-    parsed.uri = parts.shift() || '';
-
-    return parsed;
-};
-
-exports.rtcpfb = function (line) {
-    var parts = line.substr(10).split(' ');
-    var parsed = {};
-    parsed.id = parts.shift();
-    parsed.type = parts.shift();
-    if (parsed.type === 'trr-int') {
-        parsed.value = parts.shift();
-    } else {
-        parsed.subtype = parts.shift() || '';
-    }
-    parsed.parameters = parts;
-    return parsed;
-};
-
-exports.candidate = function (line) {
-    var parts;
-    if (line.indexOf('a=candidate:') === 0) {
-        parts = line.substring(12).split(' ');
-    } else { // no a=candidate
-        parts = line.substring(10).split(' ');
-    }
-
-    var candidate = {
-        foundation: parts[0],
-        component: parts[1],
-        protocol: parts[2].toLowerCase(),
-        priority: parts[3],
-        ip: parts[4],
-        port: parts[5],
-        // skip parts[6] == 'typ'
-        type: parts[7],
-        generation: '0'
-    };
-
-    for (var i = 8; i < parts.length; i += 2) {
-        if (parts[i] === 'raddr') {
-            candidate.relAddr = parts[i + 1];
-        } else if (parts[i] === 'rport') {
-            candidate.relPort = parts[i + 1];
-        } else if (parts[i] === 'generation') {
-            candidate.generation = parts[i + 1];
-        } else if (parts[i] === 'tcptype') {
-            candidate.tcpType = parts[i + 1];
-        }
-    }
-
-    candidate.network = '1';
-
-    return candidate;
-};
-
-exports.sourceGroups = function (lines) {
-    var parsed = [];
-    for (var i = 0; i < lines.length; i++) {
-        var parts = lines[i].substr(13).split(' ');
-        parsed.push({
-            semantics: parts.shift(),
-            sources: parts
-        });
-    }
-    return parsed;
-};
-
-exports.sources = function (lines) {
-    // http://tools.ietf.org/html/rfc5576
-    var parsed = [];
-    var sources = {};
-    for (var i = 0; i < lines.length; i++) {
-        var parts = lines[i].substr(7).split(' ');
-        var ssrc = parts.shift();
-
-        if (!sources[ssrc]) {
-            var source = {
-                ssrc: ssrc,
-                parameters: []
-            };
-            parsed.push(source);
-
-            // Keep an index
-            sources[ssrc] = source;
-        }
-
-        parts = parts.join(' ').split(':');
-        var attribute = parts.shift();
-        var value = parts.join(':') || null;
-
-        sources[ssrc].parameters.push({
-            key: attribute,
-            value: value
-        });
-    }
-
-    return parsed;
-};
-
-exports.groups = function (lines) {
-    // http://tools.ietf.org/html/rfc5888
-    var parsed = [];
-    var parts;
-    for (var i = 0; i < lines.length; i++) {
-        parts = lines[i].substr(8).split(' ');
-        parsed.push({
-            semantics: parts.shift(),
-            contents: parts
-        });
-    }
-    return parsed;
-};
-
-exports.bandwidth = function (line) {
-    var parts = line.substr(2).split(':');
-    var parsed = {};
-    parsed.type = parts.shift();
-    parsed.bandwidth = parts.shift();
-    return parsed;
-};
-
-exports.msid = function (line) {
-    var data = line.substr(7);
-    var parts = data.split(' ');
-    return {
-        msid: data,
-        mslabel: parts[0],
-        label: parts[1]
-    };
-};
-
-},{}],23:[function(require,module,exports){
-module.exports = {
-    initiator: {
-        incoming: {
-            initiator: 'recvonly',
-            responder: 'sendonly',
-            both: 'sendrecv',
-            none: 'inactive',
-            recvonly: 'initiator',
-            sendonly: 'responder',
-            sendrecv: 'both',
-            inactive: 'none'
-        },
-        outgoing: {
-            initiator: 'sendonly',
-            responder: 'recvonly',
-            both: 'sendrecv',
-            none: 'inactive',
-            recvonly: 'responder',
-            sendonly: 'initiator',
-            sendrecv: 'both',
-            inactive: 'none'
-        }
-    },
-    responder: {
-        incoming: {
-            initiator: 'sendonly',
-            responder: 'recvonly',
-            both: 'sendrecv',
-            none: 'inactive',
-            recvonly: 'responder',
-            sendonly: 'initiator',
-            sendrecv: 'both',
-            inactive: 'none'
-        },
-        outgoing: {
-            initiator: 'recvonly',
-            responder: 'sendonly',
-            both: 'sendrecv',
-            none: 'inactive',
-            recvonly: 'initiator',
-            sendonly: 'responder',
-            sendrecv: 'both',
-            inactive: 'none'
-        }
-    }
-};
-
-},{}],24:[function(require,module,exports){
-var SENDERS = require('./senders');
-var parsers = require('./parsers');
-var idCounter = Math.random();
-
-
-exports._setIdCounter = function (counter) {
-    idCounter = counter;
-};
-
-exports.toSessionJSON = function (sdp, opts) {
-    var i;
-    var creators = opts.creators || [];
-    var role = opts.role || 'initiator';
-    var direction = opts.direction || 'outgoing';
-
-
-    // Divide the SDP into session and media sections.
-    var media = sdp.split('\r\nm=');
-    for (i = 1; i < media.length; i++) {
-        media[i] = 'm=' + media[i];
-        if (i !== media.length - 1) {
-            media[i] += '\r\n';
-        }
-    }
-    var session = media.shift() + '\r\n';
-    var sessionLines = parsers.lines(session);
-    var parsed = {};
-
-    var contents = [];
-    for (i = 0; i < media.length; i++) {
-        contents.push(exports.toMediaJSON(media[i], session, {
-            role: role,
-            direction: direction,
-            creator: creators[i] || 'initiator'
-        }));
-    }
-    parsed.contents = contents;
-
-    var groupLines = parsers.findLines('a=group:', sessionLines);
-    if (groupLines.length) {
-        parsed.groups = parsers.groups(groupLines);
-    }
-
-    return parsed;
-};
-
-exports.toMediaJSON = function (media, session, opts) {
-    var creator = opts.creator || 'initiator';
-    var role = opts.role || 'initiator';
-    var direction = opts.direction || 'outgoing';
-
-    var lines = parsers.lines(media);
-    var sessionLines = parsers.lines(session);
-    var mline = parsers.mline(lines[0]);
-
-    var content = {
-        creator: creator,
-        name: mline.media,
-        application: {
-            applicationType: 'rtp',
-            media: mline.media,
-            payloads: [],
-            encryption: [],
-            feedback: [],
-            headerExtensions: []
-        },
-        transport: {
-            transportType: 'iceUdp',
-            candidates: [],
-            fingerprints: []
-        }
-    };
-    if (mline.media == 'application') {
-        // FIXME: the description is most likely to be independent
-        // of the SDP and should be processed by other parts of the library
-        content.application = {
-            applicationType: 'datachannel'
-        };
-        content.transport.sctp = [];
-    }
-    var desc = content.application;
-    var trans = content.transport;
-
-    // If we have a mid, use that for the content name instead.
-    var mid = parsers.findLine('a=mid:', lines);
-    if (mid) {
-        content.name = mid.substr(6);
-    }
-
-    if (parsers.findLine('a=sendrecv', lines, sessionLines)) {
-        content.senders = 'both';
-    } else if (parsers.findLine('a=sendonly', lines, sessionLines)) {
-        content.senders = SENDERS[role][direction].sendonly;
-    } else if (parsers.findLine('a=recvonly', lines, sessionLines)) {
-        content.senders = SENDERS[role][direction].recvonly;
-    } else if (parsers.findLine('a=inactive', lines, sessionLines)) {
-        content.senders = 'none';
-    }
-
-    if (desc.applicationType == 'rtp') {
-        var bandwidth = parsers.findLine('b=', lines);
-        if (bandwidth) {
-            desc.bandwidth = parsers.bandwidth(bandwidth);
-        }
-
-        var ssrc = parsers.findLine('a=ssrc:', lines);
-        if (ssrc) {
-            desc.ssrc = ssrc.substr(7).split(' ')[0];
-        }
-
-        var rtpmapLines = parsers.findLines('a=rtpmap:', lines);
-        rtpmapLines.forEach(function (line) {
-            var payload = parsers.rtpmap(line);
-            payload.parameters = [];
-            payload.feedback = [];
-
-            var fmtpLines = parsers.findLines('a=fmtp:' + payload.id, lines);
-            // There should only be one fmtp line per payload
-            fmtpLines.forEach(function (line) {
-                payload.parameters = parsers.fmtp(line);
-            });
-
-            var fbLines = parsers.findLines('a=rtcp-fb:' + payload.id, lines);
-            fbLines.forEach(function (line) {
-                payload.feedback.push(parsers.rtcpfb(line));
-            });
-
-            desc.payloads.push(payload);
-        });
-
-        var cryptoLines = parsers.findLines('a=crypto:', lines, sessionLines);
-        cryptoLines.forEach(function (line) {
-            desc.encryption.push(parsers.crypto(line));
-        });
-
-        if (parsers.findLine('a=rtcp-mux', lines)) {
-            desc.mux = true;
-        }
-
-        var fbLines = parsers.findLines('a=rtcp-fb:*', lines);
-        fbLines.forEach(function (line) {
-            desc.feedback.push(parsers.rtcpfb(line));
-        });
-
-        var extLines = parsers.findLines('a=extmap:', lines);
-        extLines.forEach(function (line) {
-            var ext = parsers.extmap(line);
-
-            ext.senders = SENDERS[role][direction][ext.senders];
-
-            desc.headerExtensions.push(ext);
-        });
-
-        var ssrcGroupLines = parsers.findLines('a=ssrc-group:', lines);
-        desc.sourceGroups = parsers.sourceGroups(ssrcGroupLines || []);
-
-        var ssrcLines = parsers.findLines('a=ssrc:', lines);
-        var sources = desc.sources = parsers.sources(ssrcLines || []);
-
-        var msidLine = parsers.findLine('a=msid:', lines);
-        if (msidLine) {
-            var msid = parsers.msid(msidLine);
-            ['msid', 'mslabel', 'label'].forEach(function (key) {
-                for (var i = 0; i < sources.length; i++) {
-                    var found = false;
-                    for (var j = 0; j < sources[i].parameters.length; j++) {
-                        if (sources[i].parameters[j].key === key) {
-                            found = true;
-                        }
-                    }
-                    if (!found) {
-                        sources[i].parameters.push({ key: key, value: msid[key] });
-                    }
-                }
-            });
-        }
-
-        if (parsers.findLine('a=x-google-flag:conference', lines, sessionLines)) {
-            desc.googConferenceFlag = true;
-        }
-    }
-
-    // transport specific attributes
-    var fingerprintLines = parsers.findLines('a=fingerprint:', lines, sessionLines);
-    var setup = parsers.findLine('a=setup:', lines, sessionLines);
-    fingerprintLines.forEach(function (line) {
-        var fp = parsers.fingerprint(line);
-        if (setup) {
-            fp.setup = setup.substr(8);
-        }
-        trans.fingerprints.push(fp);
-    });
-
-    var ufragLine = parsers.findLine('a=ice-ufrag:', lines, sessionLines);
-    var pwdLine = parsers.findLine('a=ice-pwd:', lines, sessionLines);
-    if (ufragLine && pwdLine) {
-        trans.ufrag = ufragLine.substr(12);
-        trans.pwd = pwdLine.substr(10);
-        trans.candidates = [];
-
-        var candidateLines = parsers.findLines('a=candidate:', lines, sessionLines);
-        candidateLines.forEach(function (line) {
-            trans.candidates.push(exports.toCandidateJSON(line));
-        });
-    }
-
-    if (desc.applicationType == 'datachannel') {
-        var sctpmapLines = parsers.findLines('a=sctpmap:', lines);
-        sctpmapLines.forEach(function (line) {
-            var sctp = parsers.sctpmap(line);
-            trans.sctp.push(sctp);
-        });
-    }
-
-    return content;
-};
-
-exports.toCandidateJSON = function (line) {
-    var candidate = parsers.candidate(line.split('\r\n')[0]);
-    candidate.id = (idCounter++).toString(36).substr(0, 12);
-    return candidate;
-};
-
-},{"./parsers":22,"./senders":23}],25:[function(require,module,exports){
-var SENDERS = require('./senders');
-
-
-exports.toSessionSDP = function (session, opts) {
-    var role = opts.role || 'initiator';
-    var direction = opts.direction || 'outgoing';
-    var sid = opts.sid || session.sid || Date.now();
-    var time = opts.time || Date.now();
-
-    var sdp = [
-        'v=0',
-        'o=- ' + sid + ' ' + time + ' IN IP4 0.0.0.0',
-        's=-',
-        't=0 0'
-    ];
-
-    var contents = session.contents || [];
-    var hasSources = false;
-    contents.forEach(function (content) {
-        if (content.application.sources &&
-            content.application.sources.length) {
-            hasSources = true;
-        }
-    });
-
-    if (hasSources) {
-        sdp.push('a=msid-semantic: WMS *');
-    }
-
-    var groups = session.groups || [];
-    groups.forEach(function (group) {
-        sdp.push('a=group:' + group.semantics + ' ' + group.contents.join(' '));
-    });
-
-
-    contents.forEach(function (content) {
-        sdp.push(exports.toMediaSDP(content, opts));
-    });
-
-    return sdp.join('\r\n') + '\r\n';
-};
-
-exports.toMediaSDP = function (content, opts) {
-    var sdp = [];
-
-    var role = opts.role || 'initiator';
-    var direction = opts.direction || 'outgoing';
-
-    var desc = content.application;
-    var transport = content.transport;
-    var payloads = desc.payloads || [];
-    var fingerprints = (transport && transport.fingerprints) || [];
-
-    var mline = [];
-    if (desc.applicationType == 'datachannel') {
-        mline.push('application');
-        mline.push('1');
-        mline.push('DTLS/SCTP');
-        if (transport.sctp) {
-            transport.sctp.forEach(function (map) {
-                mline.push(map.number);
-            });
-        }
-    } else {
-        mline.push(desc.media);
-        mline.push('1');
-        if (fingerprints.length > 0) {
-            mline.push('UDP/TLS/RTP/SAVPF');
-        } else if (desc.encryption && desc.encryption.length > 0) {
-            mline.push('RTP/SAVPF');
-        } else {
-            mline.push('RTP/AVPF');
-        }
-        payloads.forEach(function (payload) {
-            mline.push(payload.id);
-        });
-    }
-
-
-    sdp.push('m=' + mline.join(' '));
-
-    sdp.push('c=IN IP4 0.0.0.0');
-    if (desc.bandwidth && desc.bandwidth.type && desc.bandwidth.bandwidth) {
-        sdp.push('b=' + desc.bandwidth.type + ':' + desc.bandwidth.bandwidth);
-    }
-    if (desc.applicationType == 'rtp') {
-        sdp.push('a=rtcp:1 IN IP4 0.0.0.0');
-    }
-
-    if (transport) {
-        if (transport.ufrag) {
-            sdp.push('a=ice-ufrag:' + transport.ufrag);
-        }
-        if (transport.pwd) {
-            sdp.push('a=ice-pwd:' + transport.pwd);
-        }
-
-        var pushedSetup = false;
-        fingerprints.forEach(function (fingerprint) {
-            sdp.push('a=fingerprint:' + fingerprint.hash + ' ' + fingerprint.value);
-            if (fingerprint.setup && !pushedSetup) {
-                sdp.push('a=setup:' + fingerprint.setup);
-            }
-        });
-
-        if (transport.sctp) {
-            transport.sctp.forEach(function (map) {
-                sdp.push('a=sctpmap:' + map.number + ' ' + map.protocol + ' ' + map.streams);
-            });
-        }
-    }
-
-    if (desc.applicationType == 'rtp') {
-        sdp.push('a=' + (SENDERS[role][direction][content.senders] || 'sendrecv'));
-    }
-    sdp.push('a=mid:' + content.name);
-
-    if (desc.sources && desc.sources.length) {
-        (desc.sources[0].parameters || []).forEach(function (param) {
-            if (param.key === 'msid') {
-                sdp.push('a=msid:' + param.value);
-            }
-        });
-    }
-
-    if (desc.mux) {
-        sdp.push('a=rtcp-mux');
-    }
-
-    var encryption = desc.encryption || [];
-    encryption.forEach(function (crypto) {
-        sdp.push('a=crypto:' + crypto.tag + ' ' + crypto.cipherSuite + ' ' + crypto.keyParams + (crypto.sessionParams ? ' ' + crypto.sessionParams : ''));
-    });
-    if (desc.googConferenceFlag) {
-        sdp.push('a=x-google-flag:conference');
-    }
-
-    payloads.forEach(function (payload) {
-        var rtpmap = 'a=rtpmap:' + payload.id + ' ' + payload.name + '/' + payload.clockrate;
-        if (payload.channels && payload.channels != '1') {
-            rtpmap += '/' + payload.channels;
-        }
-        sdp.push(rtpmap);
-
-        if (payload.parameters && payload.parameters.length) {
-            var fmtp = ['a=fmtp:' + payload.id];
-            var parameters = [];
-            payload.parameters.forEach(function (param) {
-                parameters.push((param.key ? param.key + '=' : '') + param.value);
-            });
-            fmtp.push(parameters.join(';'));
-            sdp.push(fmtp.join(' '));
-        }
-
-        if (payload.feedback) {
-            payload.feedback.forEach(function (fb) {
-                if (fb.type === 'trr-int') {
-                    sdp.push('a=rtcp-fb:' + payload.id + ' trr-int ' + (fb.value ? fb.value : '0'));
-                } else {
-                    sdp.push('a=rtcp-fb:' + payload.id + ' ' + fb.type + (fb.subtype ? ' ' + fb.subtype : ''));
-                }
-            });
-        }
-    });
-
-    if (desc.feedback) {
-        desc.feedback.forEach(function (fb) {
-            if (fb.type === 'trr-int') {
-                sdp.push('a=rtcp-fb:* trr-int ' + (fb.value ? fb.value : '0'));
-            } else {
-                sdp.push('a=rtcp-fb:* ' + fb.type + (fb.subtype ? ' ' + fb.subtype : ''));
-            }
-        });
-    }
-
-    var hdrExts = desc.headerExtensions || [];
-    hdrExts.forEach(function (hdr) {
-        sdp.push('a=extmap:' + hdr.id + (hdr.senders ? '/' + SENDERS[role][direction][hdr.senders] : '') + ' ' + hdr.uri);
-    });
-
-    var ssrcGroups = desc.sourceGroups || [];
-    ssrcGroups.forEach(function (ssrcGroup) {
-        sdp.push('a=ssrc-group:' + ssrcGroup.semantics + ' ' + ssrcGroup.sources.join(' '));
-    });
-
-    var ssrcs = desc.sources || [];
-    ssrcs.forEach(function (ssrc) {
-        for (var i = 0; i < ssrc.parameters.length; i++) {
-            var param = ssrc.parameters[i];
-            sdp.push('a=ssrc:' + (ssrc.ssrc || desc.ssrc) + ' ' + param.key + (param.value ? (':' + param.value) : ''));
-        }
-    });
-
-    var candidates = transport.candidates || [];
-    candidates.forEach(function (candidate) {
-        sdp.push(exports.toCandidateSDP(candidate));
-    });
-
-    return sdp.join('\r\n');
-};
-
-exports.toCandidateSDP = function (candidate) {
-    var sdp = [];
-
-    sdp.push(candidate.foundation);
-    sdp.push(candidate.component);
-    sdp.push(candidate.protocol.toUpperCase());
-    sdp.push(candidate.priority);
-    sdp.push(candidate.ip);
-    sdp.push(candidate.port);
-
-    var type = candidate.type;
-    sdp.push('typ');
-    sdp.push(type);
-    if (type === 'srflx' || type === 'prflx' || type === 'relay') {
-        if (candidate.relAddr && candidate.relPort) {
-            sdp.push('raddr');
-            sdp.push(candidate.relAddr);
-            sdp.push('rport');
-            sdp.push(candidate.relPort);
-        }
-    }
-    if (candidate.tcpType && candidate.protocol.toUpperCase() == 'TCP') {
-        sdp.push('tcptype');
-        sdp.push(candidate.tcpType);
-    }
-
-    sdp.push('generation');
-    sdp.push(candidate.generation || '0');
-
-    // FIXME: apparently this is wrong per spec
-    // but then, we need this when actually putting this into
-    // SDP so it's going to stay.
-    // decision needs to be revisited when browsers dont
-    // accept this any longer
-    return 'a=candidate:' + sdp.join(' ');
-};
-
-},{"./senders":23}],26:[function(require,module,exports){
-// based on https://github.com/ESTOS/strophe.jingle/
-// adds wildemitter support
-var util = require('util');
-var adapter = require('webrtc-adapter'); // jshint ignore:line
-var WildEmitter = require('wildemitter');
-
-function dumpSDP(description) {
-    return {
-        type: description.type,
-        sdp: description.sdp
-    };
-}
-
-function dumpStream(stream) {
-    var info = {
-        label: stream.id,
-    };
-    if (stream.getAudioTracks().length) {
-        info.audio = stream.getAudioTracks().map(function (track) {
-            return track.id;
-        });
-    }
-    if (stream.getVideoTracks().length) {
-        info.video = stream.getVideoTracks().map(function (track) {
-            return track.id;
-        });
-    }
-    return info;
-}
-
-function TraceablePeerConnection(config, constraints) {
-    var self = this;
-    WildEmitter.call(this);
-
-    this.peerconnection = new window.RTCPeerConnection(config, constraints);
-
-    this.trace = function (what, info) {
-        self.emit('PeerConnectionTrace', {
-            time: new Date(),
-            type: what,
-            value: info || ""
-        });
-    };
-
-    this.onicecandidate = null;
-    this.peerconnection.onicecandidate = function (event) {
-        self.trace('onicecandidate', event.candidate);
-        if (self.onicecandidate !== null) {
-            self.onicecandidate(event);
-        }
-    };
-    this.onaddstream = null;
-    this.peerconnection.onaddstream = function (event) {
-        self.trace('onaddstream', dumpStream(event.stream));
-        if (self.onaddstream !== null) {
-            self.onaddstream(event);
-        }
-    };
-    this.onremovestream = null;
-    this.peerconnection.onremovestream = function (event) {
-        self.trace('onremovestream', dumpStream(event.stream));
-        if (self.onremovestream !== null) {
-            self.onremovestream(event);
-        }
-    };
-    this.onsignalingstatechange = null;
-    this.peerconnection.onsignalingstatechange = function (event) {
-        self.trace('onsignalingstatechange', self.signalingState);
-        if (self.onsignalingstatechange !== null) {
-            self.onsignalingstatechange(event);
-        }
-    };
-    this.oniceconnectionstatechange = null;
-    this.peerconnection.oniceconnectionstatechange = function (event) {
-        self.trace('oniceconnectionstatechange', self.iceConnectionState);
-        if (self.oniceconnectionstatechange !== null) {
-            self.oniceconnectionstatechange(event);
-        }
-    };
-    this.onnegotiationneeded = null;
-    this.peerconnection.onnegotiationneeded = function (event) {
-        self.trace('onnegotiationneeded');
-        if (self.onnegotiationneeded !== null) {
-            self.onnegotiationneeded(event);
-        }
-    };
-    self.ondatachannel = null;
-    this.peerconnection.ondatachannel = function (event) {
-        self.trace('ondatachannel', event);
-        if (self.ondatachannel !== null) {
-            self.ondatachannel(event);
-        }
-    };
-    this.getLocalStreams = this.peerconnection.getLocalStreams.bind(this.peerconnection);
-    this.getRemoteStreams = this.peerconnection.getRemoteStreams.bind(this.peerconnection);
-}
-
-util.inherits(TraceablePeerConnection, WildEmitter);
-
-['signalingState', 'iceConnectionState', 'localDescription', 'remoteDescription'].forEach(function (prop) {
-    Object.defineProperty(TraceablePeerConnection.prototype, prop, {
-        get: function () {
-            return this.peerconnection[prop];
-        }
-    });
-});
-
-TraceablePeerConnection.prototype.addStream = function (stream) {
-    this.trace('addStream', dumpStream(stream));
-    this.peerconnection.addStream(stream);
-};
-
-TraceablePeerConnection.prototype.removeStream = function (stream) {
-    this.trace('removeStream', dumpStream(stream));
-    this.peerconnection.removeStream(stream);
-};
-
-TraceablePeerConnection.prototype.createDataChannel = function (label, opts) {
-    this.trace('createDataChannel', label, opts);
-    return this.peerconnection.createDataChannel(label, opts);
-};
-
-TraceablePeerConnection.prototype.setLocalDescription = function (description, successCallback, failureCallback) {
-    var self = this;
-    this.trace('setLocalDescription', dumpSDP(description));
-    return this.peerconnection.setLocalDescription(
-        description
-    ).then(
-        function () {
-            self.trace('setLocalDescriptionOnSuccess');
-            if (successCallback) successCallback();
-        },
-        function (err) {
-            self.trace('setLocalDescriptionOnFailure', err);
-            if (failureCallback) failureCallback(err);
-        }
-    );
-};
-
-TraceablePeerConnection.prototype.setRemoteDescription = function (description, successCallback, failureCallback) {
-    var self = this;
-    this.trace('setRemoteDescription', dumpSDP(description));
-    return this.peerconnection.setRemoteDescription(
-        description
-    ).then(
-        function () {
-            self.trace('setRemoteDescriptionOnSuccess');
-            if (successCallback) successCallback();
-        },
-        function (err) {
-            self.trace('setRemoteDescriptionOnFailure', err);
-            if (failureCallback) failureCallback(err);
-        }
-    );
-};
-
-TraceablePeerConnection.prototype.close = function () {
-    this.trace('stop');
-    if (this.peerconnection.signalingState != 'closed') {
-        this.peerconnection.close();
-    }
-};
-
-TraceablePeerConnection.prototype.createOffer = function (successCallback, failureCallback, constraints) {
-    var self = this;
-    this.trace('createOffer', constraints);
-    return this.peerconnection.createOffer(
-        constraints
-    ).then(
-        function (offer) {
-            self.trace('createOfferOnSuccess', dumpSDP(offer));
-            if (successCallback) successCallback(offer);
-        },
-        function (err) {
-            self.trace('createOfferOnFailure', err);
-            if (failureCallback) failureCallback(err);
-        }
-    );
-};
-
-TraceablePeerConnection.prototype.createAnswer = function (successCallback, failureCallback, constraints) {
-    var self = this;
-    this.trace('createAnswer', constraints);
-    return this.peerconnection.createAnswer(
-        constraints
-    ).then(
-        function (answer) {
-            self.trace('createAnswerOnSuccess', dumpSDP(answer));
-            if (successCallback) successCallback(answer);
-        },
-        function (err) {
-            self.trace('createAnswerOnFailure', err);
-            if (failureCallback) failureCallback(err);
-        }
-    );
-};
-
-TraceablePeerConnection.prototype.addIceCandidate = function (candidate, successCallback, failureCallback) {
-    var self = this;
-    this.trace('addIceCandidate', candidate);
-    return this.peerconnection.addIceCandidate(
-        candidate
-    ).then(
-        function () {
-            //self.trace('addIceCandidateOnSuccess');
-            if (successCallback) successCallback();
-        },
-        function (err) {
-            self.trace('addIceCandidateOnFailure', err);
-            if (failureCallback) failureCallback(err);
-        }
-    );
-};
-
-TraceablePeerConnection.prototype.getStats = function () {
-    this.peerconnection.getStats.apply(this.peerconnection, arguments);
-};
-
-module.exports = TraceablePeerConnection;
-
-},{"util":40,"webrtc-adapter":28,"wildemitter":37}],27:[function(require,module,exports){
-arguments[4][5][0].apply(exports,arguments)
-},{"dup":5}],28:[function(require,module,exports){
-arguments[4][6][0].apply(exports,arguments)
-},{"./chrome/chrome_shim":29,"./edge/edge_shim":31,"./firefox/firefox_shim":33,"./safari/safari_shim":35,"./utils":36,"dup":6}],29:[function(require,module,exports){
-arguments[4][7][0].apply(exports,arguments)
-},{"../utils.js":36,"./getusermedia":30,"dup":7}],30:[function(require,module,exports){
-arguments[4][8][0].apply(exports,arguments)
-},{"../utils.js":36,"dup":8}],31:[function(require,module,exports){
-arguments[4][9][0].apply(exports,arguments)
-},{"../utils":36,"./getusermedia":32,"dup":9,"sdp":27}],32:[function(require,module,exports){
-arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],33:[function(require,module,exports){
-arguments[4][11][0].apply(exports,arguments)
-},{"../utils":36,"./getusermedia":34,"dup":11}],34:[function(require,module,exports){
-arguments[4][12][0].apply(exports,arguments)
-},{"../utils":36,"dup":12}],35:[function(require,module,exports){
-arguments[4][13][0].apply(exports,arguments)
-},{"dup":13}],36:[function(require,module,exports){
-arguments[4][14][0].apply(exports,arguments)
-},{"dup":14}],37:[function(require,module,exports){
-arguments[4][19][0].apply(exports,arguments)
-},{"dup":19}],38:[function(require,module,exports){
 var util = require('util');
 var SJJ = require('sdp-jingle-json');
 var WildEmitter = require('wildemitter');
@@ -5782,14 +4635,1141 @@ PeerConnection.prototype.getStats = function (cb) {
 
 module.exports = PeerConnection;
 
-},{"sdp-jingle-json":21,"traceablepeerconnection":26,"util":40,"webrtc-adapter":28,"wildemitter":37}],39:[function(require,module,exports){
+},{"sdp-jingle-json":22,"traceablepeerconnection":28,"util":30,"webrtc-adapter":31,"wildemitter":40}],22:[function(require,module,exports){
+var toSDP = require('./lib/tosdp');
+var toJSON = require('./lib/tojson');
+
+
+// Converstion from JSON to SDP
+
+exports.toIncomingSDPOffer = function (session) {
+    return toSDP.toSessionSDP(session, {
+        role: 'responder',
+        direction: 'incoming'
+    });
+};
+exports.toOutgoingSDPOffer = function (session) {
+    return toSDP.toSessionSDP(session, {
+        role: 'initiator',
+        direction: 'outgoing'
+    });
+};
+exports.toIncomingSDPAnswer = function (session) {
+    return toSDP.toSessionSDP(session, {
+        role: 'initiator',
+        direction: 'incoming'
+    });
+};
+exports.toOutgoingSDPAnswer = function (session) {
+    return toSDP.toSessionSDP(session, {
+        role: 'responder',
+        direction: 'outgoing'
+    });
+};
+exports.toIncomingMediaSDPOffer = function (media) {
+    return toSDP.toMediaSDP(media, {
+        role: 'responder',
+        direction: 'incoming'
+    });
+};
+exports.toOutgoingMediaSDPOffer = function (media) {
+    return toSDP.toMediaSDP(media, {
+        role: 'initiator',
+        direction: 'outgoing'
+    });
+};
+exports.toIncomingMediaSDPAnswer = function (media) {
+    return toSDP.toMediaSDP(media, {
+        role: 'initiator',
+        direction: 'incoming'
+    });
+};
+exports.toOutgoingMediaSDPAnswer = function (media) {
+    return toSDP.toMediaSDP(media, {
+        role: 'responder',
+        direction: 'outgoing'
+    });
+};
+exports.toCandidateSDP = toSDP.toCandidateSDP;
+exports.toMediaSDP = toSDP.toMediaSDP;
+exports.toSessionSDP = toSDP.toSessionSDP;
+
+
+// Conversion from SDP to JSON
+
+exports.toIncomingJSONOffer = function (sdp, creators) {
+    return toJSON.toSessionJSON(sdp, {
+        role: 'responder',
+        direction: 'incoming',
+        creators: creators
+    });
+};
+exports.toOutgoingJSONOffer = function (sdp, creators) {
+    return toJSON.toSessionJSON(sdp, {
+        role: 'initiator',
+        direction: 'outgoing',
+        creators: creators
+    });
+};
+exports.toIncomingJSONAnswer = function (sdp, creators) {
+    return toJSON.toSessionJSON(sdp, {
+        role: 'initiator',
+        direction: 'incoming',
+        creators: creators
+    });
+};
+exports.toOutgoingJSONAnswer = function (sdp, creators) {
+    return toJSON.toSessionJSON(sdp, {
+        role: 'responder',
+        direction: 'outgoing',
+        creators: creators
+    });
+};
+exports.toIncomingMediaJSONOffer = function (sdp, creator) {
+    return toJSON.toMediaJSON(sdp, {
+        role: 'responder',
+        direction: 'incoming',
+        creator: creator
+    });
+};
+exports.toOutgoingMediaJSONOffer = function (sdp, creator) {
+    return toJSON.toMediaJSON(sdp, {
+        role: 'initiator',
+        direction: 'outgoing',
+        creator: creator
+    });
+};
+exports.toIncomingMediaJSONAnswer = function (sdp, creator) {
+    return toJSON.toMediaJSON(sdp, {
+        role: 'initiator',
+        direction: 'incoming',
+        creator: creator
+    });
+};
+exports.toOutgoingMediaJSONAnswer = function (sdp, creator) {
+    return toJSON.toMediaJSON(sdp, {
+        role: 'responder',
+        direction: 'outgoing',
+        creator: creator
+    });
+};
+exports.toCandidateJSON = toJSON.toCandidateJSON;
+exports.toMediaJSON = toJSON.toMediaJSON;
+exports.toSessionJSON = toJSON.toSessionJSON;
+
+},{"./lib/tojson":25,"./lib/tosdp":26}],23:[function(require,module,exports){
+exports.lines = function (sdp) {
+    return sdp.split('\r\n').filter(function (line) {
+        return line.length > 0;
+    });
+};
+
+exports.findLine = function (prefix, mediaLines, sessionLines) {
+    var prefixLength = prefix.length;
+    for (var i = 0; i < mediaLines.length; i++) {
+        if (mediaLines[i].substr(0, prefixLength) === prefix) {
+            return mediaLines[i];
+        }
+    }
+    // Continue searching in parent session section
+    if (!sessionLines) {
+        return false;
+    }
+
+    for (var j = 0; j < sessionLines.length; j++) {
+        if (sessionLines[j].substr(0, prefixLength) === prefix) {
+            return sessionLines[j];
+        }
+    }
+
+    return false;
+};
+
+exports.findLines = function (prefix, mediaLines, sessionLines) {
+    var results = [];
+    var prefixLength = prefix.length;
+    for (var i = 0; i < mediaLines.length; i++) {
+        if (mediaLines[i].substr(0, prefixLength) === prefix) {
+            results.push(mediaLines[i]);
+        }
+    }
+    if (results.length || !sessionLines) {
+        return results;
+    }
+    for (var j = 0; j < sessionLines.length; j++) {
+        if (sessionLines[j].substr(0, prefixLength) === prefix) {
+            results.push(sessionLines[j]);
+        }
+    }
+    return results;
+};
+
+exports.mline = function (line) {
+    var parts = line.substr(2).split(' ');
+    var parsed = {
+        media: parts[0],
+        port: parts[1],
+        proto: parts[2],
+        formats: []
+    };
+    for (var i = 3; i < parts.length; i++) {
+        if (parts[i]) {
+            parsed.formats.push(parts[i]);
+        }
+    }
+    return parsed;
+};
+
+exports.rtpmap = function (line) {
+    var parts = line.substr(9).split(' ');
+    var parsed = {
+        id: parts.shift()
+    };
+
+    parts = parts[0].split('/');
+
+    parsed.name = parts[0];
+    parsed.clockrate = parts[1];
+    parsed.channels = parts.length == 3 ? parts[2] : '1';
+    return parsed;
+};
+
+exports.sctpmap = function (line) {
+    // based on -05 draft
+    var parts = line.substr(10).split(' ');
+    var parsed = {
+        number: parts.shift(),
+        protocol: parts.shift(),
+        streams: parts.shift()
+    };
+    return parsed;
+};
+
+
+exports.fmtp = function (line) {
+    var kv, key, value;
+    var parts = line.substr(line.indexOf(' ') + 1).split(';');
+    var parsed = [];
+    for (var i = 0; i < parts.length; i++) {
+        kv = parts[i].split('=');
+        key = kv[0].trim();
+        value = kv[1];
+        if (key && value) {
+            parsed.push({key: key, value: value});
+        } else if (key) {
+            parsed.push({key: '', value: key});
+        }
+    }
+    return parsed;
+};
+
+exports.crypto = function (line) {
+    var parts = line.substr(9).split(' ');
+    var parsed = {
+        tag: parts[0],
+        cipherSuite: parts[1],
+        keyParams: parts[2],
+        sessionParams: parts.slice(3).join(' ')
+    };
+    return parsed;
+};
+
+exports.fingerprint = function (line) {
+    var parts = line.substr(14).split(' ');
+    return {
+        hash: parts[0],
+        value: parts[1]
+    };
+};
+
+exports.extmap = function (line) {
+    var parts = line.substr(9).split(' ');
+    var parsed = {};
+
+    var idpart = parts.shift();
+    var sp = idpart.indexOf('/');
+    if (sp >= 0) {
+        parsed.id = idpart.substr(0, sp);
+        parsed.senders = idpart.substr(sp + 1);
+    } else {
+        parsed.id = idpart;
+        parsed.senders = 'sendrecv';
+    }
+
+    parsed.uri = parts.shift() || '';
+
+    return parsed;
+};
+
+exports.rtcpfb = function (line) {
+    var parts = line.substr(10).split(' ');
+    var parsed = {};
+    parsed.id = parts.shift();
+    parsed.type = parts.shift();
+    if (parsed.type === 'trr-int') {
+        parsed.value = parts.shift();
+    } else {
+        parsed.subtype = parts.shift() || '';
+    }
+    parsed.parameters = parts;
+    return parsed;
+};
+
+exports.candidate = function (line) {
+    var parts;
+    if (line.indexOf('a=candidate:') === 0) {
+        parts = line.substring(12).split(' ');
+    } else { // no a=candidate
+        parts = line.substring(10).split(' ');
+    }
+
+    var candidate = {
+        foundation: parts[0],
+        component: parts[1],
+        protocol: parts[2].toLowerCase(),
+        priority: parts[3],
+        ip: parts[4],
+        port: parts[5],
+        // skip parts[6] == 'typ'
+        type: parts[7],
+        generation: '0'
+    };
+
+    for (var i = 8; i < parts.length; i += 2) {
+        if (parts[i] === 'raddr') {
+            candidate.relAddr = parts[i + 1];
+        } else if (parts[i] === 'rport') {
+            candidate.relPort = parts[i + 1];
+        } else if (parts[i] === 'generation') {
+            candidate.generation = parts[i + 1];
+        } else if (parts[i] === 'tcptype') {
+            candidate.tcpType = parts[i + 1];
+        }
+    }
+
+    candidate.network = '1';
+
+    return candidate;
+};
+
+exports.sourceGroups = function (lines) {
+    var parsed = [];
+    for (var i = 0; i < lines.length; i++) {
+        var parts = lines[i].substr(13).split(' ');
+        parsed.push({
+            semantics: parts.shift(),
+            sources: parts
+        });
+    }
+    return parsed;
+};
+
+exports.sources = function (lines) {
+    // http://tools.ietf.org/html/rfc5576
+    var parsed = [];
+    var sources = {};
+    for (var i = 0; i < lines.length; i++) {
+        var parts = lines[i].substr(7).split(' ');
+        var ssrc = parts.shift();
+
+        if (!sources[ssrc]) {
+            var source = {
+                ssrc: ssrc,
+                parameters: []
+            };
+            parsed.push(source);
+
+            // Keep an index
+            sources[ssrc] = source;
+        }
+
+        parts = parts.join(' ').split(':');
+        var attribute = parts.shift();
+        var value = parts.join(':') || null;
+
+        sources[ssrc].parameters.push({
+            key: attribute,
+            value: value
+        });
+    }
+
+    return parsed;
+};
+
+exports.groups = function (lines) {
+    // http://tools.ietf.org/html/rfc5888
+    var parsed = [];
+    var parts;
+    for (var i = 0; i < lines.length; i++) {
+        parts = lines[i].substr(8).split(' ');
+        parsed.push({
+            semantics: parts.shift(),
+            contents: parts
+        });
+    }
+    return parsed;
+};
+
+exports.bandwidth = function (line) {
+    var parts = line.substr(2).split(':');
+    var parsed = {};
+    parsed.type = parts.shift();
+    parsed.bandwidth = parts.shift();
+    return parsed;
+};
+
+exports.msid = function (line) {
+    var data = line.substr(7);
+    var parts = data.split(' ');
+    return {
+        msid: data,
+        mslabel: parts[0],
+        label: parts[1]
+    };
+};
+
+},{}],24:[function(require,module,exports){
+module.exports = {
+    initiator: {
+        incoming: {
+            initiator: 'recvonly',
+            responder: 'sendonly',
+            both: 'sendrecv',
+            none: 'inactive',
+            recvonly: 'initiator',
+            sendonly: 'responder',
+            sendrecv: 'both',
+            inactive: 'none'
+        },
+        outgoing: {
+            initiator: 'sendonly',
+            responder: 'recvonly',
+            both: 'sendrecv',
+            none: 'inactive',
+            recvonly: 'responder',
+            sendonly: 'initiator',
+            sendrecv: 'both',
+            inactive: 'none'
+        }
+    },
+    responder: {
+        incoming: {
+            initiator: 'sendonly',
+            responder: 'recvonly',
+            both: 'sendrecv',
+            none: 'inactive',
+            recvonly: 'responder',
+            sendonly: 'initiator',
+            sendrecv: 'both',
+            inactive: 'none'
+        },
+        outgoing: {
+            initiator: 'recvonly',
+            responder: 'sendonly',
+            both: 'sendrecv',
+            none: 'inactive',
+            recvonly: 'initiator',
+            sendonly: 'responder',
+            sendrecv: 'both',
+            inactive: 'none'
+        }
+    }
+};
+
+},{}],25:[function(require,module,exports){
+var SENDERS = require('./senders');
+var parsers = require('./parsers');
+var idCounter = Math.random();
+
+
+exports._setIdCounter = function (counter) {
+    idCounter = counter;
+};
+
+exports.toSessionJSON = function (sdp, opts) {
+    var i;
+    var creators = opts.creators || [];
+    var role = opts.role || 'initiator';
+    var direction = opts.direction || 'outgoing';
+
+
+    // Divide the SDP into session and media sections.
+    var media = sdp.split('\r\nm=');
+    for (i = 1; i < media.length; i++) {
+        media[i] = 'm=' + media[i];
+        if (i !== media.length - 1) {
+            media[i] += '\r\n';
+        }
+    }
+    var session = media.shift() + '\r\n';
+    var sessionLines = parsers.lines(session);
+    var parsed = {};
+
+    var contents = [];
+    for (i = 0; i < media.length; i++) {
+        contents.push(exports.toMediaJSON(media[i], session, {
+            role: role,
+            direction: direction,
+            creator: creators[i] || 'initiator'
+        }));
+    }
+    parsed.contents = contents;
+
+    var groupLines = parsers.findLines('a=group:', sessionLines);
+    if (groupLines.length) {
+        parsed.groups = parsers.groups(groupLines);
+    }
+
+    return parsed;
+};
+
+exports.toMediaJSON = function (media, session, opts) {
+    var creator = opts.creator || 'initiator';
+    var role = opts.role || 'initiator';
+    var direction = opts.direction || 'outgoing';
+
+    var lines = parsers.lines(media);
+    var sessionLines = parsers.lines(session);
+    var mline = parsers.mline(lines[0]);
+
+    var content = {
+        creator: creator,
+        name: mline.media,
+        application: {
+            applicationType: 'rtp',
+            media: mline.media,
+            payloads: [],
+            encryption: [],
+            feedback: [],
+            headerExtensions: []
+        },
+        transport: {
+            transportType: 'iceUdp',
+            candidates: [],
+            fingerprints: []
+        }
+    };
+    if (mline.media == 'application') {
+        // FIXME: the description is most likely to be independent
+        // of the SDP and should be processed by other parts of the library
+        content.application = {
+            applicationType: 'datachannel'
+        };
+        content.transport.sctp = [];
+    }
+    var desc = content.application;
+    var trans = content.transport;
+
+    // If we have a mid, use that for the content name instead.
+    var mid = parsers.findLine('a=mid:', lines);
+    if (mid) {
+        content.name = mid.substr(6);
+    }
+
+    if (parsers.findLine('a=sendrecv', lines, sessionLines)) {
+        content.senders = 'both';
+    } else if (parsers.findLine('a=sendonly', lines, sessionLines)) {
+        content.senders = SENDERS[role][direction].sendonly;
+    } else if (parsers.findLine('a=recvonly', lines, sessionLines)) {
+        content.senders = SENDERS[role][direction].recvonly;
+    } else if (parsers.findLine('a=inactive', lines, sessionLines)) {
+        content.senders = 'none';
+    }
+
+    if (desc.applicationType == 'rtp') {
+        var bandwidth = parsers.findLine('b=', lines);
+        if (bandwidth) {
+            desc.bandwidth = parsers.bandwidth(bandwidth);
+        }
+
+        var ssrc = parsers.findLine('a=ssrc:', lines);
+        if (ssrc) {
+            desc.ssrc = ssrc.substr(7).split(' ')[0];
+        }
+
+        var rtpmapLines = parsers.findLines('a=rtpmap:', lines);
+        rtpmapLines.forEach(function (line) {
+            var payload = parsers.rtpmap(line);
+            payload.parameters = [];
+            payload.feedback = [];
+
+            var fmtpLines = parsers.findLines('a=fmtp:' + payload.id, lines);
+            // There should only be one fmtp line per payload
+            fmtpLines.forEach(function (line) {
+                payload.parameters = parsers.fmtp(line);
+            });
+
+            var fbLines = parsers.findLines('a=rtcp-fb:' + payload.id, lines);
+            fbLines.forEach(function (line) {
+                payload.feedback.push(parsers.rtcpfb(line));
+            });
+
+            desc.payloads.push(payload);
+        });
+
+        var cryptoLines = parsers.findLines('a=crypto:', lines, sessionLines);
+        cryptoLines.forEach(function (line) {
+            desc.encryption.push(parsers.crypto(line));
+        });
+
+        if (parsers.findLine('a=rtcp-mux', lines)) {
+            desc.mux = true;
+        }
+
+        var fbLines = parsers.findLines('a=rtcp-fb:*', lines);
+        fbLines.forEach(function (line) {
+            desc.feedback.push(parsers.rtcpfb(line));
+        });
+
+        var extLines = parsers.findLines('a=extmap:', lines);
+        extLines.forEach(function (line) {
+            var ext = parsers.extmap(line);
+
+            ext.senders = SENDERS[role][direction][ext.senders];
+
+            desc.headerExtensions.push(ext);
+        });
+
+        var ssrcGroupLines = parsers.findLines('a=ssrc-group:', lines);
+        desc.sourceGroups = parsers.sourceGroups(ssrcGroupLines || []);
+
+        var ssrcLines = parsers.findLines('a=ssrc:', lines);
+        var sources = desc.sources = parsers.sources(ssrcLines || []);
+
+        var msidLine = parsers.findLine('a=msid:', lines);
+        if (msidLine) {
+            var msid = parsers.msid(msidLine);
+            ['msid', 'mslabel', 'label'].forEach(function (key) {
+                for (var i = 0; i < sources.length; i++) {
+                    var found = false;
+                    for (var j = 0; j < sources[i].parameters.length; j++) {
+                        if (sources[i].parameters[j].key === key) {
+                            found = true;
+                        }
+                    }
+                    if (!found) {
+                        sources[i].parameters.push({ key: key, value: msid[key] });
+                    }
+                }
+            });
+        }
+
+        if (parsers.findLine('a=x-google-flag:conference', lines, sessionLines)) {
+            desc.googConferenceFlag = true;
+        }
+    }
+
+    // transport specific attributes
+    var fingerprintLines = parsers.findLines('a=fingerprint:', lines, sessionLines);
+    var setup = parsers.findLine('a=setup:', lines, sessionLines);
+    fingerprintLines.forEach(function (line) {
+        var fp = parsers.fingerprint(line);
+        if (setup) {
+            fp.setup = setup.substr(8);
+        }
+        trans.fingerprints.push(fp);
+    });
+
+    var ufragLine = parsers.findLine('a=ice-ufrag:', lines, sessionLines);
+    var pwdLine = parsers.findLine('a=ice-pwd:', lines, sessionLines);
+    if (ufragLine && pwdLine) {
+        trans.ufrag = ufragLine.substr(12);
+        trans.pwd = pwdLine.substr(10);
+        trans.candidates = [];
+
+        var candidateLines = parsers.findLines('a=candidate:', lines, sessionLines);
+        candidateLines.forEach(function (line) {
+            trans.candidates.push(exports.toCandidateJSON(line));
+        });
+    }
+
+    if (desc.applicationType == 'datachannel') {
+        var sctpmapLines = parsers.findLines('a=sctpmap:', lines);
+        sctpmapLines.forEach(function (line) {
+            var sctp = parsers.sctpmap(line);
+            trans.sctp.push(sctp);
+        });
+    }
+
+    return content;
+};
+
+exports.toCandidateJSON = function (line) {
+    var candidate = parsers.candidate(line.split('\r\n')[0]);
+    candidate.id = (idCounter++).toString(36).substr(0, 12);
+    return candidate;
+};
+
+},{"./parsers":23,"./senders":24}],26:[function(require,module,exports){
+var SENDERS = require('./senders');
+
+
+exports.toSessionSDP = function (session, opts) {
+    var role = opts.role || 'initiator';
+    var direction = opts.direction || 'outgoing';
+    var sid = opts.sid || session.sid || Date.now();
+    var time = opts.time || Date.now();
+
+    var sdp = [
+        'v=0',
+        'o=- ' + sid + ' ' + time + ' IN IP4 0.0.0.0',
+        's=-',
+        't=0 0'
+    ];
+
+    var contents = session.contents || [];
+    var hasSources = false;
+    contents.forEach(function (content) {
+        if (content.application.sources &&
+            content.application.sources.length) {
+            hasSources = true;
+        }
+    });
+
+    if (hasSources) {
+        sdp.push('a=msid-semantic: WMS *');
+    }
+
+    var groups = session.groups || [];
+    groups.forEach(function (group) {
+        sdp.push('a=group:' + group.semantics + ' ' + group.contents.join(' '));
+    });
+
+
+    contents.forEach(function (content) {
+        sdp.push(exports.toMediaSDP(content, opts));
+    });
+
+    return sdp.join('\r\n') + '\r\n';
+};
+
+exports.toMediaSDP = function (content, opts) {
+    var sdp = [];
+
+    var role = opts.role || 'initiator';
+    var direction = opts.direction || 'outgoing';
+
+    var desc = content.application;
+    var transport = content.transport;
+    var payloads = desc.payloads || [];
+    var fingerprints = (transport && transport.fingerprints) || [];
+
+    var mline = [];
+    if (desc.applicationType == 'datachannel') {
+        mline.push('application');
+        mline.push('1');
+        mline.push('DTLS/SCTP');
+        if (transport.sctp) {
+            transport.sctp.forEach(function (map) {
+                mline.push(map.number);
+            });
+        }
+    } else {
+        mline.push(desc.media);
+        mline.push('1');
+        if (fingerprints.length > 0) {
+            mline.push('UDP/TLS/RTP/SAVPF');
+        } else if (desc.encryption && desc.encryption.length > 0) {
+            mline.push('RTP/SAVPF');
+        } else {
+            mline.push('RTP/AVPF');
+        }
+        payloads.forEach(function (payload) {
+            mline.push(payload.id);
+        });
+    }
+
+
+    sdp.push('m=' + mline.join(' '));
+
+    sdp.push('c=IN IP4 0.0.0.0');
+    if (desc.bandwidth && desc.bandwidth.type && desc.bandwidth.bandwidth) {
+        sdp.push('b=' + desc.bandwidth.type + ':' + desc.bandwidth.bandwidth);
+    }
+    if (desc.applicationType == 'rtp') {
+        sdp.push('a=rtcp:1 IN IP4 0.0.0.0');
+    }
+
+    if (transport) {
+        if (transport.ufrag) {
+            sdp.push('a=ice-ufrag:' + transport.ufrag);
+        }
+        if (transport.pwd) {
+            sdp.push('a=ice-pwd:' + transport.pwd);
+        }
+
+        var pushedSetup = false;
+        fingerprints.forEach(function (fingerprint) {
+            sdp.push('a=fingerprint:' + fingerprint.hash + ' ' + fingerprint.value);
+            if (fingerprint.setup && !pushedSetup) {
+                sdp.push('a=setup:' + fingerprint.setup);
+            }
+        });
+
+        if (transport.sctp) {
+            transport.sctp.forEach(function (map) {
+                sdp.push('a=sctpmap:' + map.number + ' ' + map.protocol + ' ' + map.streams);
+            });
+        }
+    }
+
+    if (desc.applicationType == 'rtp') {
+        sdp.push('a=' + (SENDERS[role][direction][content.senders] || 'sendrecv'));
+    }
+    sdp.push('a=mid:' + content.name);
+
+    if (desc.sources && desc.sources.length) {
+        (desc.sources[0].parameters || []).forEach(function (param) {
+            if (param.key === 'msid') {
+                sdp.push('a=msid:' + param.value);
+            }
+        });
+    }
+
+    if (desc.mux) {
+        sdp.push('a=rtcp-mux');
+    }
+
+    var encryption = desc.encryption || [];
+    encryption.forEach(function (crypto) {
+        sdp.push('a=crypto:' + crypto.tag + ' ' + crypto.cipherSuite + ' ' + crypto.keyParams + (crypto.sessionParams ? ' ' + crypto.sessionParams : ''));
+    });
+    if (desc.googConferenceFlag) {
+        sdp.push('a=x-google-flag:conference');
+    }
+
+    payloads.forEach(function (payload) {
+        var rtpmap = 'a=rtpmap:' + payload.id + ' ' + payload.name + '/' + payload.clockrate;
+        if (payload.channels && payload.channels != '1') {
+            rtpmap += '/' + payload.channels;
+        }
+        sdp.push(rtpmap);
+
+        if (payload.parameters && payload.parameters.length) {
+            var fmtp = ['a=fmtp:' + payload.id];
+            var parameters = [];
+            payload.parameters.forEach(function (param) {
+                parameters.push((param.key ? param.key + '=' : '') + param.value);
+            });
+            fmtp.push(parameters.join(';'));
+            sdp.push(fmtp.join(' '));
+        }
+
+        if (payload.feedback) {
+            payload.feedback.forEach(function (fb) {
+                if (fb.type === 'trr-int') {
+                    sdp.push('a=rtcp-fb:' + payload.id + ' trr-int ' + (fb.value ? fb.value : '0'));
+                } else {
+                    sdp.push('a=rtcp-fb:' + payload.id + ' ' + fb.type + (fb.subtype ? ' ' + fb.subtype : ''));
+                }
+            });
+        }
+    });
+
+    if (desc.feedback) {
+        desc.feedback.forEach(function (fb) {
+            if (fb.type === 'trr-int') {
+                sdp.push('a=rtcp-fb:* trr-int ' + (fb.value ? fb.value : '0'));
+            } else {
+                sdp.push('a=rtcp-fb:* ' + fb.type + (fb.subtype ? ' ' + fb.subtype : ''));
+            }
+        });
+    }
+
+    var hdrExts = desc.headerExtensions || [];
+    hdrExts.forEach(function (hdr) {
+        sdp.push('a=extmap:' + hdr.id + (hdr.senders ? '/' + SENDERS[role][direction][hdr.senders] : '') + ' ' + hdr.uri);
+    });
+
+    var ssrcGroups = desc.sourceGroups || [];
+    ssrcGroups.forEach(function (ssrcGroup) {
+        sdp.push('a=ssrc-group:' + ssrcGroup.semantics + ' ' + ssrcGroup.sources.join(' '));
+    });
+
+    var ssrcs = desc.sources || [];
+    ssrcs.forEach(function (ssrc) {
+        for (var i = 0; i < ssrc.parameters.length; i++) {
+            var param = ssrc.parameters[i];
+            sdp.push('a=ssrc:' + (ssrc.ssrc || desc.ssrc) + ' ' + param.key + (param.value ? (':' + param.value) : ''));
+        }
+    });
+
+    var candidates = transport.candidates || [];
+    candidates.forEach(function (candidate) {
+        sdp.push(exports.toCandidateSDP(candidate));
+    });
+
+    return sdp.join('\r\n');
+};
+
+exports.toCandidateSDP = function (candidate) {
+    var sdp = [];
+
+    sdp.push(candidate.foundation);
+    sdp.push(candidate.component);
+    sdp.push(candidate.protocol.toUpperCase());
+    sdp.push(candidate.priority);
+    sdp.push(candidate.ip);
+    sdp.push(candidate.port);
+
+    var type = candidate.type;
+    sdp.push('typ');
+    sdp.push(type);
+    if (type === 'srflx' || type === 'prflx' || type === 'relay') {
+        if (candidate.relAddr && candidate.relPort) {
+            sdp.push('raddr');
+            sdp.push(candidate.relAddr);
+            sdp.push('rport');
+            sdp.push(candidate.relPort);
+        }
+    }
+    if (candidate.tcpType && candidate.protocol.toUpperCase() == 'TCP') {
+        sdp.push('tcptype');
+        sdp.push(candidate.tcpType);
+    }
+
+    sdp.push('generation');
+    sdp.push(candidate.generation || '0');
+
+    // FIXME: apparently this is wrong per spec
+    // but then, we need this when actually putting this into
+    // SDP so it's going to stay.
+    // decision needs to be revisited when browsers dont
+    // accept this any longer
+    return 'a=candidate:' + sdp.join(' ');
+};
+
+},{"./senders":24}],27:[function(require,module,exports){
+arguments[4][5][0].apply(exports,arguments)
+},{"dup":5}],28:[function(require,module,exports){
+// based on https://github.com/ESTOS/strophe.jingle/
+// adds wildemitter support
+var util = require('util');
+var adapter = require('webrtc-adapter'); // jshint ignore:line
+var WildEmitter = require('wildemitter');
+
+function dumpSDP(description) {
+    return {
+        type: description.type,
+        sdp: description.sdp
+    };
+}
+
+function dumpStream(stream) {
+    var info = {
+        label: stream.id,
+    };
+    if (stream.getAudioTracks().length) {
+        info.audio = stream.getAudioTracks().map(function (track) {
+            return track.id;
+        });
+    }
+    if (stream.getVideoTracks().length) {
+        info.video = stream.getVideoTracks().map(function (track) {
+            return track.id;
+        });
+    }
+    return info;
+}
+
+function TraceablePeerConnection(config, constraints) {
+    var self = this;
+    WildEmitter.call(this);
+
+    this.peerconnection = new window.RTCPeerConnection(config, constraints);
+
+    this.trace = function (what, info) {
+        self.emit('PeerConnectionTrace', {
+            time: new Date(),
+            type: what,
+            value: info || ""
+        });
+    };
+
+    this.onicecandidate = null;
+    this.peerconnection.onicecandidate = function (event) {
+        self.trace('onicecandidate', event.candidate);
+        if (self.onicecandidate !== null) {
+            self.onicecandidate(event);
+        }
+    };
+    this.onaddstream = null;
+    this.peerconnection.onaddstream = function (event) {
+        self.trace('onaddstream', dumpStream(event.stream));
+        if (self.onaddstream !== null) {
+            self.onaddstream(event);
+        }
+    };
+    this.onremovestream = null;
+    this.peerconnection.onremovestream = function (event) {
+        self.trace('onremovestream', dumpStream(event.stream));
+        if (self.onremovestream !== null) {
+            self.onremovestream(event);
+        }
+    };
+    this.onsignalingstatechange = null;
+    this.peerconnection.onsignalingstatechange = function (event) {
+        self.trace('onsignalingstatechange', self.signalingState);
+        if (self.onsignalingstatechange !== null) {
+            self.onsignalingstatechange(event);
+        }
+    };
+    this.oniceconnectionstatechange = null;
+    this.peerconnection.oniceconnectionstatechange = function (event) {
+        self.trace('oniceconnectionstatechange', self.iceConnectionState);
+        if (self.oniceconnectionstatechange !== null) {
+            self.oniceconnectionstatechange(event);
+        }
+    };
+    this.onnegotiationneeded = null;
+    this.peerconnection.onnegotiationneeded = function (event) {
+        self.trace('onnegotiationneeded');
+        if (self.onnegotiationneeded !== null) {
+            self.onnegotiationneeded(event);
+        }
+    };
+    self.ondatachannel = null;
+    this.peerconnection.ondatachannel = function (event) {
+        self.trace('ondatachannel', event);
+        if (self.ondatachannel !== null) {
+            self.ondatachannel(event);
+        }
+    };
+    this.getLocalStreams = this.peerconnection.getLocalStreams.bind(this.peerconnection);
+    this.getRemoteStreams = this.peerconnection.getRemoteStreams.bind(this.peerconnection);
+}
+
+util.inherits(TraceablePeerConnection, WildEmitter);
+
+['signalingState', 'iceConnectionState', 'localDescription', 'remoteDescription'].forEach(function (prop) {
+    Object.defineProperty(TraceablePeerConnection.prototype, prop, {
+        get: function () {
+            return this.peerconnection[prop];
+        }
+    });
+});
+
+TraceablePeerConnection.prototype.addStream = function (stream) {
+    this.trace('addStream', dumpStream(stream));
+    this.peerconnection.addStream(stream);
+};
+
+TraceablePeerConnection.prototype.removeStream = function (stream) {
+    this.trace('removeStream', dumpStream(stream));
+    this.peerconnection.removeStream(stream);
+};
+
+TraceablePeerConnection.prototype.createDataChannel = function (label, opts) {
+    this.trace('createDataChannel', label, opts);
+    return this.peerconnection.createDataChannel(label, opts);
+};
+
+TraceablePeerConnection.prototype.setLocalDescription = function (description, successCallback, failureCallback) {
+    var self = this;
+    this.trace('setLocalDescription', dumpSDP(description));
+    return this.peerconnection.setLocalDescription(
+        description
+    ).then(
+        function () {
+            self.trace('setLocalDescriptionOnSuccess');
+            if (successCallback) successCallback();
+        },
+        function (err) {
+            self.trace('setLocalDescriptionOnFailure', err);
+            if (failureCallback) failureCallback(err);
+        }
+    );
+};
+
+TraceablePeerConnection.prototype.setRemoteDescription = function (description, successCallback, failureCallback) {
+    var self = this;
+    this.trace('setRemoteDescription', dumpSDP(description));
+    return this.peerconnection.setRemoteDescription(
+        description
+    ).then(
+        function () {
+            self.trace('setRemoteDescriptionOnSuccess');
+            if (successCallback) successCallback();
+        },
+        function (err) {
+            self.trace('setRemoteDescriptionOnFailure', err);
+            if (failureCallback) failureCallback(err);
+        }
+    );
+};
+
+TraceablePeerConnection.prototype.close = function () {
+    this.trace('stop');
+    if (this.peerconnection.signalingState != 'closed') {
+        this.peerconnection.close();
+    }
+};
+
+TraceablePeerConnection.prototype.createOffer = function (successCallback, failureCallback, constraints) {
+    var self = this;
+    this.trace('createOffer', constraints);
+    return this.peerconnection.createOffer(
+        constraints
+    ).then(
+        function (offer) {
+            self.trace('createOfferOnSuccess', dumpSDP(offer));
+            if (successCallback) successCallback(offer);
+        },
+        function (err) {
+            self.trace('createOfferOnFailure', err);
+            if (failureCallback) failureCallback(err);
+        }
+    );
+};
+
+TraceablePeerConnection.prototype.createAnswer = function (successCallback, failureCallback, constraints) {
+    var self = this;
+    this.trace('createAnswer', constraints);
+    return this.peerconnection.createAnswer(
+        constraints
+    ).then(
+        function (answer) {
+            self.trace('createAnswerOnSuccess', dumpSDP(answer));
+            if (successCallback) successCallback(answer);
+        },
+        function (err) {
+            self.trace('createAnswerOnFailure', err);
+            if (failureCallback) failureCallback(err);
+        }
+    );
+};
+
+TraceablePeerConnection.prototype.addIceCandidate = function (candidate, successCallback, failureCallback) {
+    var self = this;
+    this.trace('addIceCandidate', candidate);
+    return this.peerconnection.addIceCandidate(
+        candidate
+    ).then(
+        function () {
+            //self.trace('addIceCandidateOnSuccess');
+            if (successCallback) successCallback();
+        },
+        function (err) {
+            self.trace('addIceCandidateOnFailure', err);
+            if (failureCallback) failureCallback(err);
+        }
+    );
+};
+
+TraceablePeerConnection.prototype.getStats = function () {
+    this.peerconnection.getStats.apply(this.peerconnection, arguments);
+};
+
+module.exports = TraceablePeerConnection;
+
+},{"util":30,"webrtc-adapter":31,"wildemitter":40}],29:[function(require,module,exports){
 module.exports = function isBuffer(arg) {
   return arg && typeof arg === 'object'
     && typeof arg.copy === 'function'
     && typeof arg.fill === 'function'
     && typeof arg.readUInt8 === 'function';
 }
-},{}],40:[function(require,module,exports){
+},{}],30:[function(require,module,exports){
 (function (process,global){
 // Copyright Joyent, Inc. and other Node contributors.
 //
@@ -6379,7 +6359,27 @@ function hasOwnProperty(obj, prop) {
 }
 
 }).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./support/isBuffer":39,"_process":20,"inherits":1}],41:[function(require,module,exports){
+},{"./support/isBuffer":29,"_process":20,"inherits":1}],31:[function(require,module,exports){
+arguments[4][6][0].apply(exports,arguments)
+},{"./chrome/chrome_shim":32,"./edge/edge_shim":34,"./firefox/firefox_shim":36,"./safari/safari_shim":38,"./utils":39,"dup":6}],32:[function(require,module,exports){
+arguments[4][7][0].apply(exports,arguments)
+},{"../utils.js":39,"./getusermedia":33,"dup":7}],33:[function(require,module,exports){
+arguments[4][8][0].apply(exports,arguments)
+},{"../utils.js":39,"dup":8}],34:[function(require,module,exports){
+arguments[4][9][0].apply(exports,arguments)
+},{"../utils":39,"./getusermedia":35,"dup":9,"sdp":27}],35:[function(require,module,exports){
+arguments[4][10][0].apply(exports,arguments)
+},{"dup":10}],36:[function(require,module,exports){
+arguments[4][11][0].apply(exports,arguments)
+},{"../utils":39,"./getusermedia":37,"dup":11}],37:[function(require,module,exports){
+arguments[4][12][0].apply(exports,arguments)
+},{"../utils":39,"dup":12}],38:[function(require,module,exports){
+arguments[4][13][0].apply(exports,arguments)
+},{"dup":13}],39:[function(require,module,exports){
+arguments[4][14][0].apply(exports,arguments)
+},{"dup":14}],40:[function(require,module,exports){
+arguments[4][19][0].apply(exports,arguments)
+},{"dup":19}],41:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -6433,6 +6433,10 @@ var _TestSuite2 = _interopRequireDefault(_TestSuite);
 
 var _defaultTests = require('./defaultTests');
 
+var _VideoFrameChecker = require('./utils/VideoFrameChecker');
+
+var _VideoFrameChecker2 = _interopRequireDefault(_VideoFrameChecker);
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 exports.default = {
@@ -6442,10 +6446,11 @@ exports.default = {
   ConnectivityTest: _defaultTests.ConnectivityTest,
   AdvancedCameraTest: _defaultTests.AdvancedCameraTest,
   ThroughputTest: _defaultTests.ThroughputTest,
-  VideoBandwidthTest: _defaultTests.VideoBandwidthTest
+  VideoBandwidthTest: _defaultTests.VideoBandwidthTest,
+  VideoFrameChecker: _VideoFrameChecker2.default
 };
 
-},{"./defaultTests":41,"./utils/TestSuite":53}],43:[function(require,module,exports){
+},{"./defaultTests":41,"./utils/TestSuite":53,"./utils/VideoFrameChecker":54}],43:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -7096,7 +7101,7 @@ var ConnectivityTest = function (_Test) {
 
 exports.default = ConnectivityTest;
 
-},{"../utils/Test":52,"rtcpeerconnection":38}],47:[function(require,module,exports){
+},{"../utils/Test":52,"rtcpeerconnection":21}],47:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -7417,7 +7422,8 @@ var VideoBandwidthTest = function (_Test) {
       var isWebkit = 'WebkitAppearance' in document.documentElement.style;
       var isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
       if (isWebkit) {
-        response.forEach(function (report) {
+        var results = typeof response.result === 'function' ? response.result() : response;
+        results.forEach(function (report) {
           if (report.id === 'bweforvideo') {
             _this5.bweStats.add(Date.parse(report.timestamp), parseInt(report['googAvailableSendBandwidth'], 10));
           } else if (report.type === 'ssrc') {

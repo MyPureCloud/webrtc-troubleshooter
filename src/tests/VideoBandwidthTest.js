@@ -123,7 +123,8 @@ export default class VideoBandwidthTest extends Test {
     const isWebkit = 'WebkitAppearance' in document.documentElement.style;
     const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
     if (isWebkit) {
-      response.forEach((report) => {
+      const results = typeof response.result === 'function' ? response.result() : response;
+      results.forEach((report) => {
         if (report.id === 'bweforvideo') {
           this.bweStats.add(Date.parse(report.timestamp), parseInt(report['googAvailableSendBandwidth'], 10));
         } else if (report.type === 'ssrc') {

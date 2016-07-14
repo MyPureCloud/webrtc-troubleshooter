@@ -15,11 +15,11 @@
     "babel-cli": "^6.7.7",
     "babel-preset-es2015": "^6.6.0",
     "babelify": "^7.2.0",
-    "browserify": "^13.0.1",
-    "localmedia": "https://github.com/xdumaine/localmedia.git",
-    "rtcpeerconnection": "https://github.com/otalk/RTCPeerConnection.git"
+    "browserify": "^13.0.1"
   },
   "dependencies": {
+    "localmedia": "https://github.com/xdumaine/localmedia.git",
+    "rtcpeerconnection": "5.2.0",
     "webrtc-adapter": "^1.4.0"
   }
 }
