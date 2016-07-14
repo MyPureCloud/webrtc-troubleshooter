@@ -4,7 +4,7 @@
   "description": "A way to add webrtc troubleshooting to your app",
   "main": "index.js",
   "dependencies": {
-    "webrtc-adapter": "gh-pages"
+    "webrtc-adapter": "^1.4.0"
   },
   "ignore": [
     "**/.*",
