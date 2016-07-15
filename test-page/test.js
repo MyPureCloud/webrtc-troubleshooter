@@ -9,8 +9,8 @@ const testSuite = new webRTCTroubleshooter.TestSuite();
 const iceServersEntry = document.getElementById('ice-servers');
 const runButton = document.getElementById('run-button');
 
-const testCompleted = function (test, success) {
-  console.log('test completed', test.name, success ? 'success' : 'failure');
+const testCompleted = function (test, success, res) {
+  console.log('test completed', test.name, success ? 'success' : 'failure', res, res ? res.details : 'no results');
 };
 
 runButton.onclick = function startTroubleshooter () {
@@ -59,8 +59,10 @@ runButton.onclick = function startTroubleshooter () {
     testSuite.addTest(throughputTest);
   }
 
-  testSuite.start().then(function () {
-    console.log('Finished the tests');
+  testSuite.start().then(function (results) {
+    console.log('Finished the tests', results);
+  }, function(err) {
+    console.warn('test failure', err, err.details);
   });
 };
 

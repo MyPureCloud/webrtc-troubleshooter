@@ -2,9 +2,13 @@ export default class TestSuite {
   constructor (options) {
     options = options || {};
     this.allTestsComplete = false;
+    this.stopOnFailure = false;
     this.running = false;
     this.queue = [];
     this.logger = options.logger || console;
+
+    this.hasError = false;
+    this.results = [];
   }
 
   addTest (test) {
@@ -13,7 +17,17 @@ export default class TestSuite {
 
   start () {
     return new Promise((resolve, reject) => {
-      return this.runNextTest().then(resolve, reject);
+      return this.runNextTest().then(() => {
+        if (this.hasError) {
+          const error = new Error('A test failure occurred');
+          error.details = this.results;
+          return reject(error);
+        }
+        return resolve(this.results);
+      }, (err) => {
+        err.details = this.results;
+        return reject(err);
+      });
     });
   }
 
@@ -29,17 +43,29 @@ export default class TestSuite {
     this.activeTest = test;
     this.logger.log('Starting ' + test.name);
 
-    const next = () => {
+    const next = (err) => {
       test.running = false;
       test.destroy();
+      if (err) {
+        this.hasError = true;
+        if (this.stopOnFailure) {
+          return Promise.reject(err);
+        }
+      }
       return this.runNextTest();
     };
 
-    return test.start().then(() => {
+    return test.start().then((results) => {
+      if (results) {
+        this.results.push(results);
+      }
       return next();
     }, (err) => {
-      this.logger.error('Test failure', err, test);
-      return next();
+      this.hasError = true;
+      const errInfo = { message: err.message, details: err.details };
+      this.results.push(errInfo);
+      this.logger.error('Test failure', errInfo, test);
+      return next(err);
     });
   }
 

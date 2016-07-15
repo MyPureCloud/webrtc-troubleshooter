@@ -11,13 +11,13 @@ class ConnectivityTest extends Test {
   logIceServers () {
     if (this.options.iceServers) {
       this.options.iceServers.forEach((iceServer) => {
-        this.logger.log(`webrtc-troubleshooter: Using ICE Server: ${iceServer.url}`);
+        this.logger.log(`Using ICE Server: ${iceServer.url}`);
       });
       if (this.options.iceServers.length === 0) {
-        this.logger.error('webrtc-troubleshooter: no ice servers provided');
+        this.logger.error('no ice servers provided');
       }
     } else {
-      this.logger.log('webrtc-troubleshooter: Using default ICE Servers');
+      this.logger.log('Using default ICE Servers');
     }
   }
 
@@ -27,37 +27,37 @@ class ConnectivityTest extends Test {
     this.pc2 = new PeerConnection(this.options);
 
     const connectivityCheckFailure = window.setTimeout(() => {
-      this.logger.error('webrtc-troubleshooter: Connectivity timeout error');
+      this.logger.error('Connectivity timeout error');
       this.reject(new Error('connectivity timeout'));
     }, 10000);
     this.pc2.on('ice', (candidate) => {
-      this.logger.log('webrtc-troubleshooter: pc2 ICE candidate');
+      this.logger.log('pc2 ICE candidate');
       this.pc1.processIce(candidate);
     });
     this.pc1.on('ice', (candidate) => {
-      this.logger.log('webrtc-troubleshooter: pc1 ICE candidate');
+      this.logger.log('pc1 ICE candidate');
       this.pc2.processIce(candidate);
     });
     this.pc2.on('answer', (answer) => {
-      this.logger.log('webrtc-troubleshooter: pc2 handle answer');
+      this.logger.log('pc2 handle answer');
       this.pc1.handleAnswer(answer);
     });
 
     // when pc1 gets the offer, instantly handle the offer by pc2
     this.pc1.on('offer', (offer) => {
-      this.logger.log('webrtc-troubleshooter: pc1 offer');
+      this.logger.log('pc1 offer');
       this.pc2.handleOffer(offer, (err) => {
         if (err) {
-          this.logger.error('webrtc-troubleshooter: pc2 failed to handle offer');
+          this.logger.error('pc2 failed to handle offer');
           this.reject(err);
         }
-        this.logger.log('webrtc-troubleshooter: pc2 handle offer');
+        this.logger.log('pc2 handle offer');
         this.pc2.answer((err, answer) => {
           if (err) {
-            this.logger.error('webrtc-troubleshooter: pc2 failed answer');
+            this.logger.error('pc2 failed answer');
             this.reject(err);
           }
-          this.logger.log(`webrtc-troubleshooter: pc2 successful ${answer.type}`);
+          this.logger.log(`pc2 successful ${answer.type}`);
         });
       });
     });
@@ -85,14 +85,14 @@ class ConnectivityTest extends Test {
       // when all messages have been received, we're clear
       if (messageQueue.length === 0) {
         window.clearTimeout(connectivityCheckFailure);
-        this.logger.log(`webrtc-troubleshooter: Received ${messagesReceived} messages`);
+        this.logger.log(`Received ${messagesReceived} messages`);
         this.resolve();
       }
     };
     // when pc2 gets a data channel, send all messageQueue items on it
     this.pc2.on('addChannel', (channel) => {
       channel.onopen = () => {
-        this.logger.log(`webrtc-troubleshooter: Sending ${messageQueue.length} messages`);
+        this.logger.log(`Sending ${messageQueue.length} messages`);
         messageQueue2.forEach(channel.send.bind(channel));
       };
     });
