@@ -57,7 +57,7 @@ export const calculate = (x, y) => {
   var muX = statsX.mean;
   var sigmaX2 = statsX.variance;
   var sigmaX = Math.sqrt(sigmaX2);
-  var statsY = this.statistics(y);
+  var statsY = statistics(y);
   var muY = statsY.mean;
   var sigmaY2 = statsY.variance;
   var sigmaY = Math.sqrt(sigmaY2);
