@@ -1,7 +1,7 @@
 import WebrtcCall from '../utils/WebrtcCall';
 import Test from '../utils/Test';
 
-class DataChannelThroughputTest extends Test {
+export default class DataChannelThroughputTest extends Test {
   constructor () {
     super(...arguments);
     this.name = 'Data Throughput Test';
@@ -105,5 +105,3 @@ class DataChannelThroughputTest extends Test {
     }
   }
 }
-
-export default DataChannelThroughputTest;

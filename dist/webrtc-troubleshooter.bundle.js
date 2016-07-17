@@ -1,4 +1,385 @@
 (function(f){if(typeof exports==="object"&&typeof module!=="undefined"){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.WebRTCTroubleshooter = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return a(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
+// getScreenMedia helper by @HenrikJoreteg
+var getUserMedia = require('getusermedia');
+
+// cache for constraints and callback
+var cache = {};
+
+module.exports = function (constraints, cb) {
+    var hasConstraints = arguments.length === 2;
+    var callback = hasConstraints ? cb : constraints;
+    var error;
+
+    if (typeof window === 'undefined' || window.location.protocol === 'http:') {
+        error = new Error('NavigatorUserMediaError');
+        error.name = 'HTTPS_REQUIRED';
+        return callback(error);
+    }
+
+    if (window.navigator.userAgent.match('Chrome')) {
+        var chromever = parseInt(window.navigator.userAgent.match(/Chrome\/(.*) /)[1], 10);
+        var maxver = 33;
+        var isCef = !window.chrome.webstore;
+        // "known" crash in chrome 34 and 35 on linux
+        if (window.navigator.userAgent.match('Linux')) maxver = 35;
+
+        // check that the extension is installed by looking for a
+        // sessionStorage variable that contains the extension id
+        // this has to be set after installation unless the contest
+        // script does that
+        if (sessionStorage.getScreenMediaJSExtensionId) {
+            chrome.runtime.sendMessage(sessionStorage.getScreenMediaJSExtensionId,
+                {type:'getScreen', id: 1}, null,
+                function (data) {
+                    if (!data || data.sourceId === '') { // user canceled
+                        var error = new Error('NavigatorUserMediaError');
+                        error.name = 'PERMISSION_DENIED';
+                        callback(error);
+                    } else {
+                        constraints = (hasConstraints && constraints) || {audio: false, video: {
+                            mandatory: {
+                                chromeMediaSource: 'desktop',
+                                maxWidth: window.screen.width,
+                                maxHeight: window.screen.height,
+                                maxFrameRate: 3
+                            }
+                        }};
+                        constraints.video.mandatory.chromeMediaSourceId = data.sourceId;
+                        getUserMedia(constraints, callback);
+                    }
+                }
+            );
+        } else if (window.cefGetScreenMedia) {
+            //window.cefGetScreenMedia is experimental - may be removed without notice
+            window.cefGetScreenMedia(function(sourceId) {
+                if (!sourceId) {
+                    var error = new Error('cefGetScreenMediaError');
+                    error.name = 'CEF_GETSCREENMEDIA_CANCELED';
+                    callback(error);
+                } else {
+                    constraints = (hasConstraints && constraints) || {audio: false, video: {
+                        mandatory: {
+                            chromeMediaSource: 'desktop',
+                            maxWidth: window.screen.width,
+                            maxHeight: window.screen.height,
+                            maxFrameRate: 3
+                        },
+                        optional: [
+                            {googLeakyBucket: true},
+                            {googTemporalLayeredScreencast: true}
+                        ]
+                    }};
+                    constraints.video.mandatory.chromeMediaSourceId = sourceId;
+                    getUserMedia(constraints, callback);
+                }
+            });
+        } else if (isCef || (chromever >= 26 && chromever <= maxver)) {
+            // chrome 26 - chrome 33 way to do it -- requires bad chrome://flags
+            // note: this is basically in maintenance mode and will go away soon
+            constraints = (hasConstraints && constraints) || {
+                video: {
+                    mandatory: {
+                        googLeakyBucket: true,
+                        maxWidth: window.screen.width,
+                        maxHeight: window.screen.height,
+                        maxFrameRate: 3,
+                        chromeMediaSource: 'screen'
+                    }
+                }
+            };
+            getUserMedia(constraints, callback);
+        } else {
+            // chrome 34+ way requiring an extension
+            var pending = window.setTimeout(function () {
+                error = new Error('NavigatorUserMediaError');
+                error.name = 'EXTENSION_UNAVAILABLE';
+                return callback(error);
+            }, 1000);
+            cache[pending] = [callback, hasConstraints ? constraints : null];
+            window.postMessage({ type: 'getScreen', id: pending }, '*');
+        }
+    } else if (window.navigator.userAgent.match('Firefox')) {
+        var ffver = parseInt(window.navigator.userAgent.match(/Firefox\/(.*)/)[1], 10);
+        if (ffver >= 33) {
+            constraints = (hasConstraints && constraints) || {
+                video: {
+                    mozMediaSource: 'window',
+                    mediaSource: 'window'
+                }
+            }
+            getUserMedia(constraints, function (err, stream) {
+                callback(err, stream);
+                // workaround for https://bugzilla.mozilla.org/show_bug.cgi?id=1045810
+                if (!err) {
+                    var lastTime = stream.currentTime;
+                    var polly = window.setInterval(function () {
+                        if (!stream) window.clearInterval(polly);
+                        if (stream.currentTime == lastTime) {
+                            window.clearInterval(polly);
+                            if (stream.onended) {
+                                stream.onended();
+                            }
+                        }
+                        lastTime = stream.currentTime;
+                    }, 500);
+                }
+            });
+        } else {
+            error = new Error('NavigatorUserMediaError');
+            error.name = 'EXTENSION_UNAVAILABLE'; // does not make much sense but...
+        }
+    }
+};
+
+window.addEventListener('message', function (event) {
+    if (event.origin != window.location.origin) {
+        return;
+    }
+    if (event.data.type == 'gotScreen' && cache[event.data.id]) {
+        var data = cache[event.data.id];
+        var constraints = data[1];
+        var callback = data[0];
+        delete cache[event.data.id];
+
+        if (event.data.sourceId === '') { // user canceled
+            var error = new Error('NavigatorUserMediaError');
+            error.name = 'PERMISSION_DENIED';
+            callback(error);
+        } else {
+            constraints = constraints || {audio: false, video: {
+                mandatory: {
+                    chromeMediaSource: 'desktop',
+                    maxWidth: window.screen.width,
+                    maxHeight: window.screen.height,
+                    maxFrameRate: 3
+                },
+                optional: [
+                    {googLeakyBucket: true},
+                    {googTemporalLayeredScreencast: true}
+                ]
+            }};
+            constraints.video.mandatory.chromeMediaSourceId = event.data.sourceId;
+            getUserMedia(constraints, callback);
+        }
+    } else if (event.data.type == 'getScreenPending') {
+        window.clearTimeout(event.data.id);
+    }
+});
+
+},{"getusermedia":2}],2:[function(require,module,exports){
+// getUserMedia helper by @HenrikJoreteg used for navigator.getUserMedia shim
+var adapter = require('webrtc-adapter');
+
+module.exports = function (constraints, cb) {
+    var error;
+    var haveOpts = arguments.length === 2;
+    var defaultOpts = {video: true, audio: true};
+
+    var denied = 'PermissionDeniedError';
+    var altDenied = 'PERMISSION_DENIED';
+    var notSatisfied = 'ConstraintNotSatisfiedError';
+
+    // make constraints optional
+    if (!haveOpts) {
+        cb = constraints;
+        constraints = defaultOpts;
+    }
+
+    // treat lack of browser support like an error
+    if (typeof navigator === 'undefined' || !navigator.getUserMedia) {
+        // throw proper error per spec
+        error = new Error('MediaStreamError');
+        error.name = 'NotSupportedError';
+
+        // keep all callbacks async
+        return setTimeout(function () {
+            cb(error);
+        }, 0);
+    }
+
+    // normalize error handling when no media types are requested
+    if (!constraints.audio && !constraints.video) {
+        error = new Error('MediaStreamError');
+        error.name = 'NoMediaRequestedError';
+
+        // keep all callbacks async
+        return setTimeout(function () {
+            cb(error);
+        }, 0);
+    }
+
+    // testing support -- note: using the about:config pref is better
+    // for Firefox 39+, this might get removed in the future
+    if (localStorage && localStorage.useFirefoxFakeDevice === 'true') {
+        constraints.fake = true;
+    }
+
+    navigator.mediaDevices.getUserMedia(constraints)
+    .then(function (stream) {
+        cb(null, stream);
+    }).catch(function (err) {
+        var error;
+        // coerce into an error object since FF gives us a string
+        // there are only two valid names according to the spec
+        // we coerce all non-denied to "constraint not satisfied".
+        if (typeof err === 'string') {
+            error = new Error('MediaStreamError');
+            if (err === denied || err === altDenied) {
+                error.name = denied;
+            } else {
+                error.name = notSatisfied;
+            }
+        } else {
+            // if we get an error object make sure '.name' property is set
+            // according to spec: http://dev.w3.org/2011/webrtc/editor/getusermedia.html#navigatorusermediaerror-and-navigatorusermediaerrorcallback
+            error = err;
+            if (!error.name) {
+                // this is likely chrome which
+                // sets a property called "ERROR_DENIED" on the error object
+                // if so we make sure to set a name
+                if (error[denied]) {
+                    err.name = denied;
+                } else {
+                    err.name = notSatisfied;
+                }
+            }
+        }
+
+        cb(error);
+    });
+};
+
+},{"webrtc-adapter":19}],3:[function(require,module,exports){
+var WildEmitter = require('wildemitter');
+
+function getMaxVolume (analyser, fftBins) {
+  var maxVolume = -Infinity;
+  analyser.getFloatFrequencyData(fftBins);
+
+  for(var i=4, ii=fftBins.length; i < ii; i++) {
+    if (fftBins[i] > maxVolume && fftBins[i] < 0) {
+      maxVolume = fftBins[i];
+    }
+  };
+
+  return maxVolume;
+}
+
+
+var audioContextType = window.AudioContext || window.webkitAudioContext;
+// use a single audio context due to hardware limits
+var audioContext = null;
+module.exports = function(stream, options) {
+  var harker = new WildEmitter();
+
+
+  // make it not break in non-supported browsers
+  if (!audioContextType) return harker;
+
+  //Config
+  var options = options || {},
+      smoothing = (options.smoothing || 0.1),
+      interval = (options.interval || 50),
+      threshold = options.threshold,
+      play = options.play,
+      history = options.history || 10,
+      running = true;
+
+  //Setup Audio Context
+  if (!audioContext) {
+    audioContext = new audioContextType();
+  }
+  var sourceNode, fftBins, analyser;
+
+  analyser = audioContext.createAnalyser();
+  analyser.fftSize = 512;
+  analyser.smoothingTimeConstant = smoothing;
+  fftBins = new Float32Array(analyser.fftSize);
+
+  if (stream.jquery) stream = stream[0];
+  if (stream instanceof HTMLAudioElement || stream instanceof HTMLVideoElement) {
+    //Audio Tag
+    sourceNode = audioContext.createMediaElementSource(stream);
+    if (typeof play === 'undefined') play = true;
+    threshold = threshold || -50;
+  } else {
+    //WebRTC Stream
+    sourceNode = audioContext.createMediaStreamSource(stream);
+    threshold = threshold || -50;
+  }
+
+  sourceNode.connect(analyser);
+  if (play) analyser.connect(audioContext.destination);
+
+  harker.speaking = false;
+
+  harker.setThreshold = function(t) {
+    threshold = t;
+  };
+
+  harker.setInterval = function(i) {
+    interval = i;
+  };
+  
+  harker.stop = function() {
+    running = false;
+    harker.emit('volume_change', -100, threshold);
+    if (harker.speaking) {
+      harker.speaking = false;
+      harker.emit('stopped_speaking');
+    }
+  };
+  harker.speakingHistory = [];
+  for (var i = 0; i < history; i++) {
+      harker.speakingHistory.push(0);
+  }
+
+  // Poll the analyser node to determine if speaking
+  // and emit events if changed
+  var looper = function() {
+    setTimeout(function() {
+    
+      //check if stop has been called
+      if(!running) {
+        return;
+      }
+      
+      var currentVolume = getMaxVolume(analyser, fftBins);
+
+      harker.emit('volume_change', currentVolume, threshold);
+
+      var history = 0;
+      if (currentVolume > threshold && !harker.speaking) {
+        // trigger quickly, short history
+        for (var i = harker.speakingHistory.length - 3; i < harker.speakingHistory.length; i++) {
+          history += harker.speakingHistory[i];
+        }
+        if (history >= 2) {
+          harker.speaking = true;
+          harker.emit('speaking');
+        }
+      } else if (currentVolume < threshold && harker.speaking) {
+        for (var i = 0; i < harker.speakingHistory.length; i++) {
+          history += harker.speakingHistory[i];
+        }
+        if (history == 0) {
+          harker.speaking = false;
+          harker.emit('stopped_speaking');
+        }
+      }
+      harker.speakingHistory.shift();
+      harker.speakingHistory.push(0 + (currentVolume > threshold));
+
+      looper();
+    }, interval);
+  };
+  looper();
+
+
+  return harker;
+}
+
+},{"wildemitter":29}],4:[function(require,module,exports){
 if (typeof Object.create === 'function') {
   // implementation from standard node.js 'util' module
   module.exports = function inherits(ctor, superCtor) {
@@ -23,7 +404,7 @@ if (typeof Object.create === 'function') {
   }
 }
 
-},{}],2:[function(require,module,exports){
+},{}],5:[function(require,module,exports){
 var util = require('util');
 var hark = require('hark');
 var webrtc = require('webrtcsupport');
@@ -325,258 +706,1981 @@ Object.defineProperty(LocalMedia.prototype, 'localScreen', {
 
 module.exports = LocalMedia;
 
-},{"getscreenmedia":3,"getusermedia":4,"hark":15,"mediastream-gain":16,"mockconsole":17,"util":30,"webrtcsupport":18,"wildemitter":19}],3:[function(require,module,exports){
-// getScreenMedia helper by @HenrikJoreteg
-var getUserMedia = require('getusermedia');
+},{"getscreenmedia":1,"getusermedia":2,"hark":3,"mediastream-gain":6,"mockconsole":7,"util":18,"webrtcsupport":28,"wildemitter":29}],6:[function(require,module,exports){
+var support = require('webrtcsupport');
 
-// cache for constraints and callback
-var cache = {};
 
-module.exports = function (constraints, cb) {
-    var hasConstraints = arguments.length === 2;
-    var callback = hasConstraints ? cb : constraints;
-    var error;
+function GainController(stream) {
+    this.support = support.webAudio && support.mediaStream;
 
-    if (typeof window === 'undefined' || window.location.protocol === 'http:') {
-        error = new Error('NavigatorUserMediaError');
-        error.name = 'HTTPS_REQUIRED';
-        return callback(error);
+    // set our starting value
+    this.gain = 1;
+
+    if (this.support) {
+        var context = this.context = new support.AudioContext();
+        this.microphone = context.createMediaStreamSource(stream);
+        this.gainFilter = context.createGain();
+        this.destination = context.createMediaStreamDestination();
+        this.outputStream = this.destination.stream;
+        this.microphone.connect(this.gainFilter);
+        this.gainFilter.connect(this.destination);
+        stream.addTrack(this.outputStream.getAudioTracks()[0]);
+        stream.removeTrack(stream.getAudioTracks()[0]);
     }
+    this.stream = stream;
+}
 
-    if (window.navigator.userAgent.match('Chrome')) {
-        var chromever = parseInt(window.navigator.userAgent.match(/Chrome\/(.*) /)[1], 10);
-        var maxver = 33;
-        var isCef = !window.chrome.webstore;
-        // "known" crash in chrome 34 and 35 on linux
-        if (window.navigator.userAgent.match('Linux')) maxver = 35;
+// setting
+GainController.prototype.setGain = function (val) {
+    // check for support
+    if (!this.support) return;
+    this.gainFilter.gain.value = val;
+    this.gain = val;
+};
 
-        // check that the extension is installed by looking for a
-        // sessionStorage variable that contains the extension id
-        // this has to be set after installation unless the contest
-        // script does that
-        if (sessionStorage.getScreenMediaJSExtensionId) {
-            chrome.runtime.sendMessage(sessionStorage.getScreenMediaJSExtensionId,
-                {type:'getScreen', id: 1}, null,
-                function (data) {
-                    if (!data || data.sourceId === '') { // user canceled
-                        var error = new Error('NavigatorUserMediaError');
-                        error.name = 'PERMISSION_DENIED';
-                        callback(error);
-                    } else {
-                        constraints = (hasConstraints && constraints) || {audio: false, video: {
-                            mandatory: {
-                                chromeMediaSource: 'desktop',
-                                maxWidth: window.screen.width,
-                                maxHeight: window.screen.height,
-                                maxFrameRate: 3
-                            }
-                        }};
-                        constraints.video.mandatory.chromeMediaSourceId = data.sourceId;
-                        getUserMedia(constraints, callback);
-                    }
-                }
-            );
-        } else if (window.cefGetScreenMedia) {
-            //window.cefGetScreenMedia is experimental - may be removed without notice
-            window.cefGetScreenMedia(function(sourceId) {
-                if (!sourceId) {
-                    var error = new Error('cefGetScreenMediaError');
-                    error.name = 'CEF_GETSCREENMEDIA_CANCELED';
-                    callback(error);
-                } else {
-                    constraints = (hasConstraints && constraints) || {audio: false, video: {
-                        mandatory: {
-                            chromeMediaSource: 'desktop',
-                            maxWidth: window.screen.width,
-                            maxHeight: window.screen.height,
-                            maxFrameRate: 3
-                        },
-                        optional: [
-                            {googLeakyBucket: true},
-                            {googTemporalLayeredScreencast: true}
-                        ]
-                    }};
-                    constraints.video.mandatory.chromeMediaSourceId = sourceId;
-                    getUserMedia(constraints, callback);
-                }
-            });
-        } else if (isCef || (chromever >= 26 && chromever <= maxver)) {
-            // chrome 26 - chrome 33 way to do it -- requires bad chrome://flags
-            // note: this is basically in maintenance mode and will go away soon
-            constraints = (hasConstraints && constraints) || {
-                video: {
-                    mandatory: {
-                        googLeakyBucket: true,
-                        maxWidth: window.screen.width,
-                        maxHeight: window.screen.height,
-                        maxFrameRate: 3,
-                        chromeMediaSource: 'screen'
-                    }
-                }
-            };
-            getUserMedia(constraints, callback);
-        } else {
-            // chrome 34+ way requiring an extension
-            var pending = window.setTimeout(function () {
-                error = new Error('NavigatorUserMediaError');
-                error.name = 'EXTENSION_UNAVAILABLE';
-                return callback(error);
-            }, 1000);
-            cache[pending] = [callback, hasConstraints ? constraints : null];
-            window.postMessage({ type: 'getScreen', id: pending }, '*');
-        }
-    } else if (window.navigator.userAgent.match('Firefox')) {
-        var ffver = parseInt(window.navigator.userAgent.match(/Firefox\/(.*)/)[1], 10);
-        if (ffver >= 33) {
-            constraints = (hasConstraints && constraints) || {
-                video: {
-                    mozMediaSource: 'window',
-                    mediaSource: 'window'
-                }
+GainController.prototype.getGain = function () {
+    return this.gain;
+};
+
+GainController.prototype.off = function () {
+    return this.setGain(0);
+};
+
+GainController.prototype.on = function () {
+    this.setGain(1);
+};
+
+
+module.exports = GainController;
+
+},{"webrtcsupport":28}],7:[function(require,module,exports){
+var methods = "assert,count,debug,dir,dirxml,error,exception,group,groupCollapsed,groupEnd,info,log,markTimeline,profile,profileEnd,time,timeEnd,trace,warn".split(",");
+var l = methods.length;
+var fn = function () {};
+var mockconsole = {};
+
+while (l--) {
+    mockconsole[methods[l]] = fn;
+}
+
+module.exports = mockconsole;
+
+},{}],8:[function(require,module,exports){
+// shim for using process in browser
+
+var process = module.exports = {};
+
+// cached from whatever global is present so that test runners that stub it
+// don't break things.  But we need to wrap it in a try catch in case it is
+// wrapped in strict mode code which doesn't define any globals.  It's inside a
+// function because try/catches deoptimize in certain engines.
+
+var cachedSetTimeout;
+var cachedClearTimeout;
+
+(function () {
+  try {
+    cachedSetTimeout = setTimeout;
+  } catch (e) {
+    cachedSetTimeout = function () {
+      throw new Error('setTimeout is not defined');
+    }
+  }
+  try {
+    cachedClearTimeout = clearTimeout;
+  } catch (e) {
+    cachedClearTimeout = function () {
+      throw new Error('clearTimeout is not defined');
+    }
+  }
+} ())
+var queue = [];
+var draining = false;
+var currentQueue;
+var queueIndex = -1;
+
+function cleanUpNextTick() {
+    if (!draining || !currentQueue) {
+        return;
+    }
+    draining = false;
+    if (currentQueue.length) {
+        queue = currentQueue.concat(queue);
+    } else {
+        queueIndex = -1;
+    }
+    if (queue.length) {
+        drainQueue();
+    }
+}
+
+function drainQueue() {
+    if (draining) {
+        return;
+    }
+    var timeout = cachedSetTimeout(cleanUpNextTick);
+    draining = true;
+
+    var len = queue.length;
+    while(len) {
+        currentQueue = queue;
+        queue = [];
+        while (++queueIndex < len) {
+            if (currentQueue) {
+                currentQueue[queueIndex].run();
             }
-            getUserMedia(constraints, function (err, stream) {
-                callback(err, stream);
-                // workaround for https://bugzilla.mozilla.org/show_bug.cgi?id=1045810
-                if (!err) {
-                    var lastTime = stream.currentTime;
-                    var polly = window.setInterval(function () {
-                        if (!stream) window.clearInterval(polly);
-                        if (stream.currentTime == lastTime) {
-                            window.clearInterval(polly);
-                            if (stream.onended) {
-                                stream.onended();
-                            }
-                        }
-                        lastTime = stream.currentTime;
-                    }, 500);
-                }
-            });
-        } else {
-            error = new Error('NavigatorUserMediaError');
-            error.name = 'EXTENSION_UNAVAILABLE'; // does not make much sense but...
         }
+        queueIndex = -1;
+        len = queue.length;
+    }
+    currentQueue = null;
+    draining = false;
+    cachedClearTimeout(timeout);
+}
+
+process.nextTick = function (fun) {
+    var args = new Array(arguments.length - 1);
+    if (arguments.length > 1) {
+        for (var i = 1; i < arguments.length; i++) {
+            args[i - 1] = arguments[i];
+        }
+    }
+    queue.push(new Item(fun, args));
+    if (queue.length === 1 && !draining) {
+        cachedSetTimeout(drainQueue, 0);
     }
 };
 
-window.addEventListener('message', function (event) {
-    if (event.origin != window.location.origin) {
-        return;
-    }
-    if (event.data.type == 'gotScreen' && cache[event.data.id]) {
-        var data = cache[event.data.id];
-        var constraints = data[1];
-        var callback = data[0];
-        delete cache[event.data.id];
+// v8 likes predictible objects
+function Item(fun, array) {
+    this.fun = fun;
+    this.array = array;
+}
+Item.prototype.run = function () {
+    this.fun.apply(null, this.array);
+};
+process.title = 'browser';
+process.browser = true;
+process.env = {};
+process.argv = [];
+process.version = ''; // empty string to avoid regexp issues
+process.versions = {};
 
-        if (event.data.sourceId === '') { // user canceled
-            var error = new Error('NavigatorUserMediaError');
-            error.name = 'PERMISSION_DENIED';
-            callback(error);
-        } else {
-            constraints = constraints || {audio: false, video: {
-                mandatory: {
-                    chromeMediaSource: 'desktop',
-                    maxWidth: window.screen.width,
-                    maxHeight: window.screen.height,
-                    maxFrameRate: 3
-                },
-                optional: [
-                    {googLeakyBucket: true},
-                    {googTemporalLayeredScreencast: true}
-                ]
-            }};
-            constraints.video.mandatory.chromeMediaSourceId = event.data.sourceId;
-            getUserMedia(constraints, callback);
+function noop() {}
+
+process.on = noop;
+process.addListener = noop;
+process.once = noop;
+process.off = noop;
+process.removeListener = noop;
+process.removeAllListeners = noop;
+process.emit = noop;
+
+process.binding = function (name) {
+    throw new Error('process.binding is not supported');
+};
+
+process.cwd = function () { return '/' };
+process.chdir = function (dir) {
+    throw new Error('process.chdir is not supported');
+};
+process.umask = function() { return 0; };
+
+},{}],9:[function(require,module,exports){
+var util = require('util');
+var SJJ = require('sdp-jingle-json');
+var WildEmitter = require('wildemitter');
+var Peerconn = require('traceablepeerconnection');
+var adapter = require('webrtc-adapter');
+
+function PeerConnection(config, constraints) {
+    var self = this;
+    var item;
+    WildEmitter.call(this);
+
+    config = config || {};
+    config.iceServers = config.iceServers || [];
+
+    var detectedBrowser = adapter.browserDetails.browser;
+
+    // make sure this only gets enabled in Google Chrome
+    // EXPERIMENTAL FLAG, might get removed without notice
+    this.enableChromeNativeSimulcast = false;
+    if (constraints && constraints.optional &&
+            detectedBrowser === 'chrome' &&
+            navigator.appVersion.match(/Chromium\//) === null) {
+        constraints.optional.forEach(function (constraint) {
+            if (constraint.enableChromeNativeSimulcast) {
+                self.enableChromeNativeSimulcast = true;
+            }
+        });
+    }
+
+    // EXPERIMENTAL FLAG, might get removed without notice
+    this.enableMultiStreamHacks = false;
+    if (constraints && constraints.optional &&
+            detectedBrowser === 'chrome') {
+        constraints.optional.forEach(function (constraint) {
+            if (constraint.enableMultiStreamHacks) {
+                self.enableMultiStreamHacks = true;
+            }
+        });
+    }
+    // EXPERIMENTAL FLAG, might get removed without notice
+    this.restrictBandwidth = 0;
+    if (constraints && constraints.optional) {
+        constraints.optional.forEach(function (constraint) {
+            if (constraint.andyetRestrictBandwidth) {
+                self.restrictBandwidth = constraint.andyetRestrictBandwidth;
+            }
+        });
+    }
+
+    // EXPERIMENTAL FLAG, might get removed without notice
+    // bundle up ice candidates, only works for jingle mode
+    // number > 0 is the delay to wait for additional candidates
+    // ~20ms seems good
+    this.batchIceCandidates = 0;
+    if (constraints && constraints.optional) {
+        constraints.optional.forEach(function (constraint) {
+            if (constraint.andyetBatchIce) {
+                self.batchIceCandidates = constraint.andyetBatchIce;
+            }
+        });
+    }
+    this.batchedIceCandidates = [];
+
+    // EXPERIMENTAL FLAG, might get removed without notice
+    // this attemps to strip out candidates with an already known foundation
+    // and type -- i.e. those which are gathered via the same TURN server
+    // but different transports (TURN udp, tcp and tls respectively)
+    if (constraints && constraints.optional && detectedBrowser === 'chrome') {
+        constraints.optional.forEach(function (constraint) {
+            if (constraint.andyetFasterICE) {
+                self.eliminateDuplicateCandidates = constraint.andyetFasterICE;
+            }
+        });
+    }
+    // EXPERIMENTAL FLAG, might get removed without notice
+    // when using a server such as the jitsi videobridge we don't need to signal
+    // our candidates
+    if (constraints && constraints.optional) {
+        constraints.optional.forEach(function (constraint) {
+            if (constraint.andyetDontSignalCandidates) {
+                self.dontSignalCandidates = constraint.andyetDontSignalCandidates;
+            }
+        });
+    }
+
+
+    // EXPERIMENTAL FLAG, might get removed without notice
+    this.assumeSetLocalSuccess = false;
+    if (constraints && constraints.optional) {
+        constraints.optional.forEach(function (constraint) {
+            if (constraint.andyetAssumeSetLocalSuccess) {
+                self.assumeSetLocalSuccess = constraint.andyetAssumeSetLocalSuccess;
+            }
+        });
+    }
+
+    // EXPERIMENTAL FLAG, might get removed without notice
+    // working around https://bugzilla.mozilla.org/show_bug.cgi?id=1087551
+    // pass in a timeout for this
+    if (detectedBrowser === 'firefox') {
+        if (constraints && constraints.optional) {
+            this.wtFirefox = 0;
+            constraints.optional.forEach(function (constraint) {
+                if (constraint.andyetFirefoxMakesMeSad) {
+                    self.wtFirefox = constraint.andyetFirefoxMakesMeSad;
+                    if (self.wtFirefox > 0) {
+                        self.firefoxcandidatebuffer = [];
+                    }
+                }
+            });
         }
-    } else if (event.data.type == 'getScreenPending') {
-        window.clearTimeout(event.data.id);
+    }
+
+
+    this.pc = new Peerconn(config, constraints);
+
+    this.getLocalStreams = this.pc.getLocalStreams.bind(this.pc);
+    this.getRemoteStreams = this.pc.getRemoteStreams.bind(this.pc);
+    this.addStream = this.pc.addStream.bind(this.pc);
+    this.removeStream = this.pc.removeStream.bind(this.pc);
+
+    // proxy events
+    this.pc.on('*', function () {
+        self.emit.apply(self, arguments);
+    });
+
+    // proxy some events directly
+    this.pc.onremovestream = this.emit.bind(this, 'removeStream');
+    this.pc.onaddstream = this.emit.bind(this, 'addStream');
+    this.pc.onnegotiationneeded = this.emit.bind(this, 'negotiationNeeded');
+    this.pc.oniceconnectionstatechange = this.emit.bind(this, 'iceConnectionStateChange');
+    this.pc.onsignalingstatechange = this.emit.bind(this, 'signalingStateChange');
+
+    // handle ice candidate and data channel events
+    this.pc.onicecandidate = this._onIce.bind(this);
+    this.pc.ondatachannel = this._onDataChannel.bind(this);
+
+    this.localDescription = {
+        contents: []
+    };
+    this.remoteDescription = {
+        contents: []
+    };
+
+    this.config = {
+        debug: false,
+        sid: '',
+        isInitiator: true,
+        sdpSessionID: Date.now(),
+        useJingle: false
+    };
+
+    this.iceCredentials = {
+        local: {},
+        remote: {}
+    };
+
+    // apply our config
+    for (item in config) {
+        this.config[item] = config[item];
+    }
+
+    if (this.config.debug) {
+        this.on('*', function () {
+            var logger = config.logger || console;
+            logger.log('PeerConnection event:', arguments);
+        });
+    }
+    this.hadLocalStunCandidate = false;
+    this.hadRemoteStunCandidate = false;
+    this.hadLocalRelayCandidate = false;
+    this.hadRemoteRelayCandidate = false;
+
+    this.hadLocalIPv6Candidate = false;
+    this.hadRemoteIPv6Candidate = false;
+
+    // keeping references for all our data channels
+    // so they dont get garbage collected
+    // can be removed once the following bugs have been fixed
+    // https://crbug.com/405545
+    // https://bugzilla.mozilla.org/show_bug.cgi?id=964092
+    // to be filed for opera
+    this._remoteDataChannels = [];
+    this._localDataChannels = [];
+
+    this._candidateBuffer = [];
+}
+
+util.inherits(PeerConnection, WildEmitter);
+
+Object.defineProperty(PeerConnection.prototype, 'signalingState', {
+    get: function () {
+        return this.pc.signalingState;
+    }
+});
+Object.defineProperty(PeerConnection.prototype, 'iceConnectionState', {
+    get: function () {
+        return this.pc.iceConnectionState;
     }
 });
 
-},{"getusermedia":4}],4:[function(require,module,exports){
-// getUserMedia helper by @HenrikJoreteg used for navigator.getUserMedia shim
-var adapter = require('webrtc-adapter');
+PeerConnection.prototype._role = function () {
+    return this.isInitiator ? 'initiator' : 'responder';
+};
 
-module.exports = function (constraints, cb) {
-    var error;
-    var haveOpts = arguments.length === 2;
-    var defaultOpts = {video: true, audio: true};
+// Add a stream to the peer connection object
+PeerConnection.prototype.addStream = function (stream) {
+    this.localStream = stream;
+    this.pc.addStream(stream);
+};
 
-    var denied = 'PermissionDeniedError';
-    var altDenied = 'PERMISSION_DENIED';
-    var notSatisfied = 'ConstraintNotSatisfiedError';
-
-    // make constraints optional
-    if (!haveOpts) {
-        cb = constraints;
-        constraints = defaultOpts;
+// helper function to check if a remote candidate is a stun/relay
+// candidate or an ipv6 candidate
+PeerConnection.prototype._checkLocalCandidate = function (candidate) {
+    var cand = SJJ.toCandidateJSON(candidate);
+    if (cand.type == 'srflx') {
+        this.hadLocalStunCandidate = true;
+    } else if (cand.type == 'relay') {
+        this.hadLocalRelayCandidate = true;
     }
-
-    // treat lack of browser support like an error
-    if (typeof navigator === 'undefined' || !navigator.getUserMedia) {
-        // throw proper error per spec
-        error = new Error('MediaStreamError');
-        error.name = 'NotSupportedError';
-
-        // keep all callbacks async
-        return setTimeout(function () {
-            cb(error);
-        }, 0);
+    if (cand.ip.indexOf(':') != -1) {
+        this.hadLocalIPv6Candidate = true;
     }
+};
 
-    // normalize error handling when no media types are requested
-    if (!constraints.audio && !constraints.video) {
-        error = new Error('MediaStreamError');
-        error.name = 'NoMediaRequestedError';
-
-        // keep all callbacks async
-        return setTimeout(function () {
-            cb(error);
-        }, 0);
+// helper function to check if a remote candidate is a stun/relay
+// candidate or an ipv6 candidate
+PeerConnection.prototype._checkRemoteCandidate = function (candidate) {
+    var cand = SJJ.toCandidateJSON(candidate);
+    if (cand.type == 'srflx') {
+        this.hadRemoteStunCandidate = true;
+    } else if (cand.type == 'relay') {
+        this.hadRemoteRelayCandidate = true;
     }
-
-    // testing support -- note: using the about:config pref is better
-    // for Firefox 39+, this might get removed in the future
-    if (localStorage && localStorage.useFirefoxFakeDevice === 'true') {
-        constraints.fake = true;
+    if (cand.ip.indexOf(':') != -1) {
+        this.hadRemoteIPv6Candidate = true;
     }
+};
 
-    navigator.mediaDevices.getUserMedia(constraints)
-    .then(function (stream) {
-        cb(null, stream);
-    }).catch(function (err) {
-        var error;
-        // coerce into an error object since FF gives us a string
-        // there are only two valid names according to the spec
-        // we coerce all non-denied to "constraint not satisfied".
-        if (typeof err === 'string') {
-            error = new Error('MediaStreamError');
-            if (err === denied || err === altDenied) {
-                error.name = denied;
-            } else {
-                error.name = notSatisfied;
-            }
-        } else {
-            // if we get an error object make sure '.name' property is set
-            // according to spec: http://dev.w3.org/2011/webrtc/editor/getusermedia.html#navigatorusermediaerror-and-navigatorusermediaerrorcallback
-            error = err;
-            if (!error.name) {
-                // this is likely chrome which
-                // sets a property called "ERROR_DENIED" on the error object
-                // if so we make sure to set a name
-                if (error[denied]) {
-                    err.name = denied;
+
+// Init and add ice candidate object with correct constructor
+PeerConnection.prototype.processIce = function (update, cb) {
+    cb = cb || function () {};
+    var self = this;
+
+    // ignore any added ice candidates to avoid errors. why does the
+    // spec not do this?
+    if (this.pc.signalingState === 'closed') return cb();
+
+    if (update.contents || (update.jingle && update.jingle.contents)) {
+        var contentNames = this.remoteDescription.contents.map(function (c) { return c.name; });
+        var contents = update.contents || update.jingle.contents;
+
+        contents.forEach(function (content) {
+            var transport = content.transport || {};
+            var candidates = transport.candidates || [];
+            var mline = contentNames.indexOf(content.name);
+            var mid = content.name;
+            var remoteContent = self.remoteDescription.contents.find(function (c) {
+                return c.name === content.name;
+            });
+
+            // process candidates as a callback, in case we need to
+            // update ufrag and pwd with offer/answer
+            var processCandidates = function () {
+                candidates.forEach(
+                    function (candidate) {
+                    var iceCandidate = SJJ.toCandidateSDP(candidate) + '\r\n';
+                    self.pc.addIceCandidate(
+                        new RTCIceCandidate({
+                            candidate: iceCandidate,
+                            sdpMLineIndex: mline,
+                            sdpMid: mid
+                        }), function () {
+                            // well, this success callback is pretty meaningless
+                        },
+                        function (err) {
+                            self.emit('error', err);
+                        }
+                    );
+                    self._checkRemoteCandidate(iceCandidate);
+                });
+                cb();
+            };
+
+            if (self.iceCredentials.remote[content.name] && transport.ufrag &&
+                self.iceCredentials.remote[content.name].ufrag !== transport.ufrag) {
+                if (remoteContent) {
+                    remoteContent.transport.ufrag = transport.ufrag;
+                    remoteContent.transport.pwd = transport.pwd;
+                    var offer = {
+                        type: 'offer',
+                        jingle: self.remoteDescription
+                    };
+                    offer.sdp = SJJ.toSessionSDP(offer.jingle, {
+                        sid: self.config.sdpSessionID,
+                        role: self._role(),
+                        direction: 'incoming'
+                    });
+                    self.pc.setRemoteDescription(new RTCSessionDescription(offer),
+                        function () {
+                            processCandidates();
+                        },
+                        function (err) {
+                            self.emit('error', err);
+                        }
+                    );
                 } else {
-                    err.name = notSatisfied;
+                    self.emit('error', 'ice restart failed to find matching content');
                 }
+            } else {
+                processCandidates();
+            }
+        });
+    } else {
+        // working around https://code.google.com/p/webrtc/issues/detail?id=3669
+        if (update.candidate && update.candidate.candidate.indexOf('a=') !== 0) {
+            update.candidate.candidate = 'a=' + update.candidate.candidate;
+        }
+
+        if (this.wtFirefox && this.firefoxcandidatebuffer !== null) {
+            // we cant add this yet due to https://bugzilla.mozilla.org/show_bug.cgi?id=1087551
+            if (this.pc.localDescription && this.pc.localDescription.type === 'offer') {
+                this.firefoxcandidatebuffer.push(update.candidate);
+                return cb();
             }
         }
 
-        cb(error);
+        self.pc.addIceCandidate(
+            new RTCIceCandidate(update.candidate),
+            function () { },
+            function (err) {
+                self.emit('error', err);
+            }
+        );
+        self._checkRemoteCandidate(update.candidate.candidate);
+        cb();
+    }
+};
+
+// Generate and emit an offer with the given constraints
+PeerConnection.prototype.offer = function (constraints, cb) {
+    var self = this;
+    var hasConstraints = arguments.length === 2;
+    var mediaConstraints = hasConstraints && constraints ? constraints : {
+            offerToReceiveAudio: 1,
+            offerToReceiveVideo: 1
+        };
+    cb = hasConstraints ? cb : constraints;
+    cb = cb || function () {};
+
+    if (this.pc.signalingState === 'closed') return cb('Already closed');
+
+    // Actually generate the offer
+    this.pc.createOffer(
+        function (offer) {
+            // does not work for jingle, but jingle.js doesn't need
+            // this hack...
+            var expandedOffer = {
+                type: 'offer',
+                sdp: offer.sdp
+            };
+            if (self.assumeSetLocalSuccess) {
+                self.emit('offer', expandedOffer);
+                cb(null, expandedOffer);
+            }
+            self._candidateBuffer = [];
+            self.pc.setLocalDescription(offer,
+                function () {
+                    var jingle;
+                    if (self.config.useJingle) {
+                        jingle = SJJ.toSessionJSON(offer.sdp, {
+                            role: self._role(),
+                            direction: 'outgoing'
+                        });
+                        jingle.sid = self.config.sid;
+                        self.localDescription = jingle;
+
+                        // Save ICE credentials
+                        jingle.contents.forEach(function (content) {
+                            var transport = content.transport || {};
+                            if (transport.ufrag) {
+                                self.iceCredentials.local[content.name] = {
+                                    ufrag: transport.ufrag,
+                                    pwd: transport.pwd
+                                };
+                            }
+                        });
+
+                        expandedOffer.jingle = jingle;
+                    }
+                    expandedOffer.sdp.split('\r\n').forEach(function (line) {
+                        if (line.indexOf('a=candidate:') === 0) {
+                            self._checkLocalCandidate(line);
+                        }
+                    });
+
+                    if (!self.assumeSetLocalSuccess) {
+                        self.emit('offer', expandedOffer);
+                        cb(null, expandedOffer);
+                    }
+                },
+                function (err) {
+                    self.emit('error', err);
+                    cb(err);
+                }
+            );
+        },
+        function (err) {
+            self.emit('error', err);
+            cb(err);
+        },
+        mediaConstraints
+    );
+};
+
+
+// Process an incoming offer so that ICE may proceed before deciding
+// to answer the request.
+PeerConnection.prototype.handleOffer = function (offer, cb) {
+    cb = cb || function () {};
+    var self = this;
+    offer.type = 'offer';
+    if (offer.jingle) {
+        if (this.enableChromeNativeSimulcast) {
+            offer.jingle.contents.forEach(function (content) {
+                if (content.name === 'video') {
+                    content.application.googConferenceFlag = true;
+                }
+
+            });
+        }
+        if (this.enableMultiStreamHacks) {
+            // add a mixed video stream as first stream
+            offer.jingle.contents.forEach(function (content) {
+                if (content.name === 'video') {
+                    var sources = content.application.sources || [];
+                    if (sources.length === 0 || sources[0].ssrc !== "3735928559") {
+                        sources.unshift({
+                            ssrc: "3735928559", // 0xdeadbeef
+                            parameters: [
+                                {
+                                    key: "cname",
+                                    value: "deadbeef"
+                                },
+                                {
+                                    key: "msid",
+                                    value: "mixyourfecintothis please"
+                                }
+                            ]
+                        });
+                        content.application.sources = sources;
+                    }
+                }
+            });
+        }
+        if (self.restrictBandwidth > 0) {
+            if (offer.jingle.contents.length >= 2 && offer.jingle.contents[1].name === 'video') {
+                var content = offer.jingle.contents[1];
+                var hasBw = content.application && content.application.bandwidth && content.application.bandwidth.bandwidth;
+                if (!hasBw) {
+                    offer.jingle.contents[1].application.bandwidth = { type: 'AS', bandwidth: self.restrictBandwidth.toString() };
+                    offer.sdp = SJJ.toSessionSDP(offer.jingle, {
+                        sid: self.config.sdpSessionID,
+                        role: self._role(),
+                        direction: 'outgoing'
+                    });
+                }
+            }
+        }
+        // Save ICE credentials
+        offer.jingle.contents.forEach(function (content) {
+            var transport = content.transport || {};
+            if (transport.ufrag) {
+                self.iceCredentials.remote[content.name] = {
+                    ufrag: transport.ufrag,
+                    pwd: transport.pwd
+                };
+            }
+        });
+        offer.sdp = SJJ.toSessionSDP(offer.jingle, {
+            sid: self.config.sdpSessionID,
+            role: self._role(),
+            direction: 'incoming'
+        });
+        self.remoteDescription = offer.jingle;
+    }
+    offer.sdp.split('\r\n').forEach(function (line) {
+        if (line.indexOf('a=candidate:') === 0) {
+            self._checkRemoteCandidate(line);
+        }
+    });
+    self.pc.setRemoteDescription(new RTCSessionDescription(offer),
+        function () {
+            cb();
+        },
+        cb
+    );
+};
+
+// Answer an offer with audio only
+PeerConnection.prototype.answerAudioOnly = function (cb) {
+    var mediaConstraints = {
+            mandatory: {
+                OfferToReceiveAudio: true,
+                OfferToReceiveVideo: false
+            }
+        };
+    this._answer(mediaConstraints, cb);
+};
+
+// Answer an offer without offering to recieve
+PeerConnection.prototype.answerBroadcastOnly = function (cb) {
+    var mediaConstraints = {
+            mandatory: {
+                OfferToReceiveAudio: false,
+                OfferToReceiveVideo: false
+            }
+        };
+    this._answer(mediaConstraints, cb);
+};
+
+// Answer an offer with given constraints default is audio/video
+PeerConnection.prototype.answer = function (constraints, cb) {
+    var hasConstraints = arguments.length === 2;
+    var callback = hasConstraints ? cb : constraints;
+    var mediaConstraints = hasConstraints && constraints ? constraints : {
+            mandatory: {
+                OfferToReceiveAudio: true,
+                OfferToReceiveVideo: true
+            }
+        };
+
+    this._answer(mediaConstraints, callback);
+};
+
+// Process an answer
+PeerConnection.prototype.handleAnswer = function (answer, cb) {
+    cb = cb || function () {};
+    var self = this;
+    if (answer.jingle) {
+        answer.sdp = SJJ.toSessionSDP(answer.jingle, {
+            sid: self.config.sdpSessionID,
+            role: self._role(),
+            direction: 'incoming'
+        });
+        self.remoteDescription = answer.jingle;
+
+        // Save ICE credentials
+        answer.jingle.contents.forEach(function (content) {
+            var transport = content.transport || {};
+            if (transport.ufrag) {
+                self.iceCredentials.remote[content.name] = {
+                    ufrag: transport.ufrag,
+                    pwd: transport.pwd
+                };
+            }
+        });
+    }
+    answer.sdp.split('\r\n').forEach(function (line) {
+        if (line.indexOf('a=candidate:') === 0) {
+            self._checkRemoteCandidate(line);
+        }
+    });
+    self.pc.setRemoteDescription(
+        new RTCSessionDescription(answer),
+        function () {
+            if (self.wtFirefox) {
+                window.setTimeout(function () {
+                    self.firefoxcandidatebuffer.forEach(function (candidate) {
+                        // add candidates later
+                        self.pc.addIceCandidate(
+                            new RTCIceCandidate(candidate),
+                            function () { },
+                            function (err) {
+                                self.emit('error', err);
+                            }
+                        );
+                        self._checkRemoteCandidate(candidate.candidate);
+                    });
+                    self.firefoxcandidatebuffer = null;
+                }, self.wtFirefox);
+            }
+            cb(null);
+        },
+        cb
+    );
+};
+
+// Close the peer connection
+PeerConnection.prototype.close = function () {
+    this.pc.close();
+
+    this._localDataChannels = [];
+    this._remoteDataChannels = [];
+
+    this.emit('close');
+};
+
+// Internal code sharing for various types of answer methods
+PeerConnection.prototype._answer = function (constraints, cb) {
+    cb = cb || function () {};
+    var self = this;
+    if (!this.pc.remoteDescription) {
+        // the old API is used, call handleOffer
+        throw new Error('remoteDescription not set');
+    }
+
+    if (this.pc.signalingState === 'closed') return cb('Already closed');
+
+    self.pc.createAnswer(
+        function (answer) {
+            var sim = [];
+            if (self.enableChromeNativeSimulcast) {
+                // native simulcast part 1: add another SSRC
+                answer.jingle = SJJ.toSessionJSON(answer.sdp, {
+                    role: self._role(),
+                    direction: 'outgoing'
+                });
+                if (answer.jingle.contents.length >= 2 && answer.jingle.contents[1].name === 'video') {
+                    var groups = answer.jingle.contents[1].application.sourceGroups || [];
+                    var hasSim = false;
+                    groups.forEach(function (group) {
+                        if (group.semantics == 'SIM') hasSim = true;
+                    });
+                    if (!hasSim &&
+                        answer.jingle.contents[1].application.sources.length) {
+                        var newssrc = JSON.parse(JSON.stringify(answer.jingle.contents[1].application.sources[0]));
+                        newssrc.ssrc = '' + Math.floor(Math.random() * 0xffffffff); // FIXME: look for conflicts
+                        answer.jingle.contents[1].application.sources.push(newssrc);
+
+                        sim.push(answer.jingle.contents[1].application.sources[0].ssrc);
+                        sim.push(newssrc.ssrc);
+                        groups.push({
+                            semantics: 'SIM',
+                            sources: sim
+                        });
+
+                        // also create an RTX one for the SIM one
+                        var rtxssrc = JSON.parse(JSON.stringify(newssrc));
+                        rtxssrc.ssrc = '' + Math.floor(Math.random() * 0xffffffff); // FIXME: look for conflicts
+                        answer.jingle.contents[1].application.sources.push(rtxssrc);
+                        groups.push({
+                            semantics: 'FID',
+                            sources: [newssrc.ssrc, rtxssrc.ssrc]
+                        });
+
+                        answer.jingle.contents[1].application.sourceGroups = groups;
+                        answer.sdp = SJJ.toSessionSDP(answer.jingle, {
+                            sid: self.config.sdpSessionID,
+                            role: self._role(),
+                            direction: 'outgoing'
+                        });
+                    }
+                }
+            }
+            var expandedAnswer = {
+                type: 'answer',
+                sdp: answer.sdp
+            };
+            if (self.assumeSetLocalSuccess) {
+                // not safe to do when doing simulcast mangling
+                self.emit('answer', expandedAnswer);
+                cb(null, expandedAnswer);
+            }
+            self._candidateBuffer = [];
+            self.pc.setLocalDescription(answer,
+                function () {
+                    if (self.config.useJingle) {
+                        var jingle = SJJ.toSessionJSON(answer.sdp, {
+                            role: self._role(),
+                            direction: 'outgoing'
+                        });
+                        jingle.sid = self.config.sid;
+                        self.localDescription = jingle;
+                        expandedAnswer.jingle = jingle;
+                    }
+                    if (self.enableChromeNativeSimulcast) {
+                        // native simulcast part 2:
+                        // signal multiple tracks to the receiver
+                        // for anything in the SIM group
+                        if (!expandedAnswer.jingle) {
+                            expandedAnswer.jingle = SJJ.toSessionJSON(answer.sdp, {
+                                role: self._role(),
+                                direction: 'outgoing'
+                            });
+                        }
+                        expandedAnswer.jingle.contents[1].application.sources.forEach(function (source, idx) {
+                            // the floor idx/2 is a hack that relies on a particular order
+                            // of groups, alternating between sim and rtx
+                            source.parameters = source.parameters.map(function (parameter) {
+                                if (parameter.key === 'msid') {
+                                    parameter.value += '-' + Math.floor(idx / 2);
+                                }
+                                return parameter;
+                            });
+                        });
+                        expandedAnswer.sdp = SJJ.toSessionSDP(expandedAnswer.jingle, {
+                            sid: self.sdpSessionID,
+                            role: self._role(),
+                            direction: 'outgoing'
+                        });
+                    }
+                    expandedAnswer.sdp.split('\r\n').forEach(function (line) {
+                        if (line.indexOf('a=candidate:') === 0) {
+                            self._checkLocalCandidate(line);
+                        }
+                    });
+                    if (!self.assumeSetLocalSuccess) {
+                        self.emit('answer', expandedAnswer);
+                        cb(null, expandedAnswer);
+                    }
+                },
+                function (err) {
+                    self.emit('error', err);
+                    cb(err);
+                }
+            );
+        },
+        function (err) {
+            self.emit('error', err);
+            cb(err);
+        },
+        constraints
+    );
+};
+
+// Internal method for emitting ice candidates on our peer object
+PeerConnection.prototype._onIce = function (event) {
+    var self = this;
+    if (event.candidate) {
+        if (this.dontSignalCandidates) return;
+        var ice = event.candidate;
+
+        var expandedCandidate = {
+            candidate: {
+                candidate: ice.candidate,
+                sdpMid: ice.sdpMid,
+                sdpMLineIndex: ice.sdpMLineIndex
+            }
+        };
+        this._checkLocalCandidate(ice.candidate);
+
+        var cand = SJJ.toCandidateJSON(ice.candidate);
+
+        var already;
+        var idx;
+        if (this.eliminateDuplicateCandidates && cand.type === 'relay') {
+            // drop candidates with same foundation, component
+            // take local type pref into account so we don't ignore udp
+            // ones when we know about a TCP one. unlikely but...
+            already = this._candidateBuffer.filter(
+                function (c) {
+                    return c.type === 'relay';
+                }).map(function (c) {
+                    return c.foundation + ':' + c.component;
+                }
+            );
+            idx = already.indexOf(cand.foundation + ':' + cand.component);
+            // remember: local type pref of udp is 0, tcp 1, tls 2
+            if (idx > -1 && ((cand.priority >> 24) >= (already[idx].priority >> 24))) {
+                // drop it, same foundation with higher (worse) type pref
+                return;
+            }
+        }
+        if (this.config.bundlePolicy === 'max-bundle') {
+            // drop candidates which are duplicate for audio/video/data
+            // duplicate means same host/port but different sdpMid
+            already = this._candidateBuffer.filter(
+                function (c) {
+                    return cand.type === c.type;
+                }).map(function (cand) {
+                    return cand.address + ':' + cand.port;
+                }
+            );
+            idx = already.indexOf(cand.address + ':' + cand.port);
+            if (idx > -1) return;
+        }
+        // also drop rtcp candidates since we know the peer supports RTCP-MUX
+        // this is a workaround until browsers implement this natively
+        if (this.config.rtcpMuxPolicy === 'require' && cand.component === '2') {
+            return;
+        }
+        this._candidateBuffer.push(cand);
+
+        if (self.config.useJingle) {
+            if (!ice.sdpMid) { // firefox doesn't set this
+                if (self.pc.remoteDescription && self.pc.remoteDescription.type === 'offer') {
+                    // preserve name from remote
+                    ice.sdpMid = self.remoteDescription.contents[ice.sdpMLineIndex].name;
+                } else {
+                    ice.sdpMid = self.localDescription.contents[ice.sdpMLineIndex].name;
+                }
+            }
+            if (!self.iceCredentials.local[ice.sdpMid]) {
+                var jingle = SJJ.toSessionJSON(self.pc.localDescription.sdp, {
+                    role: self._role(),
+                    direction: 'outgoing'
+                });
+                jingle.contents.forEach(function (content) {
+                    var transport = content.transport || {};
+                    if (transport.ufrag) {
+                        self.iceCredentials.local[content.name] = {
+                            ufrag: transport.ufrag,
+                            pwd: transport.pwd
+                        };
+                    }
+                });
+            }
+            expandedCandidate.jingle = {
+                contents: [{
+                    name: ice.sdpMid,
+                    creator: self._role(),
+                    transport: {
+                        transportType: 'iceUdp',
+                        ufrag: self.iceCredentials.local[ice.sdpMid].ufrag,
+                        pwd: self.iceCredentials.local[ice.sdpMid].pwd,
+                        candidates: [
+                            cand
+                        ]
+                    }
+                }]
+            };
+            if (self.batchIceCandidates > 0) {
+                if (self.batchedIceCandidates.length === 0) {
+                    window.setTimeout(function () {
+                        var contents = {};
+                        self.batchedIceCandidates.forEach(function (content) {
+                            content = content.contents[0];
+                            if (!contents[content.name]) contents[content.name] = content;
+                            contents[content.name].transport.candidates.push(content.transport.candidates[0]);
+                        });
+                        var newCand = {
+                            jingle: {
+                                contents: []
+                            }
+                        };
+                        Object.keys(contents).forEach(function (name) {
+                            newCand.jingle.contents.push(contents[name]);
+                        });
+                        self.batchedIceCandidates = [];
+                        self.emit('ice', newCand);
+                    }, self.batchIceCandidates);
+                }
+                self.batchedIceCandidates.push(expandedCandidate.jingle);
+                return;
+            }
+
+        }
+        this.emit('ice', expandedCandidate);
+    } else {
+        this.emit('endOfCandidates');
+    }
+};
+
+// Internal method for processing a new data channel being added by the
+// other peer.
+PeerConnection.prototype._onDataChannel = function (event) {
+    // make sure we keep a reference so this doesn't get garbage collected
+    var channel = event.channel;
+    this._remoteDataChannels.push(channel);
+
+    this.emit('addChannel', channel);
+};
+
+// Create a data channel spec reference:
+// http://dev.w3.org/2011/webrtc/editor/webrtc.html#idl-def-RTCDataChannelInit
+PeerConnection.prototype.createDataChannel = function (name, opts) {
+    var channel = this.pc.createDataChannel(name, opts);
+
+    // make sure we keep a reference so this doesn't get garbage collected
+    this._localDataChannels.push(channel);
+
+    return channel;
+};
+
+PeerConnection.prototype.getStats = function (cb) {
+    this.pc.getStats(null,
+        function (res) {
+            cb(null, res);
+        },
+        function (err) {
+            cb(err);
+        }
+    );
+};
+
+module.exports = PeerConnection;
+
+},{"sdp-jingle-json":10,"traceablepeerconnection":16,"util":18,"webrtc-adapter":19,"wildemitter":29}],10:[function(require,module,exports){
+var toSDP = require('./lib/tosdp');
+var toJSON = require('./lib/tojson');
+
+
+// Converstion from JSON to SDP
+
+exports.toIncomingSDPOffer = function (session) {
+    return toSDP.toSessionSDP(session, {
+        role: 'responder',
+        direction: 'incoming'
+    });
+};
+exports.toOutgoingSDPOffer = function (session) {
+    return toSDP.toSessionSDP(session, {
+        role: 'initiator',
+        direction: 'outgoing'
+    });
+};
+exports.toIncomingSDPAnswer = function (session) {
+    return toSDP.toSessionSDP(session, {
+        role: 'initiator',
+        direction: 'incoming'
+    });
+};
+exports.toOutgoingSDPAnswer = function (session) {
+    return toSDP.toSessionSDP(session, {
+        role: 'responder',
+        direction: 'outgoing'
+    });
+};
+exports.toIncomingMediaSDPOffer = function (media) {
+    return toSDP.toMediaSDP(media, {
+        role: 'responder',
+        direction: 'incoming'
+    });
+};
+exports.toOutgoingMediaSDPOffer = function (media) {
+    return toSDP.toMediaSDP(media, {
+        role: 'initiator',
+        direction: 'outgoing'
+    });
+};
+exports.toIncomingMediaSDPAnswer = function (media) {
+    return toSDP.toMediaSDP(media, {
+        role: 'initiator',
+        direction: 'incoming'
+    });
+};
+exports.toOutgoingMediaSDPAnswer = function (media) {
+    return toSDP.toMediaSDP(media, {
+        role: 'responder',
+        direction: 'outgoing'
+    });
+};
+exports.toCandidateSDP = toSDP.toCandidateSDP;
+exports.toMediaSDP = toSDP.toMediaSDP;
+exports.toSessionSDP = toSDP.toSessionSDP;
+
+
+// Conversion from SDP to JSON
+
+exports.toIncomingJSONOffer = function (sdp, creators) {
+    return toJSON.toSessionJSON(sdp, {
+        role: 'responder',
+        direction: 'incoming',
+        creators: creators
+    });
+};
+exports.toOutgoingJSONOffer = function (sdp, creators) {
+    return toJSON.toSessionJSON(sdp, {
+        role: 'initiator',
+        direction: 'outgoing',
+        creators: creators
+    });
+};
+exports.toIncomingJSONAnswer = function (sdp, creators) {
+    return toJSON.toSessionJSON(sdp, {
+        role: 'initiator',
+        direction: 'incoming',
+        creators: creators
+    });
+};
+exports.toOutgoingJSONAnswer = function (sdp, creators) {
+    return toJSON.toSessionJSON(sdp, {
+        role: 'responder',
+        direction: 'outgoing',
+        creators: creators
+    });
+};
+exports.toIncomingMediaJSONOffer = function (sdp, creator) {
+    return toJSON.toMediaJSON(sdp, {
+        role: 'responder',
+        direction: 'incoming',
+        creator: creator
+    });
+};
+exports.toOutgoingMediaJSONOffer = function (sdp, creator) {
+    return toJSON.toMediaJSON(sdp, {
+        role: 'initiator',
+        direction: 'outgoing',
+        creator: creator
+    });
+};
+exports.toIncomingMediaJSONAnswer = function (sdp, creator) {
+    return toJSON.toMediaJSON(sdp, {
+        role: 'initiator',
+        direction: 'incoming',
+        creator: creator
+    });
+};
+exports.toOutgoingMediaJSONAnswer = function (sdp, creator) {
+    return toJSON.toMediaJSON(sdp, {
+        role: 'responder',
+        direction: 'outgoing',
+        creator: creator
+    });
+};
+exports.toCandidateJSON = toJSON.toCandidateJSON;
+exports.toMediaJSON = toJSON.toMediaJSON;
+exports.toSessionJSON = toJSON.toSessionJSON;
+
+},{"./lib/tojson":13,"./lib/tosdp":14}],11:[function(require,module,exports){
+exports.lines = function (sdp) {
+    return sdp.split('\r\n').filter(function (line) {
+        return line.length > 0;
     });
 };
 
-},{"webrtc-adapter":6}],5:[function(require,module,exports){
+exports.findLine = function (prefix, mediaLines, sessionLines) {
+    var prefixLength = prefix.length;
+    for (var i = 0; i < mediaLines.length; i++) {
+        if (mediaLines[i].substr(0, prefixLength) === prefix) {
+            return mediaLines[i];
+        }
+    }
+    // Continue searching in parent session section
+    if (!sessionLines) {
+        return false;
+    }
+
+    for (var j = 0; j < sessionLines.length; j++) {
+        if (sessionLines[j].substr(0, prefixLength) === prefix) {
+            return sessionLines[j];
+        }
+    }
+
+    return false;
+};
+
+exports.findLines = function (prefix, mediaLines, sessionLines) {
+    var results = [];
+    var prefixLength = prefix.length;
+    for (var i = 0; i < mediaLines.length; i++) {
+        if (mediaLines[i].substr(0, prefixLength) === prefix) {
+            results.push(mediaLines[i]);
+        }
+    }
+    if (results.length || !sessionLines) {
+        return results;
+    }
+    for (var j = 0; j < sessionLines.length; j++) {
+        if (sessionLines[j].substr(0, prefixLength) === prefix) {
+            results.push(sessionLines[j]);
+        }
+    }
+    return results;
+};
+
+exports.mline = function (line) {
+    var parts = line.substr(2).split(' ');
+    var parsed = {
+        media: parts[0],
+        port: parts[1],
+        proto: parts[2],
+        formats: []
+    };
+    for (var i = 3; i < parts.length; i++) {
+        if (parts[i]) {
+            parsed.formats.push(parts[i]);
+        }
+    }
+    return parsed;
+};
+
+exports.rtpmap = function (line) {
+    var parts = line.substr(9).split(' ');
+    var parsed = {
+        id: parts.shift()
+    };
+
+    parts = parts[0].split('/');
+
+    parsed.name = parts[0];
+    parsed.clockrate = parts[1];
+    parsed.channels = parts.length == 3 ? parts[2] : '1';
+    return parsed;
+};
+
+exports.sctpmap = function (line) {
+    // based on -05 draft
+    var parts = line.substr(10).split(' ');
+    var parsed = {
+        number: parts.shift(),
+        protocol: parts.shift(),
+        streams: parts.shift()
+    };
+    return parsed;
+};
+
+
+exports.fmtp = function (line) {
+    var kv, key, value;
+    var parts = line.substr(line.indexOf(' ') + 1).split(';');
+    var parsed = [];
+    for (var i = 0; i < parts.length; i++) {
+        kv = parts[i].split('=');
+        key = kv[0].trim();
+        value = kv[1];
+        if (key && value) {
+            parsed.push({key: key, value: value});
+        } else if (key) {
+            parsed.push({key: '', value: key});
+        }
+    }
+    return parsed;
+};
+
+exports.crypto = function (line) {
+    var parts = line.substr(9).split(' ');
+    var parsed = {
+        tag: parts[0],
+        cipherSuite: parts[1],
+        keyParams: parts[2],
+        sessionParams: parts.slice(3).join(' ')
+    };
+    return parsed;
+};
+
+exports.fingerprint = function (line) {
+    var parts = line.substr(14).split(' ');
+    return {
+        hash: parts[0],
+        value: parts[1]
+    };
+};
+
+exports.extmap = function (line) {
+    var parts = line.substr(9).split(' ');
+    var parsed = {};
+
+    var idpart = parts.shift();
+    var sp = idpart.indexOf('/');
+    if (sp >= 0) {
+        parsed.id = idpart.substr(0, sp);
+        parsed.senders = idpart.substr(sp + 1);
+    } else {
+        parsed.id = idpart;
+        parsed.senders = 'sendrecv';
+    }
+
+    parsed.uri = parts.shift() || '';
+
+    return parsed;
+};
+
+exports.rtcpfb = function (line) {
+    var parts = line.substr(10).split(' ');
+    var parsed = {};
+    parsed.id = parts.shift();
+    parsed.type = parts.shift();
+    if (parsed.type === 'trr-int') {
+        parsed.value = parts.shift();
+    } else {
+        parsed.subtype = parts.shift() || '';
+    }
+    parsed.parameters = parts;
+    return parsed;
+};
+
+exports.candidate = function (line) {
+    var parts;
+    if (line.indexOf('a=candidate:') === 0) {
+        parts = line.substring(12).split(' ');
+    } else { // no a=candidate
+        parts = line.substring(10).split(' ');
+    }
+
+    var candidate = {
+        foundation: parts[0],
+        component: parts[1],
+        protocol: parts[2].toLowerCase(),
+        priority: parts[3],
+        ip: parts[4],
+        port: parts[5],
+        // skip parts[6] == 'typ'
+        type: parts[7],
+        generation: '0'
+    };
+
+    for (var i = 8; i < parts.length; i += 2) {
+        if (parts[i] === 'raddr') {
+            candidate.relAddr = parts[i + 1];
+        } else if (parts[i] === 'rport') {
+            candidate.relPort = parts[i + 1];
+        } else if (parts[i] === 'generation') {
+            candidate.generation = parts[i + 1];
+        } else if (parts[i] === 'tcptype') {
+            candidate.tcpType = parts[i + 1];
+        }
+    }
+
+    candidate.network = '1';
+
+    return candidate;
+};
+
+exports.sourceGroups = function (lines) {
+    var parsed = [];
+    for (var i = 0; i < lines.length; i++) {
+        var parts = lines[i].substr(13).split(' ');
+        parsed.push({
+            semantics: parts.shift(),
+            sources: parts
+        });
+    }
+    return parsed;
+};
+
+exports.sources = function (lines) {
+    // http://tools.ietf.org/html/rfc5576
+    var parsed = [];
+    var sources = {};
+    for (var i = 0; i < lines.length; i++) {
+        var parts = lines[i].substr(7).split(' ');
+        var ssrc = parts.shift();
+
+        if (!sources[ssrc]) {
+            var source = {
+                ssrc: ssrc,
+                parameters: []
+            };
+            parsed.push(source);
+
+            // Keep an index
+            sources[ssrc] = source;
+        }
+
+        parts = parts.join(' ').split(':');
+        var attribute = parts.shift();
+        var value = parts.join(':') || null;
+
+        sources[ssrc].parameters.push({
+            key: attribute,
+            value: value
+        });
+    }
+
+    return parsed;
+};
+
+exports.groups = function (lines) {
+    // http://tools.ietf.org/html/rfc5888
+    var parsed = [];
+    var parts;
+    for (var i = 0; i < lines.length; i++) {
+        parts = lines[i].substr(8).split(' ');
+        parsed.push({
+            semantics: parts.shift(),
+            contents: parts
+        });
+    }
+    return parsed;
+};
+
+exports.bandwidth = function (line) {
+    var parts = line.substr(2).split(':');
+    var parsed = {};
+    parsed.type = parts.shift();
+    parsed.bandwidth = parts.shift();
+    return parsed;
+};
+
+exports.msid = function (line) {
+    var data = line.substr(7);
+    var parts = data.split(' ');
+    return {
+        msid: data,
+        mslabel: parts[0],
+        label: parts[1]
+    };
+};
+
+},{}],12:[function(require,module,exports){
+module.exports = {
+    initiator: {
+        incoming: {
+            initiator: 'recvonly',
+            responder: 'sendonly',
+            both: 'sendrecv',
+            none: 'inactive',
+            recvonly: 'initiator',
+            sendonly: 'responder',
+            sendrecv: 'both',
+            inactive: 'none'
+        },
+        outgoing: {
+            initiator: 'sendonly',
+            responder: 'recvonly',
+            both: 'sendrecv',
+            none: 'inactive',
+            recvonly: 'responder',
+            sendonly: 'initiator',
+            sendrecv: 'both',
+            inactive: 'none'
+        }
+    },
+    responder: {
+        incoming: {
+            initiator: 'sendonly',
+            responder: 'recvonly',
+            both: 'sendrecv',
+            none: 'inactive',
+            recvonly: 'responder',
+            sendonly: 'initiator',
+            sendrecv: 'both',
+            inactive: 'none'
+        },
+        outgoing: {
+            initiator: 'recvonly',
+            responder: 'sendonly',
+            both: 'sendrecv',
+            none: 'inactive',
+            recvonly: 'initiator',
+            sendonly: 'responder',
+            sendrecv: 'both',
+            inactive: 'none'
+        }
+    }
+};
+
+},{}],13:[function(require,module,exports){
+var SENDERS = require('./senders');
+var parsers = require('./parsers');
+var idCounter = Math.random();
+
+
+exports._setIdCounter = function (counter) {
+    idCounter = counter;
+};
+
+exports.toSessionJSON = function (sdp, opts) {
+    var i;
+    var creators = opts.creators || [];
+    var role = opts.role || 'initiator';
+    var direction = opts.direction || 'outgoing';
+
+
+    // Divide the SDP into session and media sections.
+    var media = sdp.split('\r\nm=');
+    for (i = 1; i < media.length; i++) {
+        media[i] = 'm=' + media[i];
+        if (i !== media.length - 1) {
+            media[i] += '\r\n';
+        }
+    }
+    var session = media.shift() + '\r\n';
+    var sessionLines = parsers.lines(session);
+    var parsed = {};
+
+    var contents = [];
+    for (i = 0; i < media.length; i++) {
+        contents.push(exports.toMediaJSON(media[i], session, {
+            role: role,
+            direction: direction,
+            creator: creators[i] || 'initiator'
+        }));
+    }
+    parsed.contents = contents;
+
+    var groupLines = parsers.findLines('a=group:', sessionLines);
+    if (groupLines.length) {
+        parsed.groups = parsers.groups(groupLines);
+    }
+
+    return parsed;
+};
+
+exports.toMediaJSON = function (media, session, opts) {
+    var creator = opts.creator || 'initiator';
+    var role = opts.role || 'initiator';
+    var direction = opts.direction || 'outgoing';
+
+    var lines = parsers.lines(media);
+    var sessionLines = parsers.lines(session);
+    var mline = parsers.mline(lines[0]);
+
+    var content = {
+        creator: creator,
+        name: mline.media,
+        application: {
+            applicationType: 'rtp',
+            media: mline.media,
+            payloads: [],
+            encryption: [],
+            feedback: [],
+            headerExtensions: []
+        },
+        transport: {
+            transportType: 'iceUdp',
+            candidates: [],
+            fingerprints: []
+        }
+    };
+    if (mline.media == 'application') {
+        // FIXME: the description is most likely to be independent
+        // of the SDP and should be processed by other parts of the library
+        content.application = {
+            applicationType: 'datachannel'
+        };
+        content.transport.sctp = [];
+    }
+    var desc = content.application;
+    var trans = content.transport;
+
+    // If we have a mid, use that for the content name instead.
+    var mid = parsers.findLine('a=mid:', lines);
+    if (mid) {
+        content.name = mid.substr(6);
+    }
+
+    if (parsers.findLine('a=sendrecv', lines, sessionLines)) {
+        content.senders = 'both';
+    } else if (parsers.findLine('a=sendonly', lines, sessionLines)) {
+        content.senders = SENDERS[role][direction].sendonly;
+    } else if (parsers.findLine('a=recvonly', lines, sessionLines)) {
+        content.senders = SENDERS[role][direction].recvonly;
+    } else if (parsers.findLine('a=inactive', lines, sessionLines)) {
+        content.senders = 'none';
+    }
+
+    if (desc.applicationType == 'rtp') {
+        var bandwidth = parsers.findLine('b=', lines);
+        if (bandwidth) {
+            desc.bandwidth = parsers.bandwidth(bandwidth);
+        }
+
+        var ssrc = parsers.findLine('a=ssrc:', lines);
+        if (ssrc) {
+            desc.ssrc = ssrc.substr(7).split(' ')[0];
+        }
+
+        var rtpmapLines = parsers.findLines('a=rtpmap:', lines);
+        rtpmapLines.forEach(function (line) {
+            var payload = parsers.rtpmap(line);
+            payload.parameters = [];
+            payload.feedback = [];
+
+            var fmtpLines = parsers.findLines('a=fmtp:' + payload.id, lines);
+            // There should only be one fmtp line per payload
+            fmtpLines.forEach(function (line) {
+                payload.parameters = parsers.fmtp(line);
+            });
+
+            var fbLines = parsers.findLines('a=rtcp-fb:' + payload.id, lines);
+            fbLines.forEach(function (line) {
+                payload.feedback.push(parsers.rtcpfb(line));
+            });
+
+            desc.payloads.push(payload);
+        });
+
+        var cryptoLines = parsers.findLines('a=crypto:', lines, sessionLines);
+        cryptoLines.forEach(function (line) {
+            desc.encryption.push(parsers.crypto(line));
+        });
+
+        if (parsers.findLine('a=rtcp-mux', lines)) {
+            desc.mux = true;
+        }
+
+        var fbLines = parsers.findLines('a=rtcp-fb:*', lines);
+        fbLines.forEach(function (line) {
+            desc.feedback.push(parsers.rtcpfb(line));
+        });
+
+        var extLines = parsers.findLines('a=extmap:', lines);
+        extLines.forEach(function (line) {
+            var ext = parsers.extmap(line);
+
+            ext.senders = SENDERS[role][direction][ext.senders];
+
+            desc.headerExtensions.push(ext);
+        });
+
+        var ssrcGroupLines = parsers.findLines('a=ssrc-group:', lines);
+        desc.sourceGroups = parsers.sourceGroups(ssrcGroupLines || []);
+
+        var ssrcLines = parsers.findLines('a=ssrc:', lines);
+        var sources = desc.sources = parsers.sources(ssrcLines || []);
+
+        var msidLine = parsers.findLine('a=msid:', lines);
+        if (msidLine) {
+            var msid = parsers.msid(msidLine);
+            ['msid', 'mslabel', 'label'].forEach(function (key) {
+                for (var i = 0; i < sources.length; i++) {
+                    var found = false;
+                    for (var j = 0; j < sources[i].parameters.length; j++) {
+                        if (sources[i].parameters[j].key === key) {
+                            found = true;
+                        }
+                    }
+                    if (!found) {
+                        sources[i].parameters.push({ key: key, value: msid[key] });
+                    }
+                }
+            });
+        }
+
+        if (parsers.findLine('a=x-google-flag:conference', lines, sessionLines)) {
+            desc.googConferenceFlag = true;
+        }
+    }
+
+    // transport specific attributes
+    var fingerprintLines = parsers.findLines('a=fingerprint:', lines, sessionLines);
+    var setup = parsers.findLine('a=setup:', lines, sessionLines);
+    fingerprintLines.forEach(function (line) {
+        var fp = parsers.fingerprint(line);
+        if (setup) {
+            fp.setup = setup.substr(8);
+        }
+        trans.fingerprints.push(fp);
+    });
+
+    var ufragLine = parsers.findLine('a=ice-ufrag:', lines, sessionLines);
+    var pwdLine = parsers.findLine('a=ice-pwd:', lines, sessionLines);
+    if (ufragLine && pwdLine) {
+        trans.ufrag = ufragLine.substr(12);
+        trans.pwd = pwdLine.substr(10);
+        trans.candidates = [];
+
+        var candidateLines = parsers.findLines('a=candidate:', lines, sessionLines);
+        candidateLines.forEach(function (line) {
+            trans.candidates.push(exports.toCandidateJSON(line));
+        });
+    }
+
+    if (desc.applicationType == 'datachannel') {
+        var sctpmapLines = parsers.findLines('a=sctpmap:', lines);
+        sctpmapLines.forEach(function (line) {
+            var sctp = parsers.sctpmap(line);
+            trans.sctp.push(sctp);
+        });
+    }
+
+    return content;
+};
+
+exports.toCandidateJSON = function (line) {
+    var candidate = parsers.candidate(line.split('\r\n')[0]);
+    candidate.id = (idCounter++).toString(36).substr(0, 12);
+    return candidate;
+};
+
+},{"./parsers":11,"./senders":12}],14:[function(require,module,exports){
+var SENDERS = require('./senders');
+
+
+exports.toSessionSDP = function (session, opts) {
+    var role = opts.role || 'initiator';
+    var direction = opts.direction || 'outgoing';
+    var sid = opts.sid || session.sid || Date.now();
+    var time = opts.time || Date.now();
+
+    var sdp = [
+        'v=0',
+        'o=- ' + sid + ' ' + time + ' IN IP4 0.0.0.0',
+        's=-',
+        't=0 0'
+    ];
+
+    var contents = session.contents || [];
+    var hasSources = false;
+    contents.forEach(function (content) {
+        if (content.application.sources &&
+            content.application.sources.length) {
+            hasSources = true;
+        }
+    });
+
+    if (hasSources) {
+        sdp.push('a=msid-semantic: WMS *');
+    }
+
+    var groups = session.groups || [];
+    groups.forEach(function (group) {
+        sdp.push('a=group:' + group.semantics + ' ' + group.contents.join(' '));
+    });
+
+
+    contents.forEach(function (content) {
+        sdp.push(exports.toMediaSDP(content, opts));
+    });
+
+    return sdp.join('\r\n') + '\r\n';
+};
+
+exports.toMediaSDP = function (content, opts) {
+    var sdp = [];
+
+    var role = opts.role || 'initiator';
+    var direction = opts.direction || 'outgoing';
+
+    var desc = content.application;
+    var transport = content.transport;
+    var payloads = desc.payloads || [];
+    var fingerprints = (transport && transport.fingerprints) || [];
+
+    var mline = [];
+    if (desc.applicationType == 'datachannel') {
+        mline.push('application');
+        mline.push('1');
+        mline.push('DTLS/SCTP');
+        if (transport.sctp) {
+            transport.sctp.forEach(function (map) {
+                mline.push(map.number);
+            });
+        }
+    } else {
+        mline.push(desc.media);
+        mline.push('1');
+        if (fingerprints.length > 0) {
+            mline.push('UDP/TLS/RTP/SAVPF');
+        } else if (desc.encryption && desc.encryption.length > 0) {
+            mline.push('RTP/SAVPF');
+        } else {
+            mline.push('RTP/AVPF');
+        }
+        payloads.forEach(function (payload) {
+            mline.push(payload.id);
+        });
+    }
+
+
+    sdp.push('m=' + mline.join(' '));
+
+    sdp.push('c=IN IP4 0.0.0.0');
+    if (desc.bandwidth && desc.bandwidth.type && desc.bandwidth.bandwidth) {
+        sdp.push('b=' + desc.bandwidth.type + ':' + desc.bandwidth.bandwidth);
+    }
+    if (desc.applicationType == 'rtp') {
+        sdp.push('a=rtcp:1 IN IP4 0.0.0.0');
+    }
+
+    if (transport) {
+        if (transport.ufrag) {
+            sdp.push('a=ice-ufrag:' + transport.ufrag);
+        }
+        if (transport.pwd) {
+            sdp.push('a=ice-pwd:' + transport.pwd);
+        }
+
+        var pushedSetup = false;
+        fingerprints.forEach(function (fingerprint) {
+            sdp.push('a=fingerprint:' + fingerprint.hash + ' ' + fingerprint.value);
+            if (fingerprint.setup && !pushedSetup) {
+                sdp.push('a=setup:' + fingerprint.setup);
+            }
+        });
+
+        if (transport.sctp) {
+            transport.sctp.forEach(function (map) {
+                sdp.push('a=sctpmap:' + map.number + ' ' + map.protocol + ' ' + map.streams);
+            });
+        }
+    }
+
+    if (desc.applicationType == 'rtp') {
+        sdp.push('a=' + (SENDERS[role][direction][content.senders] || 'sendrecv'));
+    }
+    sdp.push('a=mid:' + content.name);
+
+    if (desc.sources && desc.sources.length) {
+        (desc.sources[0].parameters || []).forEach(function (param) {
+            if (param.key === 'msid') {
+                sdp.push('a=msid:' + param.value);
+            }
+        });
+    }
+
+    if (desc.mux) {
+        sdp.push('a=rtcp-mux');
+    }
+
+    var encryption = desc.encryption || [];
+    encryption.forEach(function (crypto) {
+        sdp.push('a=crypto:' + crypto.tag + ' ' + crypto.cipherSuite + ' ' + crypto.keyParams + (crypto.sessionParams ? ' ' + crypto.sessionParams : ''));
+    });
+    if (desc.googConferenceFlag) {
+        sdp.push('a=x-google-flag:conference');
+    }
+
+    payloads.forEach(function (payload) {
+        var rtpmap = 'a=rtpmap:' + payload.id + ' ' + payload.name + '/' + payload.clockrate;
+        if (payload.channels && payload.channels != '1') {
+            rtpmap += '/' + payload.channels;
+        }
+        sdp.push(rtpmap);
+
+        if (payload.parameters && payload.parameters.length) {
+            var fmtp = ['a=fmtp:' + payload.id];
+            var parameters = [];
+            payload.parameters.forEach(function (param) {
+                parameters.push((param.key ? param.key + '=' : '') + param.value);
+            });
+            fmtp.push(parameters.join(';'));
+            sdp.push(fmtp.join(' '));
+        }
+
+        if (payload.feedback) {
+            payload.feedback.forEach(function (fb) {
+                if (fb.type === 'trr-int') {
+                    sdp.push('a=rtcp-fb:' + payload.id + ' trr-int ' + (fb.value ? fb.value : '0'));
+                } else {
+                    sdp.push('a=rtcp-fb:' + payload.id + ' ' + fb.type + (fb.subtype ? ' ' + fb.subtype : ''));
+                }
+            });
+        }
+    });
+
+    if (desc.feedback) {
+        desc.feedback.forEach(function (fb) {
+            if (fb.type === 'trr-int') {
+                sdp.push('a=rtcp-fb:* trr-int ' + (fb.value ? fb.value : '0'));
+            } else {
+                sdp.push('a=rtcp-fb:* ' + fb.type + (fb.subtype ? ' ' + fb.subtype : ''));
+            }
+        });
+    }
+
+    var hdrExts = desc.headerExtensions || [];
+    hdrExts.forEach(function (hdr) {
+        sdp.push('a=extmap:' + hdr.id + (hdr.senders ? '/' + SENDERS[role][direction][hdr.senders] : '') + ' ' + hdr.uri);
+    });
+
+    var ssrcGroups = desc.sourceGroups || [];
+    ssrcGroups.forEach(function (ssrcGroup) {
+        sdp.push('a=ssrc-group:' + ssrcGroup.semantics + ' ' + ssrcGroup.sources.join(' '));
+    });
+
+    var ssrcs = desc.sources || [];
+    ssrcs.forEach(function (ssrc) {
+        for (var i = 0; i < ssrc.parameters.length; i++) {
+            var param = ssrc.parameters[i];
+            sdp.push('a=ssrc:' + (ssrc.ssrc || desc.ssrc) + ' ' + param.key + (param.value ? (':' + param.value) : ''));
+        }
+    });
+
+    var candidates = transport.candidates || [];
+    candidates.forEach(function (candidate) {
+        sdp.push(exports.toCandidateSDP(candidate));
+    });
+
+    return sdp.join('\r\n');
+};
+
+exports.toCandidateSDP = function (candidate) {
+    var sdp = [];
+
+    sdp.push(candidate.foundation);
+    sdp.push(candidate.component);
+    sdp.push(candidate.protocol.toUpperCase());
+    sdp.push(candidate.priority);
+    sdp.push(candidate.ip);
+    sdp.push(candidate.port);
+
+    var type = candidate.type;
+    sdp.push('typ');
+    sdp.push(type);
+    if (type === 'srflx' || type === 'prflx' || type === 'relay') {
+        if (candidate.relAddr && candidate.relPort) {
+            sdp.push('raddr');
+            sdp.push(candidate.relAddr);
+            sdp.push('rport');
+            sdp.push(candidate.relPort);
+        }
+    }
+    if (candidate.tcpType && candidate.protocol.toUpperCase() == 'TCP') {
+        sdp.push('tcptype');
+        sdp.push(candidate.tcpType);
+    }
+
+    sdp.push('generation');
+    sdp.push(candidate.generation || '0');
+
+    // FIXME: apparently this is wrong per spec
+    // but then, we need this when actually putting this into
+    // SDP so it's going to stay.
+    // decision needs to be revisited when browsers dont
+    // accept this any longer
+    return 'a=candidate:' + sdp.join(' ');
+};
+
+},{"./senders":12}],15:[function(require,module,exports){
  /* eslint-env node */
 'use strict';
 
@@ -1069,7 +3173,825 @@ SDPUtils.getDirection = function(mediaSection, sessionpart) {
 // Expose public methods.
 module.exports = SDPUtils;
 
-},{}],6:[function(require,module,exports){
+},{}],16:[function(require,module,exports){
+// based on https://github.com/ESTOS/strophe.jingle/
+// adds wildemitter support
+var util = require('util');
+var adapter = require('webrtc-adapter'); // jshint ignore:line
+var WildEmitter = require('wildemitter');
+
+function dumpSDP(description) {
+    return {
+        type: description.type,
+        sdp: description.sdp
+    };
+}
+
+function dumpStream(stream) {
+    var info = {
+        label: stream.id,
+    };
+    if (stream.getAudioTracks().length) {
+        info.audio = stream.getAudioTracks().map(function (track) {
+            return track.id;
+        });
+    }
+    if (stream.getVideoTracks().length) {
+        info.video = stream.getVideoTracks().map(function (track) {
+            return track.id;
+        });
+    }
+    return info;
+}
+
+function TraceablePeerConnection(config, constraints) {
+    var self = this;
+    WildEmitter.call(this);
+
+    this.peerconnection = new window.RTCPeerConnection(config, constraints);
+
+    this.trace = function (what, info) {
+        self.emit('PeerConnectionTrace', {
+            time: new Date(),
+            type: what,
+            value: info || ""
+        });
+    };
+
+    this.onicecandidate = null;
+    this.peerconnection.onicecandidate = function (event) {
+        self.trace('onicecandidate', event.candidate);
+        if (self.onicecandidate !== null) {
+            self.onicecandidate(event);
+        }
+    };
+    this.onaddstream = null;
+    this.peerconnection.onaddstream = function (event) {
+        self.trace('onaddstream', dumpStream(event.stream));
+        if (self.onaddstream !== null) {
+            self.onaddstream(event);
+        }
+    };
+    this.onremovestream = null;
+    this.peerconnection.onremovestream = function (event) {
+        self.trace('onremovestream', dumpStream(event.stream));
+        if (self.onremovestream !== null) {
+            self.onremovestream(event);
+        }
+    };
+    this.onsignalingstatechange = null;
+    this.peerconnection.onsignalingstatechange = function (event) {
+        self.trace('onsignalingstatechange', self.signalingState);
+        if (self.onsignalingstatechange !== null) {
+            self.onsignalingstatechange(event);
+        }
+    };
+    this.oniceconnectionstatechange = null;
+    this.peerconnection.oniceconnectionstatechange = function (event) {
+        self.trace('oniceconnectionstatechange', self.iceConnectionState);
+        if (self.oniceconnectionstatechange !== null) {
+            self.oniceconnectionstatechange(event);
+        }
+    };
+    this.onnegotiationneeded = null;
+    this.peerconnection.onnegotiationneeded = function (event) {
+        self.trace('onnegotiationneeded');
+        if (self.onnegotiationneeded !== null) {
+            self.onnegotiationneeded(event);
+        }
+    };
+    self.ondatachannel = null;
+    this.peerconnection.ondatachannel = function (event) {
+        self.trace('ondatachannel', event);
+        if (self.ondatachannel !== null) {
+            self.ondatachannel(event);
+        }
+    };
+    this.getLocalStreams = this.peerconnection.getLocalStreams.bind(this.peerconnection);
+    this.getRemoteStreams = this.peerconnection.getRemoteStreams.bind(this.peerconnection);
+}
+
+util.inherits(TraceablePeerConnection, WildEmitter);
+
+['signalingState', 'iceConnectionState', 'localDescription', 'remoteDescription'].forEach(function (prop) {
+    Object.defineProperty(TraceablePeerConnection.prototype, prop, {
+        get: function () {
+            return this.peerconnection[prop];
+        }
+    });
+});
+
+TraceablePeerConnection.prototype.addStream = function (stream) {
+    this.trace('addStream', dumpStream(stream));
+    this.peerconnection.addStream(stream);
+};
+
+TraceablePeerConnection.prototype.removeStream = function (stream) {
+    this.trace('removeStream', dumpStream(stream));
+    this.peerconnection.removeStream(stream);
+};
+
+TraceablePeerConnection.prototype.createDataChannel = function (label, opts) {
+    this.trace('createDataChannel', label, opts);
+    return this.peerconnection.createDataChannel(label, opts);
+};
+
+TraceablePeerConnection.prototype.setLocalDescription = function (description, successCallback, failureCallback) {
+    var self = this;
+    this.trace('setLocalDescription', dumpSDP(description));
+    return this.peerconnection.setLocalDescription(
+        description
+    ).then(
+        function () {
+            self.trace('setLocalDescriptionOnSuccess');
+            if (successCallback) successCallback();
+        },
+        function (err) {
+            self.trace('setLocalDescriptionOnFailure', err);
+            if (failureCallback) failureCallback(err);
+        }
+    );
+};
+
+TraceablePeerConnection.prototype.setRemoteDescription = function (description, successCallback, failureCallback) {
+    var self = this;
+    this.trace('setRemoteDescription', dumpSDP(description));
+    return this.peerconnection.setRemoteDescription(
+        description
+    ).then(
+        function () {
+            self.trace('setRemoteDescriptionOnSuccess');
+            if (successCallback) successCallback();
+        },
+        function (err) {
+            self.trace('setRemoteDescriptionOnFailure', err);
+            if (failureCallback) failureCallback(err);
+        }
+    );
+};
+
+TraceablePeerConnection.prototype.close = function () {
+    this.trace('stop');
+    if (this.peerconnection.signalingState != 'closed') {
+        this.peerconnection.close();
+    }
+};
+
+TraceablePeerConnection.prototype.createOffer = function (successCallback, failureCallback, constraints) {
+    var self = this;
+    this.trace('createOffer', constraints);
+    return this.peerconnection.createOffer(
+        constraints
+    ).then(
+        function (offer) {
+            self.trace('createOfferOnSuccess', dumpSDP(offer));
+            if (successCallback) successCallback(offer);
+        },
+        function (err) {
+            self.trace('createOfferOnFailure', err);
+            if (failureCallback) failureCallback(err);
+        }
+    );
+};
+
+TraceablePeerConnection.prototype.createAnswer = function (successCallback, failureCallback, constraints) {
+    var self = this;
+    this.trace('createAnswer', constraints);
+    return this.peerconnection.createAnswer(
+        constraints
+    ).then(
+        function (answer) {
+            self.trace('createAnswerOnSuccess', dumpSDP(answer));
+            if (successCallback) successCallback(answer);
+        },
+        function (err) {
+            self.trace('createAnswerOnFailure', err);
+            if (failureCallback) failureCallback(err);
+        }
+    );
+};
+
+TraceablePeerConnection.prototype.addIceCandidate = function (candidate, successCallback, failureCallback) {
+    var self = this;
+    this.trace('addIceCandidate', candidate);
+    return this.peerconnection.addIceCandidate(
+        candidate
+    ).then(
+        function () {
+            //self.trace('addIceCandidateOnSuccess');
+            if (successCallback) successCallback();
+        },
+        function (err) {
+            self.trace('addIceCandidateOnFailure', err);
+            if (failureCallback) failureCallback(err);
+        }
+    );
+};
+
+TraceablePeerConnection.prototype.getStats = function () {
+    this.peerconnection.getStats.apply(this.peerconnection, arguments);
+};
+
+module.exports = TraceablePeerConnection;
+
+},{"util":18,"webrtc-adapter":19,"wildemitter":29}],17:[function(require,module,exports){
+module.exports = function isBuffer(arg) {
+  return arg && typeof arg === 'object'
+    && typeof arg.copy === 'function'
+    && typeof arg.fill === 'function'
+    && typeof arg.readUInt8 === 'function';
+}
+},{}],18:[function(require,module,exports){
+(function (process,global){
+// Copyright Joyent, Inc. and other Node contributors.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a
+// copy of this software and associated documentation files (the
+// "Software"), to deal in the Software without restriction, including
+// without limitation the rights to use, copy, modify, merge, publish,
+// distribute, sublicense, and/or sell copies of the Software, and to permit
+// persons to whom the Software is furnished to do so, subject to the
+// following conditions:
+//
+// The above copyright notice and this permission notice shall be included
+// in all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
+// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
+// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
+// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
+// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
+// USE OR OTHER DEALINGS IN THE SOFTWARE.
+
+var formatRegExp = /%[sdj%]/g;
+exports.format = function(f) {
+  if (!isString(f)) {
+    var objects = [];
+    for (var i = 0; i < arguments.length; i++) {
+      objects.push(inspect(arguments[i]));
+    }
+    return objects.join(' ');
+  }
+
+  var i = 1;
+  var args = arguments;
+  var len = args.length;
+  var str = String(f).replace(formatRegExp, function(x) {
+    if (x === '%%') return '%';
+    if (i >= len) return x;
+    switch (x) {
+      case '%s': return String(args[i++]);
+      case '%d': return Number(args[i++]);
+      case '%j':
+        try {
+          return JSON.stringify(args[i++]);
+        } catch (_) {
+          return '[Circular]';
+        }
+      default:
+        return x;
+    }
+  });
+  for (var x = args[i]; i < len; x = args[++i]) {
+    if (isNull(x) || !isObject(x)) {
+      str += ' ' + x;
+    } else {
+      str += ' ' + inspect(x);
+    }
+  }
+  return str;
+};
+
+
+// Mark that a method should not be used.
+// Returns a modified function which warns once by default.
+// If --no-deprecation is set, then it is a no-op.
+exports.deprecate = function(fn, msg) {
+  // Allow for deprecating things in the process of starting up.
+  if (isUndefined(global.process)) {
+    return function() {
+      return exports.deprecate(fn, msg).apply(this, arguments);
+    };
+  }
+
+  if (process.noDeprecation === true) {
+    return fn;
+  }
+
+  var warned = false;
+  function deprecated() {
+    if (!warned) {
+      if (process.throwDeprecation) {
+        throw new Error(msg);
+      } else if (process.traceDeprecation) {
+        console.trace(msg);
+      } else {
+        console.error(msg);
+      }
+      warned = true;
+    }
+    return fn.apply(this, arguments);
+  }
+
+  return deprecated;
+};
+
+
+var debugs = {};
+var debugEnviron;
+exports.debuglog = function(set) {
+  if (isUndefined(debugEnviron))
+    debugEnviron = process.env.NODE_DEBUG || '';
+  set = set.toUpperCase();
+  if (!debugs[set]) {
+    if (new RegExp('\\b' + set + '\\b', 'i').test(debugEnviron)) {
+      var pid = process.pid;
+      debugs[set] = function() {
+        var msg = exports.format.apply(exports, arguments);
+        console.error('%s %d: %s', set, pid, msg);
+      };
+    } else {
+      debugs[set] = function() {};
+    }
+  }
+  return debugs[set];
+};
+
+
+/**
+ * Echos the value of a value. Trys to print the value out
+ * in the best way possible given the different types.
+ *
+ * @param {Object} obj The object to print out.
+ * @param {Object} opts Optional options object that alters the output.
+ */
+/* legacy: obj, showHidden, depth, colors*/
+function inspect(obj, opts) {
+  // default options
+  var ctx = {
+    seen: [],
+    stylize: stylizeNoColor
+  };
+  // legacy...
+  if (arguments.length >= 3) ctx.depth = arguments[2];
+  if (arguments.length >= 4) ctx.colors = arguments[3];
+  if (isBoolean(opts)) {
+    // legacy...
+    ctx.showHidden = opts;
+  } else if (opts) {
+    // got an "options" object
+    exports._extend(ctx, opts);
+  }
+  // set default options
+  if (isUndefined(ctx.showHidden)) ctx.showHidden = false;
+  if (isUndefined(ctx.depth)) ctx.depth = 2;
+  if (isUndefined(ctx.colors)) ctx.colors = false;
+  if (isUndefined(ctx.customInspect)) ctx.customInspect = true;
+  if (ctx.colors) ctx.stylize = stylizeWithColor;
+  return formatValue(ctx, obj, ctx.depth);
+}
+exports.inspect = inspect;
+
+
+// http://en.wikipedia.org/wiki/ANSI_escape_code#graphics
+inspect.colors = {
+  'bold' : [1, 22],
+  'italic' : [3, 23],
+  'underline' : [4, 24],
+  'inverse' : [7, 27],
+  'white' : [37, 39],
+  'grey' : [90, 39],
+  'black' : [30, 39],
+  'blue' : [34, 39],
+  'cyan' : [36, 39],
+  'green' : [32, 39],
+  'magenta' : [35, 39],
+  'red' : [31, 39],
+  'yellow' : [33, 39]
+};
+
+// Don't use 'blue' not visible on cmd.exe
+inspect.styles = {
+  'special': 'cyan',
+  'number': 'yellow',
+  'boolean': 'yellow',
+  'undefined': 'grey',
+  'null': 'bold',
+  'string': 'green',
+  'date': 'magenta',
+  // "name": intentionally not styling
+  'regexp': 'red'
+};
+
+
+function stylizeWithColor(str, styleType) {
+  var style = inspect.styles[styleType];
+
+  if (style) {
+    return '\u001b[' + inspect.colors[style][0] + 'm' + str +
+           '\u001b[' + inspect.colors[style][1] + 'm';
+  } else {
+    return str;
+  }
+}
+
+
+function stylizeNoColor(str, styleType) {
+  return str;
+}
+
+
+function arrayToHash(array) {
+  var hash = {};
+
+  array.forEach(function(val, idx) {
+    hash[val] = true;
+  });
+
+  return hash;
+}
+
+
+function formatValue(ctx, value, recurseTimes) {
+  // Provide a hook for user-specified inspect functions.
+  // Check that value is an object with an inspect function on it
+  if (ctx.customInspect &&
+      value &&
+      isFunction(value.inspect) &&
+      // Filter out the util module, it's inspect function is special
+      value.inspect !== exports.inspect &&
+      // Also filter out any prototype objects using the circular check.
+      !(value.constructor && value.constructor.prototype === value)) {
+    var ret = value.inspect(recurseTimes, ctx);
+    if (!isString(ret)) {
+      ret = formatValue(ctx, ret, recurseTimes);
+    }
+    return ret;
+  }
+
+  // Primitive types cannot have properties
+  var primitive = formatPrimitive(ctx, value);
+  if (primitive) {
+    return primitive;
+  }
+
+  // Look up the keys of the object.
+  var keys = Object.keys(value);
+  var visibleKeys = arrayToHash(keys);
+
+  if (ctx.showHidden) {
+    keys = Object.getOwnPropertyNames(value);
+  }
+
+  // IE doesn't make error fields non-enumerable
+  // http://msdn.microsoft.com/en-us/library/ie/dww52sbt(v=vs.94).aspx
+  if (isError(value)
+      && (keys.indexOf('message') >= 0 || keys.indexOf('description') >= 0)) {
+    return formatError(value);
+  }
+
+  // Some type of object without properties can be shortcutted.
+  if (keys.length === 0) {
+    if (isFunction(value)) {
+      var name = value.name ? ': ' + value.name : '';
+      return ctx.stylize('[Function' + name + ']', 'special');
+    }
+    if (isRegExp(value)) {
+      return ctx.stylize(RegExp.prototype.toString.call(value), 'regexp');
+    }
+    if (isDate(value)) {
+      return ctx.stylize(Date.prototype.toString.call(value), 'date');
+    }
+    if (isError(value)) {
+      return formatError(value);
+    }
+  }
+
+  var base = '', array = false, braces = ['{', '}'];
+
+  // Make Array say that they are Array
+  if (isArray(value)) {
+    array = true;
+    braces = ['[', ']'];
+  }
+
+  // Make functions say that they are functions
+  if (isFunction(value)) {
+    var n = value.name ? ': ' + value.name : '';
+    base = ' [Function' + n + ']';
+  }
+
+  // Make RegExps say that they are RegExps
+  if (isRegExp(value)) {
+    base = ' ' + RegExp.prototype.toString.call(value);
+  }
+
+  // Make dates with properties first say the date
+  if (isDate(value)) {
+    base = ' ' + Date.prototype.toUTCString.call(value);
+  }
+
+  // Make error with message first say the error
+  if (isError(value)) {
+    base = ' ' + formatError(value);
+  }
+
+  if (keys.length === 0 && (!array || value.length == 0)) {
+    return braces[0] + base + braces[1];
+  }
+
+  if (recurseTimes < 0) {
+    if (isRegExp(value)) {
+      return ctx.stylize(RegExp.prototype.toString.call(value), 'regexp');
+    } else {
+      return ctx.stylize('[Object]', 'special');
+    }
+  }
+
+  ctx.seen.push(value);
+
+  var output;
+  if (array) {
+    output = formatArray(ctx, value, recurseTimes, visibleKeys, keys);
+  } else {
+    output = keys.map(function(key) {
+      return formatProperty(ctx, value, recurseTimes, visibleKeys, key, array);
+    });
+  }
+
+  ctx.seen.pop();
+
+  return reduceToSingleString(output, base, braces);
+}
+
+
+function formatPrimitive(ctx, value) {
+  if (isUndefined(value))
+    return ctx.stylize('undefined', 'undefined');
+  if (isString(value)) {
+    var simple = '\'' + JSON.stringify(value).replace(/^"|"$/g, '')
+                                             .replace(/'/g, "\\'")
+                                             .replace(/\\"/g, '"') + '\'';
+    return ctx.stylize(simple, 'string');
+  }
+  if (isNumber(value))
+    return ctx.stylize('' + value, 'number');
+  if (isBoolean(value))
+    return ctx.stylize('' + value, 'boolean');
+  // For some reason typeof null is "object", so special case here.
+  if (isNull(value))
+    return ctx.stylize('null', 'null');
+}
+
+
+function formatError(value) {
+  return '[' + Error.prototype.toString.call(value) + ']';
+}
+
+
+function formatArray(ctx, value, recurseTimes, visibleKeys, keys) {
+  var output = [];
+  for (var i = 0, l = value.length; i < l; ++i) {
+    if (hasOwnProperty(value, String(i))) {
+      output.push(formatProperty(ctx, value, recurseTimes, visibleKeys,
+          String(i), true));
+    } else {
+      output.push('');
+    }
+  }
+  keys.forEach(function(key) {
+    if (!key.match(/^\d+$/)) {
+      output.push(formatProperty(ctx, value, recurseTimes, visibleKeys,
+          key, true));
+    }
+  });
+  return output;
+}
+
+
+function formatProperty(ctx, value, recurseTimes, visibleKeys, key, array) {
+  var name, str, desc;
+  desc = Object.getOwnPropertyDescriptor(value, key) || { value: value[key] };
+  if (desc.get) {
+    if (desc.set) {
+      str = ctx.stylize('[Getter/Setter]', 'special');
+    } else {
+      str = ctx.stylize('[Getter]', 'special');
+    }
+  } else {
+    if (desc.set) {
+      str = ctx.stylize('[Setter]', 'special');
+    }
+  }
+  if (!hasOwnProperty(visibleKeys, key)) {
+    name = '[' + key + ']';
+  }
+  if (!str) {
+    if (ctx.seen.indexOf(desc.value) < 0) {
+      if (isNull(recurseTimes)) {
+        str = formatValue(ctx, desc.value, null);
+      } else {
+        str = formatValue(ctx, desc.value, recurseTimes - 1);
+      }
+      if (str.indexOf('\n') > -1) {
+        if (array) {
+          str = str.split('\n').map(function(line) {
+            return '  ' + line;
+          }).join('\n').substr(2);
+        } else {
+          str = '\n' + str.split('\n').map(function(line) {
+            return '   ' + line;
+          }).join('\n');
+        }
+      }
+    } else {
+      str = ctx.stylize('[Circular]', 'special');
+    }
+  }
+  if (isUndefined(name)) {
+    if (array && key.match(/^\d+$/)) {
+      return str;
+    }
+    name = JSON.stringify('' + key);
+    if (name.match(/^"([a-zA-Z_][a-zA-Z_0-9]*)"$/)) {
+      name = name.substr(1, name.length - 2);
+      name = ctx.stylize(name, 'name');
+    } else {
+      name = name.replace(/'/g, "\\'")
+                 .replace(/\\"/g, '"')
+                 .replace(/(^"|"$)/g, "'");
+      name = ctx.stylize(name, 'string');
+    }
+  }
+
+  return name + ': ' + str;
+}
+
+
+function reduceToSingleString(output, base, braces) {
+  var numLinesEst = 0;
+  var length = output.reduce(function(prev, cur) {
+    numLinesEst++;
+    if (cur.indexOf('\n') >= 0) numLinesEst++;
+    return prev + cur.replace(/\u001b\[\d\d?m/g, '').length + 1;
+  }, 0);
+
+  if (length > 60) {
+    return braces[0] +
+           (base === '' ? '' : base + '\n ') +
+           ' ' +
+           output.join(',\n  ') +
+           ' ' +
+           braces[1];
+  }
+
+  return braces[0] + base + ' ' + output.join(', ') + ' ' + braces[1];
+}
+
+
+// NOTE: These type checking functions intentionally don't use `instanceof`
+// because it is fragile and can be easily faked with `Object.create()`.
+function isArray(ar) {
+  return Array.isArray(ar);
+}
+exports.isArray = isArray;
+
+function isBoolean(arg) {
+  return typeof arg === 'boolean';
+}
+exports.isBoolean = isBoolean;
+
+function isNull(arg) {
+  return arg === null;
+}
+exports.isNull = isNull;
+
+function isNullOrUndefined(arg) {
+  return arg == null;
+}
+exports.isNullOrUndefined = isNullOrUndefined;
+
+function isNumber(arg) {
+  return typeof arg === 'number';
+}
+exports.isNumber = isNumber;
+
+function isString(arg) {
+  return typeof arg === 'string';
+}
+exports.isString = isString;
+
+function isSymbol(arg) {
+  return typeof arg === 'symbol';
+}
+exports.isSymbol = isSymbol;
+
+function isUndefined(arg) {
+  return arg === void 0;
+}
+exports.isUndefined = isUndefined;
+
+function isRegExp(re) {
+  return isObject(re) && objectToString(re) === '[object RegExp]';
+}
+exports.isRegExp = isRegExp;
+
+function isObject(arg) {
+  return typeof arg === 'object' && arg !== null;
+}
+exports.isObject = isObject;
+
+function isDate(d) {
+  return isObject(d) && objectToString(d) === '[object Date]';
+}
+exports.isDate = isDate;
+
+function isError(e) {
+  return isObject(e) &&
+      (objectToString(e) === '[object Error]' || e instanceof Error);
+}
+exports.isError = isError;
+
+function isFunction(arg) {
+  return typeof arg === 'function';
+}
+exports.isFunction = isFunction;
+
+function isPrimitive(arg) {
+  return arg === null ||
+         typeof arg === 'boolean' ||
+         typeof arg === 'number' ||
+         typeof arg === 'string' ||
+         typeof arg === 'symbol' ||  // ES6 symbol
+         typeof arg === 'undefined';
+}
+exports.isPrimitive = isPrimitive;
+
+exports.isBuffer = require('./support/isBuffer');
+
+function objectToString(o) {
+  return Object.prototype.toString.call(o);
+}
+
+
+function pad(n) {
+  return n < 10 ? '0' + n.toString(10) : n.toString(10);
+}
+
+
+var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep',
+              'Oct', 'Nov', 'Dec'];
+
+// 26 Feb 16:19:34
+function timestamp() {
+  var d = new Date();
+  var time = [pad(d.getHours()),
+              pad(d.getMinutes()),
+              pad(d.getSeconds())].join(':');
+  return [d.getDate(), months[d.getMonth()], time].join(' ');
+}
+
+
+// log is just a thin wrapper to console.log that prepends a timestamp
+exports.log = function() {
+  console.log('%s - %s', timestamp(), exports.format.apply(exports, arguments));
+};
+
+
+/**
+ * Inherit the prototype methods from one constructor into another.
+ *
+ * The Function.prototype.inherits from lang.js rewritten as a standalone
+ * function (not on Function.prototype). NOTE: If this file is to be loaded
+ * during bootstrapping this function needs to be rewritten using some native
+ * functions as prototype setup using normal JavaScript does not work as
+ * expected during bootstrapping (see mirror.js in r114903).
+ *
+ * @param {function} ctor Constructor function which needs to inherit the
+ *     prototype.
+ * @param {function} superCtor Constructor function to inherit prototype from.
+ */
+exports.inherits = require('inherits');
+
+exports._extend = function(origin, add) {
+  // Don't do anything if add isn't an object
+  if (!add || !isObject(add)) return origin;
+
+  var keys = Object.keys(add);
+  var i = keys.length;
+  while (i--) {
+    origin[keys[i]] = add[keys[i]];
+  }
+  return origin;
+};
+
+function hasOwnProperty(obj, prop) {
+  return Object.prototype.hasOwnProperty.call(obj, prop);
+}
+
+}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
+},{"./support/isBuffer":17,"_process":8,"inherits":4}],19:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -1163,7 +4085,7 @@ module.exports = SDPUtils;
   }
 })();
 
-},{"./chrome/chrome_shim":7,"./edge/edge_shim":9,"./firefox/firefox_shim":11,"./safari/safari_shim":13,"./utils":14}],7:[function(require,module,exports){
+},{"./chrome/chrome_shim":20,"./edge/edge_shim":22,"./firefox/firefox_shim":24,"./safari/safari_shim":26,"./utils":27}],20:[function(require,module,exports){
 
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
@@ -1448,7 +4370,7 @@ module.exports = {
   reattachMediaStream: chromeShim.reattachMediaStream
 };
 
-},{"../utils.js":14,"./getusermedia":8}],8:[function(require,module,exports){
+},{"../utils.js":27,"./getusermedia":21}],21:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -1639,7 +4561,7 @@ module.exports = function() {
   }
 };
 
-},{"../utils.js":14}],9:[function(require,module,exports){
+},{"../utils.js":27}],22:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -2690,7 +5612,7 @@ module.exports = {
   reattachMediaStream: edgeShim.reattachMediaStream
 };
 
-},{"../utils":14,"./getusermedia":10,"sdp":5}],10:[function(require,module,exports){
+},{"../utils":27,"./getusermedia":23,"sdp":15}],23:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -2724,7 +5646,7 @@ module.exports = function() {
   };
 };
 
-},{}],11:[function(require,module,exports){
+},{}],24:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -2895,7 +5817,7 @@ module.exports = {
   reattachMediaStream: firefoxShim.reattachMediaStream
 };
 
-},{"../utils":14,"./getusermedia":12}],12:[function(require,module,exports){
+},{"../utils":27,"./getusermedia":25}],25:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -3047,7 +5969,7 @@ module.exports = function() {
   };
 };
 
-},{"../utils":14}],13:[function(require,module,exports){
+},{"../utils":27}],26:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -3083,7 +6005,7 @@ module.exports = {
   // reattachMediaStream: safariShim.reattachMediaStream
 };
 
-},{}],14:[function(require,module,exports){
+},{}],27:[function(require,module,exports){
 /*
  *  Copyright (c) 2016 The WebRTC project authors. All Rights Reserved.
  *
@@ -3228,196 +6150,7 @@ module.exports = {
   extractVersion: utils.extractVersion
 };
 
-},{}],15:[function(require,module,exports){
-var WildEmitter = require('wildemitter');
-
-function getMaxVolume (analyser, fftBins) {
-  var maxVolume = -Infinity;
-  analyser.getFloatFrequencyData(fftBins);
-
-  for(var i=4, ii=fftBins.length; i < ii; i++) {
-    if (fftBins[i] > maxVolume && fftBins[i] < 0) {
-      maxVolume = fftBins[i];
-    }
-  };
-
-  return maxVolume;
-}
-
-
-var audioContextType = window.AudioContext || window.webkitAudioContext;
-// use a single audio context due to hardware limits
-var audioContext = null;
-module.exports = function(stream, options) {
-  var harker = new WildEmitter();
-
-
-  // make it not break in non-supported browsers
-  if (!audioContextType) return harker;
-
-  //Config
-  var options = options || {},
-      smoothing = (options.smoothing || 0.1),
-      interval = (options.interval || 50),
-      threshold = options.threshold,
-      play = options.play,
-      history = options.history || 10,
-      running = true;
-
-  //Setup Audio Context
-  if (!audioContext) {
-    audioContext = new audioContextType();
-  }
-  var sourceNode, fftBins, analyser;
-
-  analyser = audioContext.createAnalyser();
-  analyser.fftSize = 512;
-  analyser.smoothingTimeConstant = smoothing;
-  fftBins = new Float32Array(analyser.fftSize);
-
-  if (stream.jquery) stream = stream[0];
-  if (stream instanceof HTMLAudioElement || stream instanceof HTMLVideoElement) {
-    //Audio Tag
-    sourceNode = audioContext.createMediaElementSource(stream);
-    if (typeof play === 'undefined') play = true;
-    threshold = threshold || -50;
-  } else {
-    //WebRTC Stream
-    sourceNode = audioContext.createMediaStreamSource(stream);
-    threshold = threshold || -50;
-  }
-
-  sourceNode.connect(analyser);
-  if (play) analyser.connect(audioContext.destination);
-
-  harker.speaking = false;
-
-  harker.setThreshold = function(t) {
-    threshold = t;
-  };
-
-  harker.setInterval = function(i) {
-    interval = i;
-  };
-  
-  harker.stop = function() {
-    running = false;
-    harker.emit('volume_change', -100, threshold);
-    if (harker.speaking) {
-      harker.speaking = false;
-      harker.emit('stopped_speaking');
-    }
-  };
-  harker.speakingHistory = [];
-  for (var i = 0; i < history; i++) {
-      harker.speakingHistory.push(0);
-  }
-
-  // Poll the analyser node to determine if speaking
-  // and emit events if changed
-  var looper = function() {
-    setTimeout(function() {
-    
-      //check if stop has been called
-      if(!running) {
-        return;
-      }
-      
-      var currentVolume = getMaxVolume(analyser, fftBins);
-
-      harker.emit('volume_change', currentVolume, threshold);
-
-      var history = 0;
-      if (currentVolume > threshold && !harker.speaking) {
-        // trigger quickly, short history
-        for (var i = harker.speakingHistory.length - 3; i < harker.speakingHistory.length; i++) {
-          history += harker.speakingHistory[i];
-        }
-        if (history >= 2) {
-          harker.speaking = true;
-          harker.emit('speaking');
-        }
-      } else if (currentVolume < threshold && harker.speaking) {
-        for (var i = 0; i < harker.speakingHistory.length; i++) {
-          history += harker.speakingHistory[i];
-        }
-        if (history == 0) {
-          harker.speaking = false;
-          harker.emit('stopped_speaking');
-        }
-      }
-      harker.speakingHistory.shift();
-      harker.speakingHistory.push(0 + (currentVolume > threshold));
-
-      looper();
-    }, interval);
-  };
-  looper();
-
-
-  return harker;
-}
-
-},{"wildemitter":19}],16:[function(require,module,exports){
-var support = require('webrtcsupport');
-
-
-function GainController(stream) {
-    this.support = support.webAudio && support.mediaStream;
-
-    // set our starting value
-    this.gain = 1;
-
-    if (this.support) {
-        var context = this.context = new support.AudioContext();
-        this.microphone = context.createMediaStreamSource(stream);
-        this.gainFilter = context.createGain();
-        this.destination = context.createMediaStreamDestination();
-        this.outputStream = this.destination.stream;
-        this.microphone.connect(this.gainFilter);
-        this.gainFilter.connect(this.destination);
-        stream.addTrack(this.outputStream.getAudioTracks()[0]);
-        stream.removeTrack(stream.getAudioTracks()[0]);
-    }
-    this.stream = stream;
-}
-
-// setting
-GainController.prototype.setGain = function (val) {
-    // check for support
-    if (!this.support) return;
-    this.gainFilter.gain.value = val;
-    this.gain = val;
-};
-
-GainController.prototype.getGain = function () {
-    return this.gain;
-};
-
-GainController.prototype.off = function () {
-    return this.setGain(0);
-};
-
-GainController.prototype.on = function () {
-    this.setGain(1);
-};
-
-
-module.exports = GainController;
-
-},{"webrtcsupport":18}],17:[function(require,module,exports){
-var methods = "assert,count,debug,dir,dirxml,error,exception,group,groupCollapsed,groupEnd,info,log,markTimeline,profile,profileEnd,time,timeEnd,trace,warn".split(",");
-var l = methods.length;
-var fn = function () {};
-var mockconsole = {};
-
-while (l--) {
-    mockconsole[methods[l]] = fn;
-}
-
-module.exports = mockconsole;
-
-},{}],18:[function(require,module,exports){
+},{}],28:[function(require,module,exports){
 // created by @HenrikJoreteg
 var prefix;
 var version;
@@ -3469,7 +6202,7 @@ module.exports = {
     getUserMedia: getUserMedia
 };
 
-},{}],19:[function(require,module,exports){
+},{}],29:[function(require,module,exports){
 /*
 WildEmitter.js is a slim little event emitter by @henrikjoreteg largely based
 on @visionmedia's Emitter from UI Kit.
@@ -3624,2803 +6357,70 @@ WildEmitter.mixin = function (constructor) {
 
 WildEmitter.mixin(WildEmitter);
 
-},{}],20:[function(require,module,exports){
-// shim for using process in browser
-
-var process = module.exports = {};
-
-// cached from whatever global is present so that test runners that stub it
-// don't break things.  But we need to wrap it in a try catch in case it is
-// wrapped in strict mode code which doesn't define any globals.  It's inside a
-// function because try/catches deoptimize in certain engines.
-
-var cachedSetTimeout;
-var cachedClearTimeout;
-
-(function () {
-  try {
-    cachedSetTimeout = setTimeout;
-  } catch (e) {
-    cachedSetTimeout = function () {
-      throw new Error('setTimeout is not defined');
-    }
-  }
-  try {
-    cachedClearTimeout = clearTimeout;
-  } catch (e) {
-    cachedClearTimeout = function () {
-      throw new Error('clearTimeout is not defined');
-    }
-  }
-} ())
-var queue = [];
-var draining = false;
-var currentQueue;
-var queueIndex = -1;
-
-function cleanUpNextTick() {
-    if (!draining || !currentQueue) {
-        return;
-    }
-    draining = false;
-    if (currentQueue.length) {
-        queue = currentQueue.concat(queue);
-    } else {
-        queueIndex = -1;
-    }
-    if (queue.length) {
-        drainQueue();
-    }
-}
-
-function drainQueue() {
-    if (draining) {
-        return;
-    }
-    var timeout = cachedSetTimeout(cleanUpNextTick);
-    draining = true;
-
-    var len = queue.length;
-    while(len) {
-        currentQueue = queue;
-        queue = [];
-        while (++queueIndex < len) {
-            if (currentQueue) {
-                currentQueue[queueIndex].run();
-            }
-        }
-        queueIndex = -1;
-        len = queue.length;
-    }
-    currentQueue = null;
-    draining = false;
-    cachedClearTimeout(timeout);
-}
-
-process.nextTick = function (fun) {
-    var args = new Array(arguments.length - 1);
-    if (arguments.length > 1) {
-        for (var i = 1; i < arguments.length; i++) {
-            args[i - 1] = arguments[i];
-        }
-    }
-    queue.push(new Item(fun, args));
-    if (queue.length === 1 && !draining) {
-        cachedSetTimeout(drainQueue, 0);
-    }
-};
-
-// v8 likes predictible objects
-function Item(fun, array) {
-    this.fun = fun;
-    this.array = array;
-}
-Item.prototype.run = function () {
-    this.fun.apply(null, this.array);
-};
-process.title = 'browser';
-process.browser = true;
-process.env = {};
-process.argv = [];
-process.version = ''; // empty string to avoid regexp issues
-process.versions = {};
-
-function noop() {}
-
-process.on = noop;
-process.addListener = noop;
-process.once = noop;
-process.off = noop;
-process.removeListener = noop;
-process.removeAllListeners = noop;
-process.emit = noop;
-
-process.binding = function (name) {
-    throw new Error('process.binding is not supported');
-};
-
-process.cwd = function () { return '/' };
-process.chdir = function (dir) {
-    throw new Error('process.chdir is not supported');
-};
-process.umask = function() { return 0; };
-
-},{}],21:[function(require,module,exports){
-var util = require('util');
-var SJJ = require('sdp-jingle-json');
-var WildEmitter = require('wildemitter');
-var Peerconn = require('traceablepeerconnection');
-var adapter = require('webrtc-adapter');
-
-function PeerConnection(config, constraints) {
-    var self = this;
-    var item;
-    WildEmitter.call(this);
-
-    config = config || {};
-    config.iceServers = config.iceServers || [];
-
-    var detectedBrowser = adapter.browserDetails.browser;
-
-    // make sure this only gets enabled in Google Chrome
-    // EXPERIMENTAL FLAG, might get removed without notice
-    this.enableChromeNativeSimulcast = false;
-    if (constraints && constraints.optional &&
-            detectedBrowser === 'chrome' &&
-            navigator.appVersion.match(/Chromium\//) === null) {
-        constraints.optional.forEach(function (constraint) {
-            if (constraint.enableChromeNativeSimulcast) {
-                self.enableChromeNativeSimulcast = true;
-            }
-        });
-    }
-
-    // EXPERIMENTAL FLAG, might get removed without notice
-    this.enableMultiStreamHacks = false;
-    if (constraints && constraints.optional &&
-            detectedBrowser === 'chrome') {
-        constraints.optional.forEach(function (constraint) {
-            if (constraint.enableMultiStreamHacks) {
-                self.enableMultiStreamHacks = true;
-            }
-        });
-    }
-    // EXPERIMENTAL FLAG, might get removed without notice
-    this.restrictBandwidth = 0;
-    if (constraints && constraints.optional) {
-        constraints.optional.forEach(function (constraint) {
-            if (constraint.andyetRestrictBandwidth) {
-                self.restrictBandwidth = constraint.andyetRestrictBandwidth;
-            }
-        });
-    }
-
-    // EXPERIMENTAL FLAG, might get removed without notice
-    // bundle up ice candidates, only works for jingle mode
-    // number > 0 is the delay to wait for additional candidates
-    // ~20ms seems good
-    this.batchIceCandidates = 0;
-    if (constraints && constraints.optional) {
-        constraints.optional.forEach(function (constraint) {
-            if (constraint.andyetBatchIce) {
-                self.batchIceCandidates = constraint.andyetBatchIce;
-            }
-        });
-    }
-    this.batchedIceCandidates = [];
-
-    // EXPERIMENTAL FLAG, might get removed without notice
-    // this attemps to strip out candidates with an already known foundation
-    // and type -- i.e. those which are gathered via the same TURN server
-    // but different transports (TURN udp, tcp and tls respectively)
-    if (constraints && constraints.optional && detectedBrowser === 'chrome') {
-        constraints.optional.forEach(function (constraint) {
-            if (constraint.andyetFasterICE) {
-                self.eliminateDuplicateCandidates = constraint.andyetFasterICE;
-            }
-        });
-    }
-    // EXPERIMENTAL FLAG, might get removed without notice
-    // when using a server such as the jitsi videobridge we don't need to signal
-    // our candidates
-    if (constraints && constraints.optional) {
-        constraints.optional.forEach(function (constraint) {
-            if (constraint.andyetDontSignalCandidates) {
-                self.dontSignalCandidates = constraint.andyetDontSignalCandidates;
-            }
-        });
-    }
-
-
-    // EXPERIMENTAL FLAG, might get removed without notice
-    this.assumeSetLocalSuccess = false;
-    if (constraints && constraints.optional) {
-        constraints.optional.forEach(function (constraint) {
-            if (constraint.andyetAssumeSetLocalSuccess) {
-                self.assumeSetLocalSuccess = constraint.andyetAssumeSetLocalSuccess;
-            }
-        });
-    }
-
-    // EXPERIMENTAL FLAG, might get removed without notice
-    // working around https://bugzilla.mozilla.org/show_bug.cgi?id=1087551
-    // pass in a timeout for this
-    if (detectedBrowser === 'firefox') {
-        if (constraints && constraints.optional) {
-            this.wtFirefox = 0;
-            constraints.optional.forEach(function (constraint) {
-                if (constraint.andyetFirefoxMakesMeSad) {
-                    self.wtFirefox = constraint.andyetFirefoxMakesMeSad;
-                    if (self.wtFirefox > 0) {
-                        self.firefoxcandidatebuffer = [];
-                    }
-                }
-            });
-        }
-    }
-
-
-    this.pc = new Peerconn(config, constraints);
-
-    this.getLocalStreams = this.pc.getLocalStreams.bind(this.pc);
-    this.getRemoteStreams = this.pc.getRemoteStreams.bind(this.pc);
-    this.addStream = this.pc.addStream.bind(this.pc);
-    this.removeStream = this.pc.removeStream.bind(this.pc);
-
-    // proxy events
-    this.pc.on('*', function () {
-        self.emit.apply(self, arguments);
-    });
-
-    // proxy some events directly
-    this.pc.onremovestream = this.emit.bind(this, 'removeStream');
-    this.pc.onaddstream = this.emit.bind(this, 'addStream');
-    this.pc.onnegotiationneeded = this.emit.bind(this, 'negotiationNeeded');
-    this.pc.oniceconnectionstatechange = this.emit.bind(this, 'iceConnectionStateChange');
-    this.pc.onsignalingstatechange = this.emit.bind(this, 'signalingStateChange');
-
-    // handle ice candidate and data channel events
-    this.pc.onicecandidate = this._onIce.bind(this);
-    this.pc.ondatachannel = this._onDataChannel.bind(this);
-
-    this.localDescription = {
-        contents: []
-    };
-    this.remoteDescription = {
-        contents: []
-    };
-
-    this.config = {
-        debug: false,
-        sid: '',
-        isInitiator: true,
-        sdpSessionID: Date.now(),
-        useJingle: false
-    };
-
-    this.iceCredentials = {
-        local: {},
-        remote: {}
-    };
-
-    // apply our config
-    for (item in config) {
-        this.config[item] = config[item];
-    }
-
-    if (this.config.debug) {
-        this.on('*', function () {
-            var logger = config.logger || console;
-            logger.log('PeerConnection event:', arguments);
-        });
-    }
-    this.hadLocalStunCandidate = false;
-    this.hadRemoteStunCandidate = false;
-    this.hadLocalRelayCandidate = false;
-    this.hadRemoteRelayCandidate = false;
-
-    this.hadLocalIPv6Candidate = false;
-    this.hadRemoteIPv6Candidate = false;
-
-    // keeping references for all our data channels
-    // so they dont get garbage collected
-    // can be removed once the following bugs have been fixed
-    // https://crbug.com/405545
-    // https://bugzilla.mozilla.org/show_bug.cgi?id=964092
-    // to be filed for opera
-    this._remoteDataChannels = [];
-    this._localDataChannels = [];
-
-    this._candidateBuffer = [];
-}
-
-util.inherits(PeerConnection, WildEmitter);
-
-Object.defineProperty(PeerConnection.prototype, 'signalingState', {
-    get: function () {
-        return this.pc.signalingState;
-    }
-});
-Object.defineProperty(PeerConnection.prototype, 'iceConnectionState', {
-    get: function () {
-        return this.pc.iceConnectionState;
-    }
-});
-
-PeerConnection.prototype._role = function () {
-    return this.isInitiator ? 'initiator' : 'responder';
-};
-
-// Add a stream to the peer connection object
-PeerConnection.prototype.addStream = function (stream) {
-    this.localStream = stream;
-    this.pc.addStream(stream);
-};
-
-// helper function to check if a remote candidate is a stun/relay
-// candidate or an ipv6 candidate
-PeerConnection.prototype._checkLocalCandidate = function (candidate) {
-    var cand = SJJ.toCandidateJSON(candidate);
-    if (cand.type == 'srflx') {
-        this.hadLocalStunCandidate = true;
-    } else if (cand.type == 'relay') {
-        this.hadLocalRelayCandidate = true;
-    }
-    if (cand.ip.indexOf(':') != -1) {
-        this.hadLocalIPv6Candidate = true;
-    }
-};
-
-// helper function to check if a remote candidate is a stun/relay
-// candidate or an ipv6 candidate
-PeerConnection.prototype._checkRemoteCandidate = function (candidate) {
-    var cand = SJJ.toCandidateJSON(candidate);
-    if (cand.type == 'srflx') {
-        this.hadRemoteStunCandidate = true;
-    } else if (cand.type == 'relay') {
-        this.hadRemoteRelayCandidate = true;
-    }
-    if (cand.ip.indexOf(':') != -1) {
-        this.hadRemoteIPv6Candidate = true;
-    }
-};
-
-
-// Init and add ice candidate object with correct constructor
-PeerConnection.prototype.processIce = function (update, cb) {
-    cb = cb || function () {};
-    var self = this;
-
-    // ignore any added ice candidates to avoid errors. why does the
-    // spec not do this?
-    if (this.pc.signalingState === 'closed') return cb();
-
-    if (update.contents || (update.jingle && update.jingle.contents)) {
-        var contentNames = this.remoteDescription.contents.map(function (c) { return c.name; });
-        var contents = update.contents || update.jingle.contents;
-
-        contents.forEach(function (content) {
-            var transport = content.transport || {};
-            var candidates = transport.candidates || [];
-            var mline = contentNames.indexOf(content.name);
-            var mid = content.name;
-            var remoteContent = self.remoteDescription.contents.find(function (c) {
-                return c.name === content.name;
-            });
-
-            // process candidates as a callback, in case we need to
-            // update ufrag and pwd with offer/answer
-            var processCandidates = function () {
-                candidates.forEach(
-                    function (candidate) {
-                    var iceCandidate = SJJ.toCandidateSDP(candidate) + '\r\n';
-                    self.pc.addIceCandidate(
-                        new RTCIceCandidate({
-                            candidate: iceCandidate,
-                            sdpMLineIndex: mline,
-                            sdpMid: mid
-                        }), function () {
-                            // well, this success callback is pretty meaningless
-                        },
-                        function (err) {
-                            self.emit('error', err);
-                        }
-                    );
-                    self._checkRemoteCandidate(iceCandidate);
-                });
-                cb();
-            };
-
-            if (self.iceCredentials.remote[content.name] && transport.ufrag &&
-                self.iceCredentials.remote[content.name].ufrag !== transport.ufrag) {
-                if (remoteContent) {
-                    remoteContent.transport.ufrag = transport.ufrag;
-                    remoteContent.transport.pwd = transport.pwd;
-                    var offer = {
-                        type: 'offer',
-                        jingle: self.remoteDescription
-                    };
-                    offer.sdp = SJJ.toSessionSDP(offer.jingle, {
-                        sid: self.config.sdpSessionID,
-                        role: self._role(),
-                        direction: 'incoming'
-                    });
-                    self.pc.setRemoteDescription(new RTCSessionDescription(offer),
-                        function () {
-                            processCandidates();
-                        },
-                        function (err) {
-                            self.emit('error', err);
-                        }
-                    );
-                } else {
-                    self.emit('error', 'ice restart failed to find matching content');
-                }
-            } else {
-                processCandidates();
-            }
-        });
-    } else {
-        // working around https://code.google.com/p/webrtc/issues/detail?id=3669
-        if (update.candidate && update.candidate.candidate.indexOf('a=') !== 0) {
-            update.candidate.candidate = 'a=' + update.candidate.candidate;
-        }
-
-        if (this.wtFirefox && this.firefoxcandidatebuffer !== null) {
-            // we cant add this yet due to https://bugzilla.mozilla.org/show_bug.cgi?id=1087551
-            if (this.pc.localDescription && this.pc.localDescription.type === 'offer') {
-                this.firefoxcandidatebuffer.push(update.candidate);
-                return cb();
-            }
-        }
-
-        self.pc.addIceCandidate(
-            new RTCIceCandidate(update.candidate),
-            function () { },
-            function (err) {
-                self.emit('error', err);
-            }
-        );
-        self._checkRemoteCandidate(update.candidate.candidate);
-        cb();
-    }
-};
-
-// Generate and emit an offer with the given constraints
-PeerConnection.prototype.offer = function (constraints, cb) {
-    var self = this;
-    var hasConstraints = arguments.length === 2;
-    var mediaConstraints = hasConstraints && constraints ? constraints : {
-            offerToReceiveAudio: 1,
-            offerToReceiveVideo: 1
-        };
-    cb = hasConstraints ? cb : constraints;
-    cb = cb || function () {};
-
-    if (this.pc.signalingState === 'closed') return cb('Already closed');
-
-    // Actually generate the offer
-    this.pc.createOffer(
-        function (offer) {
-            // does not work for jingle, but jingle.js doesn't need
-            // this hack...
-            var expandedOffer = {
-                type: 'offer',
-                sdp: offer.sdp
-            };
-            if (self.assumeSetLocalSuccess) {
-                self.emit('offer', expandedOffer);
-                cb(null, expandedOffer);
-            }
-            self._candidateBuffer = [];
-            self.pc.setLocalDescription(offer,
-                function () {
-                    var jingle;
-                    if (self.config.useJingle) {
-                        jingle = SJJ.toSessionJSON(offer.sdp, {
-                            role: self._role(),
-                            direction: 'outgoing'
-                        });
-                        jingle.sid = self.config.sid;
-                        self.localDescription = jingle;
-
-                        // Save ICE credentials
-                        jingle.contents.forEach(function (content) {
-                            var transport = content.transport || {};
-                            if (transport.ufrag) {
-                                self.iceCredentials.local[content.name] = {
-                                    ufrag: transport.ufrag,
-                                    pwd: transport.pwd
-                                };
-                            }
-                        });
-
-                        expandedOffer.jingle = jingle;
-                    }
-                    expandedOffer.sdp.split('\r\n').forEach(function (line) {
-                        if (line.indexOf('a=candidate:') === 0) {
-                            self._checkLocalCandidate(line);
-                        }
-                    });
-
-                    if (!self.assumeSetLocalSuccess) {
-                        self.emit('offer', expandedOffer);
-                        cb(null, expandedOffer);
-                    }
-                },
-                function (err) {
-                    self.emit('error', err);
-                    cb(err);
-                }
-            );
-        },
-        function (err) {
-            self.emit('error', err);
-            cb(err);
-        },
-        mediaConstraints
-    );
-};
-
-
-// Process an incoming offer so that ICE may proceed before deciding
-// to answer the request.
-PeerConnection.prototype.handleOffer = function (offer, cb) {
-    cb = cb || function () {};
-    var self = this;
-    offer.type = 'offer';
-    if (offer.jingle) {
-        if (this.enableChromeNativeSimulcast) {
-            offer.jingle.contents.forEach(function (content) {
-                if (content.name === 'video') {
-                    content.application.googConferenceFlag = true;
-                }
-
-            });
-        }
-        if (this.enableMultiStreamHacks) {
-            // add a mixed video stream as first stream
-            offer.jingle.contents.forEach(function (content) {
-                if (content.name === 'video') {
-                    var sources = content.application.sources || [];
-                    if (sources.length === 0 || sources[0].ssrc !== "3735928559") {
-                        sources.unshift({
-                            ssrc: "3735928559", // 0xdeadbeef
-                            parameters: [
-                                {
-                                    key: "cname",
-                                    value: "deadbeef"
-                                },
-                                {
-                                    key: "msid",
-                                    value: "mixyourfecintothis please"
-                                }
-                            ]
-                        });
-                        content.application.sources = sources;
-                    }
-                }
-            });
-        }
-        if (self.restrictBandwidth > 0) {
-            if (offer.jingle.contents.length >= 2 && offer.jingle.contents[1].name === 'video') {
-                var content = offer.jingle.contents[1];
-                var hasBw = content.application && content.application.bandwidth && content.application.bandwidth.bandwidth;
-                if (!hasBw) {
-                    offer.jingle.contents[1].application.bandwidth = { type: 'AS', bandwidth: self.restrictBandwidth.toString() };
-                    offer.sdp = SJJ.toSessionSDP(offer.jingle, {
-                        sid: self.config.sdpSessionID,
-                        role: self._role(),
-                        direction: 'outgoing'
-                    });
-                }
-            }
-        }
-        // Save ICE credentials
-        offer.jingle.contents.forEach(function (content) {
-            var transport = content.transport || {};
-            if (transport.ufrag) {
-                self.iceCredentials.remote[content.name] = {
-                    ufrag: transport.ufrag,
-                    pwd: transport.pwd
-                };
-            }
-        });
-        offer.sdp = SJJ.toSessionSDP(offer.jingle, {
-            sid: self.config.sdpSessionID,
-            role: self._role(),
-            direction: 'incoming'
-        });
-        self.remoteDescription = offer.jingle;
-    }
-    offer.sdp.split('\r\n').forEach(function (line) {
-        if (line.indexOf('a=candidate:') === 0) {
-            self._checkRemoteCandidate(line);
-        }
-    });
-    self.pc.setRemoteDescription(new RTCSessionDescription(offer),
-        function () {
-            cb();
-        },
-        cb
-    );
-};
-
-// Answer an offer with audio only
-PeerConnection.prototype.answerAudioOnly = function (cb) {
-    var mediaConstraints = {
-            mandatory: {
-                OfferToReceiveAudio: true,
-                OfferToReceiveVideo: false
-            }
-        };
-    this._answer(mediaConstraints, cb);
-};
-
-// Answer an offer without offering to recieve
-PeerConnection.prototype.answerBroadcastOnly = function (cb) {
-    var mediaConstraints = {
-            mandatory: {
-                OfferToReceiveAudio: false,
-                OfferToReceiveVideo: false
-            }
-        };
-    this._answer(mediaConstraints, cb);
-};
-
-// Answer an offer with given constraints default is audio/video
-PeerConnection.prototype.answer = function (constraints, cb) {
-    var hasConstraints = arguments.length === 2;
-    var callback = hasConstraints ? cb : constraints;
-    var mediaConstraints = hasConstraints && constraints ? constraints : {
-            mandatory: {
-                OfferToReceiveAudio: true,
-                OfferToReceiveVideo: true
-            }
-        };
-
-    this._answer(mediaConstraints, callback);
-};
-
-// Process an answer
-PeerConnection.prototype.handleAnswer = function (answer, cb) {
-    cb = cb || function () {};
-    var self = this;
-    if (answer.jingle) {
-        answer.sdp = SJJ.toSessionSDP(answer.jingle, {
-            sid: self.config.sdpSessionID,
-            role: self._role(),
-            direction: 'incoming'
-        });
-        self.remoteDescription = answer.jingle;
-
-        // Save ICE credentials
-        answer.jingle.contents.forEach(function (content) {
-            var transport = content.transport || {};
-            if (transport.ufrag) {
-                self.iceCredentials.remote[content.name] = {
-                    ufrag: transport.ufrag,
-                    pwd: transport.pwd
-                };
-            }
-        });
-    }
-    answer.sdp.split('\r\n').forEach(function (line) {
-        if (line.indexOf('a=candidate:') === 0) {
-            self._checkRemoteCandidate(line);
-        }
-    });
-    self.pc.setRemoteDescription(
-        new RTCSessionDescription(answer),
-        function () {
-            if (self.wtFirefox) {
-                window.setTimeout(function () {
-                    self.firefoxcandidatebuffer.forEach(function (candidate) {
-                        // add candidates later
-                        self.pc.addIceCandidate(
-                            new RTCIceCandidate(candidate),
-                            function () { },
-                            function (err) {
-                                self.emit('error', err);
-                            }
-                        );
-                        self._checkRemoteCandidate(candidate.candidate);
-                    });
-                    self.firefoxcandidatebuffer = null;
-                }, self.wtFirefox);
-            }
-            cb(null);
-        },
-        cb
-    );
-};
-
-// Close the peer connection
-PeerConnection.prototype.close = function () {
-    this.pc.close();
-
-    this._localDataChannels = [];
-    this._remoteDataChannels = [];
-
-    this.emit('close');
-};
-
-// Internal code sharing for various types of answer methods
-PeerConnection.prototype._answer = function (constraints, cb) {
-    cb = cb || function () {};
-    var self = this;
-    if (!this.pc.remoteDescription) {
-        // the old API is used, call handleOffer
-        throw new Error('remoteDescription not set');
-    }
-
-    if (this.pc.signalingState === 'closed') return cb('Already closed');
-
-    self.pc.createAnswer(
-        function (answer) {
-            var sim = [];
-            if (self.enableChromeNativeSimulcast) {
-                // native simulcast part 1: add another SSRC
-                answer.jingle = SJJ.toSessionJSON(answer.sdp, {
-                    role: self._role(),
-                    direction: 'outgoing'
-                });
-                if (answer.jingle.contents.length >= 2 && answer.jingle.contents[1].name === 'video') {
-                    var groups = answer.jingle.contents[1].application.sourceGroups || [];
-                    var hasSim = false;
-                    groups.forEach(function (group) {
-                        if (group.semantics == 'SIM') hasSim = true;
-                    });
-                    if (!hasSim &&
-                        answer.jingle.contents[1].application.sources.length) {
-                        var newssrc = JSON.parse(JSON.stringify(answer.jingle.contents[1].application.sources[0]));
-                        newssrc.ssrc = '' + Math.floor(Math.random() * 0xffffffff); // FIXME: look for conflicts
-                        answer.jingle.contents[1].application.sources.push(newssrc);
-
-                        sim.push(answer.jingle.contents[1].application.sources[0].ssrc);
-                        sim.push(newssrc.ssrc);
-                        groups.push({
-                            semantics: 'SIM',
-                            sources: sim
-                        });
-
-                        // also create an RTX one for the SIM one
-                        var rtxssrc = JSON.parse(JSON.stringify(newssrc));
-                        rtxssrc.ssrc = '' + Math.floor(Math.random() * 0xffffffff); // FIXME: look for conflicts
-                        answer.jingle.contents[1].application.sources.push(rtxssrc);
-                        groups.push({
-                            semantics: 'FID',
-                            sources: [newssrc.ssrc, rtxssrc.ssrc]
-                        });
-
-                        answer.jingle.contents[1].application.sourceGroups = groups;
-                        answer.sdp = SJJ.toSessionSDP(answer.jingle, {
-                            sid: self.config.sdpSessionID,
-                            role: self._role(),
-                            direction: 'outgoing'
-                        });
-                    }
-                }
-            }
-            var expandedAnswer = {
-                type: 'answer',
-                sdp: answer.sdp
-            };
-            if (self.assumeSetLocalSuccess) {
-                // not safe to do when doing simulcast mangling
-                self.emit('answer', expandedAnswer);
-                cb(null, expandedAnswer);
-            }
-            self._candidateBuffer = [];
-            self.pc.setLocalDescription(answer,
-                function () {
-                    if (self.config.useJingle) {
-                        var jingle = SJJ.toSessionJSON(answer.sdp, {
-                            role: self._role(),
-                            direction: 'outgoing'
-                        });
-                        jingle.sid = self.config.sid;
-                        self.localDescription = jingle;
-                        expandedAnswer.jingle = jingle;
-                    }
-                    if (self.enableChromeNativeSimulcast) {
-                        // native simulcast part 2:
-                        // signal multiple tracks to the receiver
-                        // for anything in the SIM group
-                        if (!expandedAnswer.jingle) {
-                            expandedAnswer.jingle = SJJ.toSessionJSON(answer.sdp, {
-                                role: self._role(),
-                                direction: 'outgoing'
-                            });
-                        }
-                        expandedAnswer.jingle.contents[1].application.sources.forEach(function (source, idx) {
-                            // the floor idx/2 is a hack that relies on a particular order
-                            // of groups, alternating between sim and rtx
-                            source.parameters = source.parameters.map(function (parameter) {
-                                if (parameter.key === 'msid') {
-                                    parameter.value += '-' + Math.floor(idx / 2);
-                                }
-                                return parameter;
-                            });
-                        });
-                        expandedAnswer.sdp = SJJ.toSessionSDP(expandedAnswer.jingle, {
-                            sid: self.sdpSessionID,
-                            role: self._role(),
-                            direction: 'outgoing'
-                        });
-                    }
-                    expandedAnswer.sdp.split('\r\n').forEach(function (line) {
-                        if (line.indexOf('a=candidate:') === 0) {
-                            self._checkLocalCandidate(line);
-                        }
-                    });
-                    if (!self.assumeSetLocalSuccess) {
-                        self.emit('answer', expandedAnswer);
-                        cb(null, expandedAnswer);
-                    }
-                },
-                function (err) {
-                    self.emit('error', err);
-                    cb(err);
-                }
-            );
-        },
-        function (err) {
-            self.emit('error', err);
-            cb(err);
-        },
-        constraints
-    );
-};
-
-// Internal method for emitting ice candidates on our peer object
-PeerConnection.prototype._onIce = function (event) {
-    var self = this;
-    if (event.candidate) {
-        if (this.dontSignalCandidates) return;
-        var ice = event.candidate;
-
-        var expandedCandidate = {
-            candidate: {
-                candidate: ice.candidate,
-                sdpMid: ice.sdpMid,
-                sdpMLineIndex: ice.sdpMLineIndex
-            }
-        };
-        this._checkLocalCandidate(ice.candidate);
-
-        var cand = SJJ.toCandidateJSON(ice.candidate);
-
-        var already;
-        var idx;
-        if (this.eliminateDuplicateCandidates && cand.type === 'relay') {
-            // drop candidates with same foundation, component
-            // take local type pref into account so we don't ignore udp
-            // ones when we know about a TCP one. unlikely but...
-            already = this._candidateBuffer.filter(
-                function (c) {
-                    return c.type === 'relay';
-                }).map(function (c) {
-                    return c.foundation + ':' + c.component;
-                }
-            );
-            idx = already.indexOf(cand.foundation + ':' + cand.component);
-            // remember: local type pref of udp is 0, tcp 1, tls 2
-            if (idx > -1 && ((cand.priority >> 24) >= (already[idx].priority >> 24))) {
-                // drop it, same foundation with higher (worse) type pref
-                return;
-            }
-        }
-        if (this.config.bundlePolicy === 'max-bundle') {
-            // drop candidates which are duplicate for audio/video/data
-            // duplicate means same host/port but different sdpMid
-            already = this._candidateBuffer.filter(
-                function (c) {
-                    return cand.type === c.type;
-                }).map(function (cand) {
-                    return cand.address + ':' + cand.port;
-                }
-            );
-            idx = already.indexOf(cand.address + ':' + cand.port);
-            if (idx > -1) return;
-        }
-        // also drop rtcp candidates since we know the peer supports RTCP-MUX
-        // this is a workaround until browsers implement this natively
-        if (this.config.rtcpMuxPolicy === 'require' && cand.component === '2') {
-            return;
-        }
-        this._candidateBuffer.push(cand);
-
-        if (self.config.useJingle) {
-            if (!ice.sdpMid) { // firefox doesn't set this
-                if (self.pc.remoteDescription && self.pc.remoteDescription.type === 'offer') {
-                    // preserve name from remote
-                    ice.sdpMid = self.remoteDescription.contents[ice.sdpMLineIndex].name;
-                } else {
-                    ice.sdpMid = self.localDescription.contents[ice.sdpMLineIndex].name;
-                }
-            }
-            if (!self.iceCredentials.local[ice.sdpMid]) {
-                var jingle = SJJ.toSessionJSON(self.pc.localDescription.sdp, {
-                    role: self._role(),
-                    direction: 'outgoing'
-                });
-                jingle.contents.forEach(function (content) {
-                    var transport = content.transport || {};
-                    if (transport.ufrag) {
-                        self.iceCredentials.local[content.name] = {
-                            ufrag: transport.ufrag,
-                            pwd: transport.pwd
-                        };
-                    }
-                });
-            }
-            expandedCandidate.jingle = {
-                contents: [{
-                    name: ice.sdpMid,
-                    creator: self._role(),
-                    transport: {
-                        transportType: 'iceUdp',
-                        ufrag: self.iceCredentials.local[ice.sdpMid].ufrag,
-                        pwd: self.iceCredentials.local[ice.sdpMid].pwd,
-                        candidates: [
-                            cand
-                        ]
-                    }
-                }]
-            };
-            if (self.batchIceCandidates > 0) {
-                if (self.batchedIceCandidates.length === 0) {
-                    window.setTimeout(function () {
-                        var contents = {};
-                        self.batchedIceCandidates.forEach(function (content) {
-                            content = content.contents[0];
-                            if (!contents[content.name]) contents[content.name] = content;
-                            contents[content.name].transport.candidates.push(content.transport.candidates[0]);
-                        });
-                        var newCand = {
-                            jingle: {
-                                contents: []
-                            }
-                        };
-                        Object.keys(contents).forEach(function (name) {
-                            newCand.jingle.contents.push(contents[name]);
-                        });
-                        self.batchedIceCandidates = [];
-                        self.emit('ice', newCand);
-                    }, self.batchIceCandidates);
-                }
-                self.batchedIceCandidates.push(expandedCandidate.jingle);
-                return;
-            }
-
-        }
-        this.emit('ice', expandedCandidate);
-    } else {
-        this.emit('endOfCandidates');
-    }
-};
-
-// Internal method for processing a new data channel being added by the
-// other peer.
-PeerConnection.prototype._onDataChannel = function (event) {
-    // make sure we keep a reference so this doesn't get garbage collected
-    var channel = event.channel;
-    this._remoteDataChannels.push(channel);
-
-    this.emit('addChannel', channel);
-};
-
-// Create a data channel spec reference:
-// http://dev.w3.org/2011/webrtc/editor/webrtc.html#idl-def-RTCDataChannelInit
-PeerConnection.prototype.createDataChannel = function (name, opts) {
-    var channel = this.pc.createDataChannel(name, opts);
-
-    // make sure we keep a reference so this doesn't get garbage collected
-    this._localDataChannels.push(channel);
-
-    return channel;
-};
-
-PeerConnection.prototype.getStats = function (cb) {
-    this.pc.getStats(null,
-        function (res) {
-            cb(null, res);
-        },
-        function (err) {
-            cb(err);
-        }
-    );
-};
-
-module.exports = PeerConnection;
-
-},{"sdp-jingle-json":22,"traceablepeerconnection":28,"util":30,"webrtc-adapter":31,"wildemitter":40}],22:[function(require,module,exports){
-var toSDP = require('./lib/tosdp');
-var toJSON = require('./lib/tojson');
-
-
-// Converstion from JSON to SDP
-
-exports.toIncomingSDPOffer = function (session) {
-    return toSDP.toSessionSDP(session, {
-        role: 'responder',
-        direction: 'incoming'
-    });
-};
-exports.toOutgoingSDPOffer = function (session) {
-    return toSDP.toSessionSDP(session, {
-        role: 'initiator',
-        direction: 'outgoing'
-    });
-};
-exports.toIncomingSDPAnswer = function (session) {
-    return toSDP.toSessionSDP(session, {
-        role: 'initiator',
-        direction: 'incoming'
-    });
-};
-exports.toOutgoingSDPAnswer = function (session) {
-    return toSDP.toSessionSDP(session, {
-        role: 'responder',
-        direction: 'outgoing'
-    });
-};
-exports.toIncomingMediaSDPOffer = function (media) {
-    return toSDP.toMediaSDP(media, {
-        role: 'responder',
-        direction: 'incoming'
-    });
-};
-exports.toOutgoingMediaSDPOffer = function (media) {
-    return toSDP.toMediaSDP(media, {
-        role: 'initiator',
-        direction: 'outgoing'
-    });
-};
-exports.toIncomingMediaSDPAnswer = function (media) {
-    return toSDP.toMediaSDP(media, {
-        role: 'initiator',
-        direction: 'incoming'
-    });
-};
-exports.toOutgoingMediaSDPAnswer = function (media) {
-    return toSDP.toMediaSDP(media, {
-        role: 'responder',
-        direction: 'outgoing'
-    });
-};
-exports.toCandidateSDP = toSDP.toCandidateSDP;
-exports.toMediaSDP = toSDP.toMediaSDP;
-exports.toSessionSDP = toSDP.toSessionSDP;
-
-
-// Conversion from SDP to JSON
-
-exports.toIncomingJSONOffer = function (sdp, creators) {
-    return toJSON.toSessionJSON(sdp, {
-        role: 'responder',
-        direction: 'incoming',
-        creators: creators
-    });
-};
-exports.toOutgoingJSONOffer = function (sdp, creators) {
-    return toJSON.toSessionJSON(sdp, {
-        role: 'initiator',
-        direction: 'outgoing',
-        creators: creators
-    });
-};
-exports.toIncomingJSONAnswer = function (sdp, creators) {
-    return toJSON.toSessionJSON(sdp, {
-        role: 'initiator',
-        direction: 'incoming',
-        creators: creators
-    });
-};
-exports.toOutgoingJSONAnswer = function (sdp, creators) {
-    return toJSON.toSessionJSON(sdp, {
-        role: 'responder',
-        direction: 'outgoing',
-        creators: creators
-    });
-};
-exports.toIncomingMediaJSONOffer = function (sdp, creator) {
-    return toJSON.toMediaJSON(sdp, {
-        role: 'responder',
-        direction: 'incoming',
-        creator: creator
-    });
-};
-exports.toOutgoingMediaJSONOffer = function (sdp, creator) {
-    return toJSON.toMediaJSON(sdp, {
-        role: 'initiator',
-        direction: 'outgoing',
-        creator: creator
-    });
-};
-exports.toIncomingMediaJSONAnswer = function (sdp, creator) {
-    return toJSON.toMediaJSON(sdp, {
-        role: 'initiator',
-        direction: 'incoming',
-        creator: creator
-    });
-};
-exports.toOutgoingMediaJSONAnswer = function (sdp, creator) {
-    return toJSON.toMediaJSON(sdp, {
-        role: 'responder',
-        direction: 'outgoing',
-        creator: creator
-    });
-};
-exports.toCandidateJSON = toJSON.toCandidateJSON;
-exports.toMediaJSON = toJSON.toMediaJSON;
-exports.toSessionJSON = toJSON.toSessionJSON;
-
-},{"./lib/tojson":25,"./lib/tosdp":26}],23:[function(require,module,exports){
-exports.lines = function (sdp) {
-    return sdp.split('\r\n').filter(function (line) {
-        return line.length > 0;
-    });
-};
-
-exports.findLine = function (prefix, mediaLines, sessionLines) {
-    var prefixLength = prefix.length;
-    for (var i = 0; i < mediaLines.length; i++) {
-        if (mediaLines[i].substr(0, prefixLength) === prefix) {
-            return mediaLines[i];
-        }
-    }
-    // Continue searching in parent session section
-    if (!sessionLines) {
-        return false;
-    }
-
-    for (var j = 0; j < sessionLines.length; j++) {
-        if (sessionLines[j].substr(0, prefixLength) === prefix) {
-            return sessionLines[j];
-        }
-    }
-
-    return false;
-};
-
-exports.findLines = function (prefix, mediaLines, sessionLines) {
-    var results = [];
-    var prefixLength = prefix.length;
-    for (var i = 0; i < mediaLines.length; i++) {
-        if (mediaLines[i].substr(0, prefixLength) === prefix) {
-            results.push(mediaLines[i]);
-        }
-    }
-    if (results.length || !sessionLines) {
-        return results;
-    }
-    for (var j = 0; j < sessionLines.length; j++) {
-        if (sessionLines[j].substr(0, prefixLength) === prefix) {
-            results.push(sessionLines[j]);
-        }
-    }
-    return results;
-};
-
-exports.mline = function (line) {
-    var parts = line.substr(2).split(' ');
-    var parsed = {
-        media: parts[0],
-        port: parts[1],
-        proto: parts[2],
-        formats: []
-    };
-    for (var i = 3; i < parts.length; i++) {
-        if (parts[i]) {
-            parsed.formats.push(parts[i]);
-        }
-    }
-    return parsed;
-};
-
-exports.rtpmap = function (line) {
-    var parts = line.substr(9).split(' ');
-    var parsed = {
-        id: parts.shift()
-    };
-
-    parts = parts[0].split('/');
-
-    parsed.name = parts[0];
-    parsed.clockrate = parts[1];
-    parsed.channels = parts.length == 3 ? parts[2] : '1';
-    return parsed;
-};
-
-exports.sctpmap = function (line) {
-    // based on -05 draft
-    var parts = line.substr(10).split(' ');
-    var parsed = {
-        number: parts.shift(),
-        protocol: parts.shift(),
-        streams: parts.shift()
-    };
-    return parsed;
-};
-
-
-exports.fmtp = function (line) {
-    var kv, key, value;
-    var parts = line.substr(line.indexOf(' ') + 1).split(';');
-    var parsed = [];
-    for (var i = 0; i < parts.length; i++) {
-        kv = parts[i].split('=');
-        key = kv[0].trim();
-        value = kv[1];
-        if (key && value) {
-            parsed.push({key: key, value: value});
-        } else if (key) {
-            parsed.push({key: '', value: key});
-        }
-    }
-    return parsed;
-};
-
-exports.crypto = function (line) {
-    var parts = line.substr(9).split(' ');
-    var parsed = {
-        tag: parts[0],
-        cipherSuite: parts[1],
-        keyParams: parts[2],
-        sessionParams: parts.slice(3).join(' ')
-    };
-    return parsed;
-};
-
-exports.fingerprint = function (line) {
-    var parts = line.substr(14).split(' ');
-    return {
-        hash: parts[0],
-        value: parts[1]
-    };
-};
-
-exports.extmap = function (line) {
-    var parts = line.substr(9).split(' ');
-    var parsed = {};
-
-    var idpart = parts.shift();
-    var sp = idpart.indexOf('/');
-    if (sp >= 0) {
-        parsed.id = idpart.substr(0, sp);
-        parsed.senders = idpart.substr(sp + 1);
-    } else {
-        parsed.id = idpart;
-        parsed.senders = 'sendrecv';
-    }
-
-    parsed.uri = parts.shift() || '';
-
-    return parsed;
-};
-
-exports.rtcpfb = function (line) {
-    var parts = line.substr(10).split(' ');
-    var parsed = {};
-    parsed.id = parts.shift();
-    parsed.type = parts.shift();
-    if (parsed.type === 'trr-int') {
-        parsed.value = parts.shift();
-    } else {
-        parsed.subtype = parts.shift() || '';
-    }
-    parsed.parameters = parts;
-    return parsed;
-};
-
-exports.candidate = function (line) {
-    var parts;
-    if (line.indexOf('a=candidate:') === 0) {
-        parts = line.substring(12).split(' ');
-    } else { // no a=candidate
-        parts = line.substring(10).split(' ');
-    }
-
-    var candidate = {
-        foundation: parts[0],
-        component: parts[1],
-        protocol: parts[2].toLowerCase(),
-        priority: parts[3],
-        ip: parts[4],
-        port: parts[5],
-        // skip parts[6] == 'typ'
-        type: parts[7],
-        generation: '0'
-    };
-
-    for (var i = 8; i < parts.length; i += 2) {
-        if (parts[i] === 'raddr') {
-            candidate.relAddr = parts[i + 1];
-        } else if (parts[i] === 'rport') {
-            candidate.relPort = parts[i + 1];
-        } else if (parts[i] === 'generation') {
-            candidate.generation = parts[i + 1];
-        } else if (parts[i] === 'tcptype') {
-            candidate.tcpType = parts[i + 1];
-        }
-    }
-
-    candidate.network = '1';
-
-    return candidate;
-};
-
-exports.sourceGroups = function (lines) {
-    var parsed = [];
-    for (var i = 0; i < lines.length; i++) {
-        var parts = lines[i].substr(13).split(' ');
-        parsed.push({
-            semantics: parts.shift(),
-            sources: parts
-        });
-    }
-    return parsed;
-};
-
-exports.sources = function (lines) {
-    // http://tools.ietf.org/html/rfc5576
-    var parsed = [];
-    var sources = {};
-    for (var i = 0; i < lines.length; i++) {
-        var parts = lines[i].substr(7).split(' ');
-        var ssrc = parts.shift();
-
-        if (!sources[ssrc]) {
-            var source = {
-                ssrc: ssrc,
-                parameters: []
-            };
-            parsed.push(source);
-
-            // Keep an index
-            sources[ssrc] = source;
-        }
-
-        parts = parts.join(' ').split(':');
-        var attribute = parts.shift();
-        var value = parts.join(':') || null;
-
-        sources[ssrc].parameters.push({
-            key: attribute,
-            value: value
-        });
-    }
-
-    return parsed;
-};
-
-exports.groups = function (lines) {
-    // http://tools.ietf.org/html/rfc5888
-    var parsed = [];
-    var parts;
-    for (var i = 0; i < lines.length; i++) {
-        parts = lines[i].substr(8).split(' ');
-        parsed.push({
-            semantics: parts.shift(),
-            contents: parts
-        });
-    }
-    return parsed;
-};
-
-exports.bandwidth = function (line) {
-    var parts = line.substr(2).split(':');
-    var parsed = {};
-    parsed.type = parts.shift();
-    parsed.bandwidth = parts.shift();
-    return parsed;
-};
-
-exports.msid = function (line) {
-    var data = line.substr(7);
-    var parts = data.split(' ');
-    return {
-        msid: data,
-        mslabel: parts[0],
-        label: parts[1]
-    };
-};
-
-},{}],24:[function(require,module,exports){
-module.exports = {
-    initiator: {
-        incoming: {
-            initiator: 'recvonly',
-            responder: 'sendonly',
-            both: 'sendrecv',
-            none: 'inactive',
-            recvonly: 'initiator',
-            sendonly: 'responder',
-            sendrecv: 'both',
-            inactive: 'none'
-        },
-        outgoing: {
-            initiator: 'sendonly',
-            responder: 'recvonly',
-            both: 'sendrecv',
-            none: 'inactive',
-            recvonly: 'responder',
-            sendonly: 'initiator',
-            sendrecv: 'both',
-            inactive: 'none'
-        }
-    },
-    responder: {
-        incoming: {
-            initiator: 'sendonly',
-            responder: 'recvonly',
-            both: 'sendrecv',
-            none: 'inactive',
-            recvonly: 'responder',
-            sendonly: 'initiator',
-            sendrecv: 'both',
-            inactive: 'none'
-        },
-        outgoing: {
-            initiator: 'recvonly',
-            responder: 'sendonly',
-            both: 'sendrecv',
-            none: 'inactive',
-            recvonly: 'initiator',
-            sendonly: 'responder',
-            sendrecv: 'both',
-            inactive: 'none'
-        }
-    }
-};
-
-},{}],25:[function(require,module,exports){
-var SENDERS = require('./senders');
-var parsers = require('./parsers');
-var idCounter = Math.random();
-
-
-exports._setIdCounter = function (counter) {
-    idCounter = counter;
-};
-
-exports.toSessionJSON = function (sdp, opts) {
-    var i;
-    var creators = opts.creators || [];
-    var role = opts.role || 'initiator';
-    var direction = opts.direction || 'outgoing';
-
-
-    // Divide the SDP into session and media sections.
-    var media = sdp.split('\r\nm=');
-    for (i = 1; i < media.length; i++) {
-        media[i] = 'm=' + media[i];
-        if (i !== media.length - 1) {
-            media[i] += '\r\n';
-        }
-    }
-    var session = media.shift() + '\r\n';
-    var sessionLines = parsers.lines(session);
-    var parsed = {};
-
-    var contents = [];
-    for (i = 0; i < media.length; i++) {
-        contents.push(exports.toMediaJSON(media[i], session, {
-            role: role,
-            direction: direction,
-            creator: creators[i] || 'initiator'
-        }));
-    }
-    parsed.contents = contents;
-
-    var groupLines = parsers.findLines('a=group:', sessionLines);
-    if (groupLines.length) {
-        parsed.groups = parsers.groups(groupLines);
-    }
-
-    return parsed;
-};
-
-exports.toMediaJSON = function (media, session, opts) {
-    var creator = opts.creator || 'initiator';
-    var role = opts.role || 'initiator';
-    var direction = opts.direction || 'outgoing';
-
-    var lines = parsers.lines(media);
-    var sessionLines = parsers.lines(session);
-    var mline = parsers.mline(lines[0]);
-
-    var content = {
-        creator: creator,
-        name: mline.media,
-        application: {
-            applicationType: 'rtp',
-            media: mline.media,
-            payloads: [],
-            encryption: [],
-            feedback: [],
-            headerExtensions: []
-        },
-        transport: {
-            transportType: 'iceUdp',
-            candidates: [],
-            fingerprints: []
-        }
-    };
-    if (mline.media == 'application') {
-        // FIXME: the description is most likely to be independent
-        // of the SDP and should be processed by other parts of the library
-        content.application = {
-            applicationType: 'datachannel'
-        };
-        content.transport.sctp = [];
-    }
-    var desc = content.application;
-    var trans = content.transport;
-
-    // If we have a mid, use that for the content name instead.
-    var mid = parsers.findLine('a=mid:', lines);
-    if (mid) {
-        content.name = mid.substr(6);
-    }
-
-    if (parsers.findLine('a=sendrecv', lines, sessionLines)) {
-        content.senders = 'both';
-    } else if (parsers.findLine('a=sendonly', lines, sessionLines)) {
-        content.senders = SENDERS[role][direction].sendonly;
-    } else if (parsers.findLine('a=recvonly', lines, sessionLines)) {
-        content.senders = SENDERS[role][direction].recvonly;
-    } else if (parsers.findLine('a=inactive', lines, sessionLines)) {
-        content.senders = 'none';
-    }
-
-    if (desc.applicationType == 'rtp') {
-        var bandwidth = parsers.findLine('b=', lines);
-        if (bandwidth) {
-            desc.bandwidth = parsers.bandwidth(bandwidth);
-        }
-
-        var ssrc = parsers.findLine('a=ssrc:', lines);
-        if (ssrc) {
-            desc.ssrc = ssrc.substr(7).split(' ')[0];
-        }
-
-        var rtpmapLines = parsers.findLines('a=rtpmap:', lines);
-        rtpmapLines.forEach(function (line) {
-            var payload = parsers.rtpmap(line);
-            payload.parameters = [];
-            payload.feedback = [];
-
-            var fmtpLines = parsers.findLines('a=fmtp:' + payload.id, lines);
-            // There should only be one fmtp line per payload
-            fmtpLines.forEach(function (line) {
-                payload.parameters = parsers.fmtp(line);
-            });
-
-            var fbLines = parsers.findLines('a=rtcp-fb:' + payload.id, lines);
-            fbLines.forEach(function (line) {
-                payload.feedback.push(parsers.rtcpfb(line));
-            });
-
-            desc.payloads.push(payload);
-        });
-
-        var cryptoLines = parsers.findLines('a=crypto:', lines, sessionLines);
-        cryptoLines.forEach(function (line) {
-            desc.encryption.push(parsers.crypto(line));
-        });
-
-        if (parsers.findLine('a=rtcp-mux', lines)) {
-            desc.mux = true;
-        }
-
-        var fbLines = parsers.findLines('a=rtcp-fb:*', lines);
-        fbLines.forEach(function (line) {
-            desc.feedback.push(parsers.rtcpfb(line));
-        });
-
-        var extLines = parsers.findLines('a=extmap:', lines);
-        extLines.forEach(function (line) {
-            var ext = parsers.extmap(line);
-
-            ext.senders = SENDERS[role][direction][ext.senders];
-
-            desc.headerExtensions.push(ext);
-        });
-
-        var ssrcGroupLines = parsers.findLines('a=ssrc-group:', lines);
-        desc.sourceGroups = parsers.sourceGroups(ssrcGroupLines || []);
-
-        var ssrcLines = parsers.findLines('a=ssrc:', lines);
-        var sources = desc.sources = parsers.sources(ssrcLines || []);
-
-        var msidLine = parsers.findLine('a=msid:', lines);
-        if (msidLine) {
-            var msid = parsers.msid(msidLine);
-            ['msid', 'mslabel', 'label'].forEach(function (key) {
-                for (var i = 0; i < sources.length; i++) {
-                    var found = false;
-                    for (var j = 0; j < sources[i].parameters.length; j++) {
-                        if (sources[i].parameters[j].key === key) {
-                            found = true;
-                        }
-                    }
-                    if (!found) {
-                        sources[i].parameters.push({ key: key, value: msid[key] });
-                    }
-                }
-            });
-        }
-
-        if (parsers.findLine('a=x-google-flag:conference', lines, sessionLines)) {
-            desc.googConferenceFlag = true;
-        }
-    }
-
-    // transport specific attributes
-    var fingerprintLines = parsers.findLines('a=fingerprint:', lines, sessionLines);
-    var setup = parsers.findLine('a=setup:', lines, sessionLines);
-    fingerprintLines.forEach(function (line) {
-        var fp = parsers.fingerprint(line);
-        if (setup) {
-            fp.setup = setup.substr(8);
-        }
-        trans.fingerprints.push(fp);
-    });
-
-    var ufragLine = parsers.findLine('a=ice-ufrag:', lines, sessionLines);
-    var pwdLine = parsers.findLine('a=ice-pwd:', lines, sessionLines);
-    if (ufragLine && pwdLine) {
-        trans.ufrag = ufragLine.substr(12);
-        trans.pwd = pwdLine.substr(10);
-        trans.candidates = [];
-
-        var candidateLines = parsers.findLines('a=candidate:', lines, sessionLines);
-        candidateLines.forEach(function (line) {
-            trans.candidates.push(exports.toCandidateJSON(line));
-        });
-    }
-
-    if (desc.applicationType == 'datachannel') {
-        var sctpmapLines = parsers.findLines('a=sctpmap:', lines);
-        sctpmapLines.forEach(function (line) {
-            var sctp = parsers.sctpmap(line);
-            trans.sctp.push(sctp);
-        });
-    }
-
-    return content;
-};
-
-exports.toCandidateJSON = function (line) {
-    var candidate = parsers.candidate(line.split('\r\n')[0]);
-    candidate.id = (idCounter++).toString(36).substr(0, 12);
-    return candidate;
-};
-
-},{"./parsers":23,"./senders":24}],26:[function(require,module,exports){
-var SENDERS = require('./senders');
-
-
-exports.toSessionSDP = function (session, opts) {
-    var role = opts.role || 'initiator';
-    var direction = opts.direction || 'outgoing';
-    var sid = opts.sid || session.sid || Date.now();
-    var time = opts.time || Date.now();
-
-    var sdp = [
-        'v=0',
-        'o=- ' + sid + ' ' + time + ' IN IP4 0.0.0.0',
-        's=-',
-        't=0 0'
-    ];
-
-    var contents = session.contents || [];
-    var hasSources = false;
-    contents.forEach(function (content) {
-        if (content.application.sources &&
-            content.application.sources.length) {
-            hasSources = true;
-        }
-    });
-
-    if (hasSources) {
-        sdp.push('a=msid-semantic: WMS *');
-    }
-
-    var groups = session.groups || [];
-    groups.forEach(function (group) {
-        sdp.push('a=group:' + group.semantics + ' ' + group.contents.join(' '));
-    });
-
-
-    contents.forEach(function (content) {
-        sdp.push(exports.toMediaSDP(content, opts));
-    });
-
-    return sdp.join('\r\n') + '\r\n';
-};
-
-exports.toMediaSDP = function (content, opts) {
-    var sdp = [];
-
-    var role = opts.role || 'initiator';
-    var direction = opts.direction || 'outgoing';
-
-    var desc = content.application;
-    var transport = content.transport;
-    var payloads = desc.payloads || [];
-    var fingerprints = (transport && transport.fingerprints) || [];
-
-    var mline = [];
-    if (desc.applicationType == 'datachannel') {
-        mline.push('application');
-        mline.push('1');
-        mline.push('DTLS/SCTP');
-        if (transport.sctp) {
-            transport.sctp.forEach(function (map) {
-                mline.push(map.number);
-            });
-        }
-    } else {
-        mline.push(desc.media);
-        mline.push('1');
-        if (fingerprints.length > 0) {
-            mline.push('UDP/TLS/RTP/SAVPF');
-        } else if (desc.encryption && desc.encryption.length > 0) {
-            mline.push('RTP/SAVPF');
-        } else {
-            mline.push('RTP/AVPF');
-        }
-        payloads.forEach(function (payload) {
-            mline.push(payload.id);
-        });
-    }
-
-
-    sdp.push('m=' + mline.join(' '));
-
-    sdp.push('c=IN IP4 0.0.0.0');
-    if (desc.bandwidth && desc.bandwidth.type && desc.bandwidth.bandwidth) {
-        sdp.push('b=' + desc.bandwidth.type + ':' + desc.bandwidth.bandwidth);
-    }
-    if (desc.applicationType == 'rtp') {
-        sdp.push('a=rtcp:1 IN IP4 0.0.0.0');
-    }
-
-    if (transport) {
-        if (transport.ufrag) {
-            sdp.push('a=ice-ufrag:' + transport.ufrag);
-        }
-        if (transport.pwd) {
-            sdp.push('a=ice-pwd:' + transport.pwd);
-        }
-
-        var pushedSetup = false;
-        fingerprints.forEach(function (fingerprint) {
-            sdp.push('a=fingerprint:' + fingerprint.hash + ' ' + fingerprint.value);
-            if (fingerprint.setup && !pushedSetup) {
-                sdp.push('a=setup:' + fingerprint.setup);
-            }
-        });
-
-        if (transport.sctp) {
-            transport.sctp.forEach(function (map) {
-                sdp.push('a=sctpmap:' + map.number + ' ' + map.protocol + ' ' + map.streams);
-            });
-        }
-    }
-
-    if (desc.applicationType == 'rtp') {
-        sdp.push('a=' + (SENDERS[role][direction][content.senders] || 'sendrecv'));
-    }
-    sdp.push('a=mid:' + content.name);
-
-    if (desc.sources && desc.sources.length) {
-        (desc.sources[0].parameters || []).forEach(function (param) {
-            if (param.key === 'msid') {
-                sdp.push('a=msid:' + param.value);
-            }
-        });
-    }
-
-    if (desc.mux) {
-        sdp.push('a=rtcp-mux');
-    }
-
-    var encryption = desc.encryption || [];
-    encryption.forEach(function (crypto) {
-        sdp.push('a=crypto:' + crypto.tag + ' ' + crypto.cipherSuite + ' ' + crypto.keyParams + (crypto.sessionParams ? ' ' + crypto.sessionParams : ''));
-    });
-    if (desc.googConferenceFlag) {
-        sdp.push('a=x-google-flag:conference');
-    }
-
-    payloads.forEach(function (payload) {
-        var rtpmap = 'a=rtpmap:' + payload.id + ' ' + payload.name + '/' + payload.clockrate;
-        if (payload.channels && payload.channels != '1') {
-            rtpmap += '/' + payload.channels;
-        }
-        sdp.push(rtpmap);
-
-        if (payload.parameters && payload.parameters.length) {
-            var fmtp = ['a=fmtp:' + payload.id];
-            var parameters = [];
-            payload.parameters.forEach(function (param) {
-                parameters.push((param.key ? param.key + '=' : '') + param.value);
-            });
-            fmtp.push(parameters.join(';'));
-            sdp.push(fmtp.join(' '));
-        }
-
-        if (payload.feedback) {
-            payload.feedback.forEach(function (fb) {
-                if (fb.type === 'trr-int') {
-                    sdp.push('a=rtcp-fb:' + payload.id + ' trr-int ' + (fb.value ? fb.value : '0'));
-                } else {
-                    sdp.push('a=rtcp-fb:' + payload.id + ' ' + fb.type + (fb.subtype ? ' ' + fb.subtype : ''));
-                }
-            });
-        }
-    });
-
-    if (desc.feedback) {
-        desc.feedback.forEach(function (fb) {
-            if (fb.type === 'trr-int') {
-                sdp.push('a=rtcp-fb:* trr-int ' + (fb.value ? fb.value : '0'));
-            } else {
-                sdp.push('a=rtcp-fb:* ' + fb.type + (fb.subtype ? ' ' + fb.subtype : ''));
-            }
-        });
-    }
-
-    var hdrExts = desc.headerExtensions || [];
-    hdrExts.forEach(function (hdr) {
-        sdp.push('a=extmap:' + hdr.id + (hdr.senders ? '/' + SENDERS[role][direction][hdr.senders] : '') + ' ' + hdr.uri);
-    });
-
-    var ssrcGroups = desc.sourceGroups || [];
-    ssrcGroups.forEach(function (ssrcGroup) {
-        sdp.push('a=ssrc-group:' + ssrcGroup.semantics + ' ' + ssrcGroup.sources.join(' '));
-    });
-
-    var ssrcs = desc.sources || [];
-    ssrcs.forEach(function (ssrc) {
-        for (var i = 0; i < ssrc.parameters.length; i++) {
-            var param = ssrc.parameters[i];
-            sdp.push('a=ssrc:' + (ssrc.ssrc || desc.ssrc) + ' ' + param.key + (param.value ? (':' + param.value) : ''));
-        }
-    });
-
-    var candidates = transport.candidates || [];
-    candidates.forEach(function (candidate) {
-        sdp.push(exports.toCandidateSDP(candidate));
-    });
-
-    return sdp.join('\r\n');
-};
-
-exports.toCandidateSDP = function (candidate) {
-    var sdp = [];
-
-    sdp.push(candidate.foundation);
-    sdp.push(candidate.component);
-    sdp.push(candidate.protocol.toUpperCase());
-    sdp.push(candidate.priority);
-    sdp.push(candidate.ip);
-    sdp.push(candidate.port);
-
-    var type = candidate.type;
-    sdp.push('typ');
-    sdp.push(type);
-    if (type === 'srflx' || type === 'prflx' || type === 'relay') {
-        if (candidate.relAddr && candidate.relPort) {
-            sdp.push('raddr');
-            sdp.push(candidate.relAddr);
-            sdp.push('rport');
-            sdp.push(candidate.relPort);
-        }
-    }
-    if (candidate.tcpType && candidate.protocol.toUpperCase() == 'TCP') {
-        sdp.push('tcptype');
-        sdp.push(candidate.tcpType);
-    }
-
-    sdp.push('generation');
-    sdp.push(candidate.generation || '0');
-
-    // FIXME: apparently this is wrong per spec
-    // but then, we need this when actually putting this into
-    // SDP so it's going to stay.
-    // decision needs to be revisited when browsers dont
-    // accept this any longer
-    return 'a=candidate:' + sdp.join(' ');
-};
-
-},{"./senders":24}],27:[function(require,module,exports){
-arguments[4][5][0].apply(exports,arguments)
-},{"dup":5}],28:[function(require,module,exports){
-// based on https://github.com/ESTOS/strophe.jingle/
-// adds wildemitter support
-var util = require('util');
-var adapter = require('webrtc-adapter'); // jshint ignore:line
-var WildEmitter = require('wildemitter');
-
-function dumpSDP(description) {
-    return {
-        type: description.type,
-        sdp: description.sdp
-    };
-}
-
-function dumpStream(stream) {
-    var info = {
-        label: stream.id,
-    };
-    if (stream.getAudioTracks().length) {
-        info.audio = stream.getAudioTracks().map(function (track) {
-            return track.id;
-        });
-    }
-    if (stream.getVideoTracks().length) {
-        info.video = stream.getVideoTracks().map(function (track) {
-            return track.id;
-        });
-    }
-    return info;
-}
-
-function TraceablePeerConnection(config, constraints) {
-    var self = this;
-    WildEmitter.call(this);
-
-    this.peerconnection = new window.RTCPeerConnection(config, constraints);
-
-    this.trace = function (what, info) {
-        self.emit('PeerConnectionTrace', {
-            time: new Date(),
-            type: what,
-            value: info || ""
-        });
-    };
-
-    this.onicecandidate = null;
-    this.peerconnection.onicecandidate = function (event) {
-        self.trace('onicecandidate', event.candidate);
-        if (self.onicecandidate !== null) {
-            self.onicecandidate(event);
-        }
-    };
-    this.onaddstream = null;
-    this.peerconnection.onaddstream = function (event) {
-        self.trace('onaddstream', dumpStream(event.stream));
-        if (self.onaddstream !== null) {
-            self.onaddstream(event);
-        }
-    };
-    this.onremovestream = null;
-    this.peerconnection.onremovestream = function (event) {
-        self.trace('onremovestream', dumpStream(event.stream));
-        if (self.onremovestream !== null) {
-            self.onremovestream(event);
-        }
-    };
-    this.onsignalingstatechange = null;
-    this.peerconnection.onsignalingstatechange = function (event) {
-        self.trace('onsignalingstatechange', self.signalingState);
-        if (self.onsignalingstatechange !== null) {
-            self.onsignalingstatechange(event);
-        }
-    };
-    this.oniceconnectionstatechange = null;
-    this.peerconnection.oniceconnectionstatechange = function (event) {
-        self.trace('oniceconnectionstatechange', self.iceConnectionState);
-        if (self.oniceconnectionstatechange !== null) {
-            self.oniceconnectionstatechange(event);
-        }
-    };
-    this.onnegotiationneeded = null;
-    this.peerconnection.onnegotiationneeded = function (event) {
-        self.trace('onnegotiationneeded');
-        if (self.onnegotiationneeded !== null) {
-            self.onnegotiationneeded(event);
-        }
-    };
-    self.ondatachannel = null;
-    this.peerconnection.ondatachannel = function (event) {
-        self.trace('ondatachannel', event);
-        if (self.ondatachannel !== null) {
-            self.ondatachannel(event);
-        }
-    };
-    this.getLocalStreams = this.peerconnection.getLocalStreams.bind(this.peerconnection);
-    this.getRemoteStreams = this.peerconnection.getRemoteStreams.bind(this.peerconnection);
-}
-
-util.inherits(TraceablePeerConnection, WildEmitter);
-
-['signalingState', 'iceConnectionState', 'localDescription', 'remoteDescription'].forEach(function (prop) {
-    Object.defineProperty(TraceablePeerConnection.prototype, prop, {
-        get: function () {
-            return this.peerconnection[prop];
-        }
-    });
-});
-
-TraceablePeerConnection.prototype.addStream = function (stream) {
-    this.trace('addStream', dumpStream(stream));
-    this.peerconnection.addStream(stream);
-};
-
-TraceablePeerConnection.prototype.removeStream = function (stream) {
-    this.trace('removeStream', dumpStream(stream));
-    this.peerconnection.removeStream(stream);
-};
-
-TraceablePeerConnection.prototype.createDataChannel = function (label, opts) {
-    this.trace('createDataChannel', label, opts);
-    return this.peerconnection.createDataChannel(label, opts);
-};
-
-TraceablePeerConnection.prototype.setLocalDescription = function (description, successCallback, failureCallback) {
-    var self = this;
-    this.trace('setLocalDescription', dumpSDP(description));
-    return this.peerconnection.setLocalDescription(
-        description
-    ).then(
-        function () {
-            self.trace('setLocalDescriptionOnSuccess');
-            if (successCallback) successCallback();
-        },
-        function (err) {
-            self.trace('setLocalDescriptionOnFailure', err);
-            if (failureCallback) failureCallback(err);
-        }
-    );
-};
-
-TraceablePeerConnection.prototype.setRemoteDescription = function (description, successCallback, failureCallback) {
-    var self = this;
-    this.trace('setRemoteDescription', dumpSDP(description));
-    return this.peerconnection.setRemoteDescription(
-        description
-    ).then(
-        function () {
-            self.trace('setRemoteDescriptionOnSuccess');
-            if (successCallback) successCallback();
-        },
-        function (err) {
-            self.trace('setRemoteDescriptionOnFailure', err);
-            if (failureCallback) failureCallback(err);
-        }
-    );
-};
-
-TraceablePeerConnection.prototype.close = function () {
-    this.trace('stop');
-    if (this.peerconnection.signalingState != 'closed') {
-        this.peerconnection.close();
-    }
-};
-
-TraceablePeerConnection.prototype.createOffer = function (successCallback, failureCallback, constraints) {
-    var self = this;
-    this.trace('createOffer', constraints);
-    return this.peerconnection.createOffer(
-        constraints
-    ).then(
-        function (offer) {
-            self.trace('createOfferOnSuccess', dumpSDP(offer));
-            if (successCallback) successCallback(offer);
-        },
-        function (err) {
-            self.trace('createOfferOnFailure', err);
-            if (failureCallback) failureCallback(err);
-        }
-    );
-};
-
-TraceablePeerConnection.prototype.createAnswer = function (successCallback, failureCallback, constraints) {
-    var self = this;
-    this.trace('createAnswer', constraints);
-    return this.peerconnection.createAnswer(
-        constraints
-    ).then(
-        function (answer) {
-            self.trace('createAnswerOnSuccess', dumpSDP(answer));
-            if (successCallback) successCallback(answer);
-        },
-        function (err) {
-            self.trace('createAnswerOnFailure', err);
-            if (failureCallback) failureCallback(err);
-        }
-    );
-};
-
-TraceablePeerConnection.prototype.addIceCandidate = function (candidate, successCallback, failureCallback) {
-    var self = this;
-    this.trace('addIceCandidate', candidate);
-    return this.peerconnection.addIceCandidate(
-        candidate
-    ).then(
-        function () {
-            //self.trace('addIceCandidateOnSuccess');
-            if (successCallback) successCallback();
-        },
-        function (err) {
-            self.trace('addIceCandidateOnFailure', err);
-            if (failureCallback) failureCallback(err);
-        }
-    );
-};
-
-TraceablePeerConnection.prototype.getStats = function () {
-    this.peerconnection.getStats.apply(this.peerconnection, arguments);
-};
-
-module.exports = TraceablePeerConnection;
-
-},{"util":30,"webrtc-adapter":31,"wildemitter":40}],29:[function(require,module,exports){
-module.exports = function isBuffer(arg) {
-  return arg && typeof arg === 'object'
-    && typeof arg.copy === 'function'
-    && typeof arg.fill === 'function'
-    && typeof arg.readUInt8 === 'function';
-}
 },{}],30:[function(require,module,exports){
-(function (process,global){
-// Copyright Joyent, Inc. and other Node contributors.
-//
-// Permission is hereby granted, free of charge, to any person obtaining a
-// copy of this software and associated documentation files (the
-// "Software"), to deal in the Software without restriction, including
-// without limitation the rights to use, copy, modify, merge, publish,
-// distribute, sublicense, and/or sell copies of the Software, and to permit
-// persons to whom the Software is furnished to do so, subject to the
-// following conditions:
-//
-// The above copyright notice and this permission notice shall be included
-// in all copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS
-// OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
-// MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN
-// NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM,
-// DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR
-// OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE
-// USE OR OTHER DEALINGS IN THE SOFTWARE.
-
-var formatRegExp = /%[sdj%]/g;
-exports.format = function(f) {
-  if (!isString(f)) {
-    var objects = [];
-    for (var i = 0; i < arguments.length; i++) {
-      objects.push(inspect(arguments[i]));
-    }
-    return objects.join(' ');
-  }
-
-  var i = 1;
-  var args = arguments;
-  var len = args.length;
-  var str = String(f).replace(formatRegExp, function(x) {
-    if (x === '%%') return '%';
-    if (i >= len) return x;
-    switch (x) {
-      case '%s': return String(args[i++]);
-      case '%d': return Number(args[i++]);
-      case '%j':
-        try {
-          return JSON.stringify(args[i++]);
-        } catch (_) {
-          return '[Circular]';
-        }
-      default:
-        return x;
-    }
-  });
-  for (var x = args[i]; i < len; x = args[++i]) {
-    if (isNull(x) || !isObject(x)) {
-      str += ' ' + x;
-    } else {
-      str += ' ' + inspect(x);
-    }
-  }
-  return str;
-};
-
-
-// Mark that a method should not be used.
-// Returns a modified function which warns once by default.
-// If --no-deprecation is set, then it is a no-op.
-exports.deprecate = function(fn, msg) {
-  // Allow for deprecating things in the process of starting up.
-  if (isUndefined(global.process)) {
-    return function() {
-      return exports.deprecate(fn, msg).apply(this, arguments);
-    };
-  }
-
-  if (process.noDeprecation === true) {
-    return fn;
-  }
-
-  var warned = false;
-  function deprecated() {
-    if (!warned) {
-      if (process.throwDeprecation) {
-        throw new Error(msg);
-      } else if (process.traceDeprecation) {
-        console.trace(msg);
-      } else {
-        console.error(msg);
-      }
-      warned = true;
-    }
-    return fn.apply(this, arguments);
-  }
-
-  return deprecated;
-};
-
-
-var debugs = {};
-var debugEnviron;
-exports.debuglog = function(set) {
-  if (isUndefined(debugEnviron))
-    debugEnviron = process.env.NODE_DEBUG || '';
-  set = set.toUpperCase();
-  if (!debugs[set]) {
-    if (new RegExp('\\b' + set + '\\b', 'i').test(debugEnviron)) {
-      var pid = process.pid;
-      debugs[set] = function() {
-        var msg = exports.format.apply(exports, arguments);
-        console.error('%s %d: %s', set, pid, msg);
-      };
-    } else {
-      debugs[set] = function() {};
-    }
-  }
-  return debugs[set];
-};
-
-
-/**
- * Echos the value of a value. Trys to print the value out
- * in the best way possible given the different types.
- *
- * @param {Object} obj The object to print out.
- * @param {Object} opts Optional options object that alters the output.
- */
-/* legacy: obj, showHidden, depth, colors*/
-function inspect(obj, opts) {
-  // default options
-  var ctx = {
-    seen: [],
-    stylize: stylizeNoColor
-  };
-  // legacy...
-  if (arguments.length >= 3) ctx.depth = arguments[2];
-  if (arguments.length >= 4) ctx.colors = arguments[3];
-  if (isBoolean(opts)) {
-    // legacy...
-    ctx.showHidden = opts;
-  } else if (opts) {
-    // got an "options" object
-    exports._extend(ctx, opts);
-  }
-  // set default options
-  if (isUndefined(ctx.showHidden)) ctx.showHidden = false;
-  if (isUndefined(ctx.depth)) ctx.depth = 2;
-  if (isUndefined(ctx.colors)) ctx.colors = false;
-  if (isUndefined(ctx.customInspect)) ctx.customInspect = true;
-  if (ctx.colors) ctx.stylize = stylizeWithColor;
-  return formatValue(ctx, obj, ctx.depth);
-}
-exports.inspect = inspect;
-
-
-// http://en.wikipedia.org/wiki/ANSI_escape_code#graphics
-inspect.colors = {
-  'bold' : [1, 22],
-  'italic' : [3, 23],
-  'underline' : [4, 24],
-  'inverse' : [7, 27],
-  'white' : [37, 39],
-  'grey' : [90, 39],
-  'black' : [30, 39],
-  'blue' : [34, 39],
-  'cyan' : [36, 39],
-  'green' : [32, 39],
-  'magenta' : [35, 39],
-  'red' : [31, 39],
-  'yellow' : [33, 39]
-};
-
-// Don't use 'blue' not visible on cmd.exe
-inspect.styles = {
-  'special': 'cyan',
-  'number': 'yellow',
-  'boolean': 'yellow',
-  'undefined': 'grey',
-  'null': 'bold',
-  'string': 'green',
-  'date': 'magenta',
-  // "name": intentionally not styling
-  'regexp': 'red'
-};
-
-
-function stylizeWithColor(str, styleType) {
-  var style = inspect.styles[styleType];
-
-  if (style) {
-    return '\u001b[' + inspect.colors[style][0] + 'm' + str +
-           '\u001b[' + inspect.colors[style][1] + 'm';
-  } else {
-    return str;
-  }
-}
-
-
-function stylizeNoColor(str, styleType) {
-  return str;
-}
-
-
-function arrayToHash(array) {
-  var hash = {};
-
-  array.forEach(function(val, idx) {
-    hash[val] = true;
-  });
-
-  return hash;
-}
-
-
-function formatValue(ctx, value, recurseTimes) {
-  // Provide a hook for user-specified inspect functions.
-  // Check that value is an object with an inspect function on it
-  if (ctx.customInspect &&
-      value &&
-      isFunction(value.inspect) &&
-      // Filter out the util module, it's inspect function is special
-      value.inspect !== exports.inspect &&
-      // Also filter out any prototype objects using the circular check.
-      !(value.constructor && value.constructor.prototype === value)) {
-    var ret = value.inspect(recurseTimes, ctx);
-    if (!isString(ret)) {
-      ret = formatValue(ctx, ret, recurseTimes);
-    }
-    return ret;
-  }
-
-  // Primitive types cannot have properties
-  var primitive = formatPrimitive(ctx, value);
-  if (primitive) {
-    return primitive;
-  }
-
-  // Look up the keys of the object.
-  var keys = Object.keys(value);
-  var visibleKeys = arrayToHash(keys);
-
-  if (ctx.showHidden) {
-    keys = Object.getOwnPropertyNames(value);
-  }
-
-  // IE doesn't make error fields non-enumerable
-  // http://msdn.microsoft.com/en-us/library/ie/dww52sbt(v=vs.94).aspx
-  if (isError(value)
-      && (keys.indexOf('message') >= 0 || keys.indexOf('description') >= 0)) {
-    return formatError(value);
-  }
-
-  // Some type of object without properties can be shortcutted.
-  if (keys.length === 0) {
-    if (isFunction(value)) {
-      var name = value.name ? ': ' + value.name : '';
-      return ctx.stylize('[Function' + name + ']', 'special');
-    }
-    if (isRegExp(value)) {
-      return ctx.stylize(RegExp.prototype.toString.call(value), 'regexp');
-    }
-    if (isDate(value)) {
-      return ctx.stylize(Date.prototype.toString.call(value), 'date');
-    }
-    if (isError(value)) {
-      return formatError(value);
-    }
-  }
-
-  var base = '', array = false, braces = ['{', '}'];
-
-  // Make Array say that they are Array
-  if (isArray(value)) {
-    array = true;
-    braces = ['[', ']'];
-  }
-
-  // Make functions say that they are functions
-  if (isFunction(value)) {
-    var n = value.name ? ': ' + value.name : '';
-    base = ' [Function' + n + ']';
-  }
-
-  // Make RegExps say that they are RegExps
-  if (isRegExp(value)) {
-    base = ' ' + RegExp.prototype.toString.call(value);
-  }
-
-  // Make dates with properties first say the date
-  if (isDate(value)) {
-    base = ' ' + Date.prototype.toUTCString.call(value);
-  }
-
-  // Make error with message first say the error
-  if (isError(value)) {
-    base = ' ' + formatError(value);
-  }
-
-  if (keys.length === 0 && (!array || value.length == 0)) {
-    return braces[0] + base + braces[1];
-  }
-
-  if (recurseTimes < 0) {
-    if (isRegExp(value)) {
-      return ctx.stylize(RegExp.prototype.toString.call(value), 'regexp');
-    } else {
-      return ctx.stylize('[Object]', 'special');
-    }
-  }
-
-  ctx.seen.push(value);
-
-  var output;
-  if (array) {
-    output = formatArray(ctx, value, recurseTimes, visibleKeys, keys);
-  } else {
-    output = keys.map(function(key) {
-      return formatProperty(ctx, value, recurseTimes, visibleKeys, key, array);
-    });
-  }
-
-  ctx.seen.pop();
-
-  return reduceToSingleString(output, base, braces);
-}
-
-
-function formatPrimitive(ctx, value) {
-  if (isUndefined(value))
-    return ctx.stylize('undefined', 'undefined');
-  if (isString(value)) {
-    var simple = '\'' + JSON.stringify(value).replace(/^"|"$/g, '')
-                                             .replace(/'/g, "\\'")
-                                             .replace(/\\"/g, '"') + '\'';
-    return ctx.stylize(simple, 'string');
-  }
-  if (isNumber(value))
-    return ctx.stylize('' + value, 'number');
-  if (isBoolean(value))
-    return ctx.stylize('' + value, 'boolean');
-  // For some reason typeof null is "object", so special case here.
-  if (isNull(value))
-    return ctx.stylize('null', 'null');
-}
-
-
-function formatError(value) {
-  return '[' + Error.prototype.toString.call(value) + ']';
-}
-
-
-function formatArray(ctx, value, recurseTimes, visibleKeys, keys) {
-  var output = [];
-  for (var i = 0, l = value.length; i < l; ++i) {
-    if (hasOwnProperty(value, String(i))) {
-      output.push(formatProperty(ctx, value, recurseTimes, visibleKeys,
-          String(i), true));
-    } else {
-      output.push('');
-    }
-  }
-  keys.forEach(function(key) {
-    if (!key.match(/^\d+$/)) {
-      output.push(formatProperty(ctx, value, recurseTimes, visibleKeys,
-          key, true));
-    }
-  });
-  return output;
-}
-
-
-function formatProperty(ctx, value, recurseTimes, visibleKeys, key, array) {
-  var name, str, desc;
-  desc = Object.getOwnPropertyDescriptor(value, key) || { value: value[key] };
-  if (desc.get) {
-    if (desc.set) {
-      str = ctx.stylize('[Getter/Setter]', 'special');
-    } else {
-      str = ctx.stylize('[Getter]', 'special');
-    }
-  } else {
-    if (desc.set) {
-      str = ctx.stylize('[Setter]', 'special');
-    }
-  }
-  if (!hasOwnProperty(visibleKeys, key)) {
-    name = '[' + key + ']';
-  }
-  if (!str) {
-    if (ctx.seen.indexOf(desc.value) < 0) {
-      if (isNull(recurseTimes)) {
-        str = formatValue(ctx, desc.value, null);
-      } else {
-        str = formatValue(ctx, desc.value, recurseTimes - 1);
-      }
-      if (str.indexOf('\n') > -1) {
-        if (array) {
-          str = str.split('\n').map(function(line) {
-            return '  ' + line;
-          }).join('\n').substr(2);
-        } else {
-          str = '\n' + str.split('\n').map(function(line) {
-            return '   ' + line;
-          }).join('\n');
-        }
-      }
-    } else {
-      str = ctx.stylize('[Circular]', 'special');
-    }
-  }
-  if (isUndefined(name)) {
-    if (array && key.match(/^\d+$/)) {
-      return str;
-    }
-    name = JSON.stringify('' + key);
-    if (name.match(/^"([a-zA-Z_][a-zA-Z_0-9]*)"$/)) {
-      name = name.substr(1, name.length - 2);
-      name = ctx.stylize(name, 'name');
-    } else {
-      name = name.replace(/'/g, "\\'")
-                 .replace(/\\"/g, '"')
-                 .replace(/(^"|"$)/g, "'");
-      name = ctx.stylize(name, 'string');
-    }
-  }
-
-  return name + ': ' + str;
-}
-
-
-function reduceToSingleString(output, base, braces) {
-  var numLinesEst = 0;
-  var length = output.reduce(function(prev, cur) {
-    numLinesEst++;
-    if (cur.indexOf('\n') >= 0) numLinesEst++;
-    return prev + cur.replace(/\u001b\[\d\d?m/g, '').length + 1;
-  }, 0);
-
-  if (length > 60) {
-    return braces[0] +
-           (base === '' ? '' : base + '\n ') +
-           ' ' +
-           output.join(',\n  ') +
-           ' ' +
-           braces[1];
-  }
-
-  return braces[0] + base + ' ' + output.join(', ') + ' ' + braces[1];
-}
-
-
-// NOTE: These type checking functions intentionally don't use `instanceof`
-// because it is fragile and can be easily faked with `Object.create()`.
-function isArray(ar) {
-  return Array.isArray(ar);
-}
-exports.isArray = isArray;
-
-function isBoolean(arg) {
-  return typeof arg === 'boolean';
-}
-exports.isBoolean = isBoolean;
-
-function isNull(arg) {
-  return arg === null;
-}
-exports.isNull = isNull;
-
-function isNullOrUndefined(arg) {
-  return arg == null;
-}
-exports.isNullOrUndefined = isNullOrUndefined;
-
-function isNumber(arg) {
-  return typeof arg === 'number';
-}
-exports.isNumber = isNumber;
-
-function isString(arg) {
-  return typeof arg === 'string';
-}
-exports.isString = isString;
-
-function isSymbol(arg) {
-  return typeof arg === 'symbol';
-}
-exports.isSymbol = isSymbol;
-
-function isUndefined(arg) {
-  return arg === void 0;
-}
-exports.isUndefined = isUndefined;
-
-function isRegExp(re) {
-  return isObject(re) && objectToString(re) === '[object RegExp]';
-}
-exports.isRegExp = isRegExp;
-
-function isObject(arg) {
-  return typeof arg === 'object' && arg !== null;
-}
-exports.isObject = isObject;
-
-function isDate(d) {
-  return isObject(d) && objectToString(d) === '[object Date]';
-}
-exports.isDate = isDate;
-
-function isError(e) {
-  return isObject(e) &&
-      (objectToString(e) === '[object Error]' || e instanceof Error);
-}
-exports.isError = isError;
-
-function isFunction(arg) {
-  return typeof arg === 'function';
-}
-exports.isFunction = isFunction;
-
-function isPrimitive(arg) {
-  return arg === null ||
-         typeof arg === 'boolean' ||
-         typeof arg === 'number' ||
-         typeof arg === 'string' ||
-         typeof arg === 'symbol' ||  // ES6 symbol
-         typeof arg === 'undefined';
-}
-exports.isPrimitive = isPrimitive;
-
-exports.isBuffer = require('./support/isBuffer');
-
-function objectToString(o) {
-  return Object.prototype.toString.call(o);
-}
-
-
-function pad(n) {
-  return n < 10 ? '0' + n.toString(10) : n.toString(10);
-}
-
-
-var months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep',
-              'Oct', 'Nov', 'Dec'];
-
-// 26 Feb 16:19:34
-function timestamp() {
-  var d = new Date();
-  var time = [pad(d.getHours()),
-              pad(d.getMinutes()),
-              pad(d.getSeconds())].join(':');
-  return [d.getDate(), months[d.getMonth()], time].join(' ');
-}
-
-
-// log is just a thin wrapper to console.log that prepends a timestamp
-exports.log = function() {
-  console.log('%s - %s', timestamp(), exports.format.apply(exports, arguments));
-};
-
-
-/**
- * Inherit the prototype methods from one constructor into another.
- *
- * The Function.prototype.inherits from lang.js rewritten as a standalone
- * function (not on Function.prototype). NOTE: If this file is to be loaded
- * during bootstrapping this function needs to be rewritten using some native
- * functions as prototype setup using normal JavaScript does not work as
- * expected during bootstrapping (see mirror.js in r114903).
- *
- * @param {function} ctor Constructor function which needs to inherit the
- *     prototype.
- * @param {function} superCtor Constructor function to inherit prototype from.
- */
-exports.inherits = require('inherits');
-
-exports._extend = function(origin, add) {
-  // Don't do anything if add isn't an object
-  if (!add || !isObject(add)) return origin;
-
-  var keys = Object.keys(add);
-  var i = keys.length;
-  while (i--) {
-    origin[keys[i]] = add[keys[i]];
-  }
-  return origin;
-};
-
-function hasOwnProperty(obj, prop) {
-  return Object.prototype.hasOwnProperty.call(obj, prop);
-}
-
-}).call(this,require('_process'),typeof global !== "undefined" ? global : typeof self !== "undefined" ? self : typeof window !== "undefined" ? window : {})
-},{"./support/isBuffer":29,"_process":20,"inherits":1}],31:[function(require,module,exports){
-arguments[4][6][0].apply(exports,arguments)
-},{"./chrome/chrome_shim":32,"./edge/edge_shim":34,"./firefox/firefox_shim":36,"./safari/safari_shim":38,"./utils":39,"dup":6}],32:[function(require,module,exports){
-arguments[4][7][0].apply(exports,arguments)
-},{"../utils.js":39,"./getusermedia":33,"dup":7}],33:[function(require,module,exports){
-arguments[4][8][0].apply(exports,arguments)
-},{"../utils.js":39,"dup":8}],34:[function(require,module,exports){
-arguments[4][9][0].apply(exports,arguments)
-},{"../utils":39,"./getusermedia":35,"dup":9,"sdp":27}],35:[function(require,module,exports){
-arguments[4][10][0].apply(exports,arguments)
-},{"dup":10}],36:[function(require,module,exports){
-arguments[4][11][0].apply(exports,arguments)
-},{"../utils":39,"./getusermedia":37,"dup":11}],37:[function(require,module,exports){
-arguments[4][12][0].apply(exports,arguments)
-},{"../utils":39,"dup":12}],38:[function(require,module,exports){
-arguments[4][13][0].apply(exports,arguments)
-},{"dup":13}],39:[function(require,module,exports){
-arguments[4][14][0].apply(exports,arguments)
-},{"dup":14}],40:[function(require,module,exports){
-arguments[4][19][0].apply(exports,arguments)
-},{"dup":19}],41:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-exports.VideoBandwidthTest = exports.ThroughputTest = exports.AdvancedCameraTest = exports.ConnectivityTest = exports.VideoTest = exports.AudioTest = undefined;
 
 var _AudioTest = require('./tests/AudioTest');
 
-var _AudioTest2 = _interopRequireDefault(_AudioTest);
+Object.defineProperty(exports, 'AudioTest', {
+  enumerable: true,
+  get: function get() {
+    return _interopRequireDefault(_AudioTest).default;
+  }
+});
 
 var _VideoTest = require('./tests/VideoTest');
 
-var _VideoTest2 = _interopRequireDefault(_VideoTest);
+Object.defineProperty(exports, 'VideoTest', {
+  enumerable: true,
+  get: function get() {
+    return _interopRequireDefault(_VideoTest).default;
+  }
+});
 
 var _ConnectivityTest = require('./tests/ConnectivityTest');
 
-var _ConnectivityTest2 = _interopRequireDefault(_ConnectivityTest);
+Object.defineProperty(exports, 'ConnectivityTest', {
+  enumerable: true,
+  get: function get() {
+    return _interopRequireDefault(_ConnectivityTest).default;
+  }
+});
 
 var _AdvancedCameraTest = require('./tests/AdvancedCameraTest');
 
-var _AdvancedCameraTest2 = _interopRequireDefault(_AdvancedCameraTest);
+Object.defineProperty(exports, 'AdvancedCameraTest', {
+  enumerable: true,
+  get: function get() {
+    return _interopRequireDefault(_AdvancedCameraTest).default;
+  }
+});
 
 var _DataThroughputTest = require('./tests/DataThroughputTest');
 
-var _DataThroughputTest2 = _interopRequireDefault(_DataThroughputTest);
+Object.defineProperty(exports, 'ThroughputTest', {
+  enumerable: true,
+  get: function get() {
+    return _interopRequireDefault(_DataThroughputTest).default;
+  }
+});
 
 var _VideoBandwidthTest = require('./tests/VideoBandwidthTest');
 
-var _VideoBandwidthTest2 = _interopRequireDefault(_VideoBandwidthTest);
+Object.defineProperty(exports, 'VideoBandwidthTest', {
+  enumerable: true,
+  get: function get() {
+    return _interopRequireDefault(_VideoBandwidthTest).default;
+  }
+});
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-exports.AudioTest = _AudioTest2.default;
-exports.VideoTest = _VideoTest2.default;
-exports.ConnectivityTest = _ConnectivityTest2.default;
-exports.AdvancedCameraTest = _AdvancedCameraTest2.default;
-exports.ThroughputTest = _DataThroughputTest2.default;
-exports.VideoBandwidthTest = _VideoBandwidthTest2.default;
-
-},{"./tests/AdvancedCameraTest":43,"./tests/AudioTest":44,"./tests/ConnectivityTest":46,"./tests/DataThroughputTest":47,"./tests/VideoBandwidthTest":48,"./tests/VideoTest":49}],42:[function(require,module,exports){
+},{"./tests/AdvancedCameraTest":32,"./tests/AudioTest":33,"./tests/ConnectivityTest":35,"./tests/DataThroughputTest":36,"./tests/VideoBandwidthTest":37,"./tests/VideoTest":38}],31:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -6429,28 +6429,37 @@ Object.defineProperty(exports, "__esModule", {
 
 var _TestSuite = require('./utils/TestSuite');
 
-var _TestSuite2 = _interopRequireDefault(_TestSuite);
-
-var _defaultTests = require('./defaultTests');
+Object.defineProperty(exports, 'TestSuite', {
+  enumerable: true,
+  get: function get() {
+    return _interopRequireDefault(_TestSuite).default;
+  }
+});
 
 var _VideoFrameChecker = require('./utils/VideoFrameChecker');
 
-var _VideoFrameChecker2 = _interopRequireDefault(_VideoFrameChecker);
+Object.defineProperty(exports, 'VideoFrameChecker', {
+  enumerable: true,
+  get: function get() {
+    return _interopRequireDefault(_VideoFrameChecker).default;
+  }
+});
+
+var _defaultTests = require('./defaultTests');
+
+Object.keys(_defaultTests).forEach(function (key) {
+  if (key === "default") return;
+  Object.defineProperty(exports, key, {
+    enumerable: true,
+    get: function get() {
+      return _defaultTests[key];
+    }
+  });
+});
 
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
-exports.default = {
-  TestSuite: _TestSuite2.default,
-  AudioTest: _defaultTests.AudioTest,
-  VideoTest: _defaultTests.VideoTest,
-  ConnectivityTest: _defaultTests.ConnectivityTest,
-  AdvancedCameraTest: _defaultTests.AdvancedCameraTest,
-  ThroughputTest: _defaultTests.ThroughputTest,
-  VideoBandwidthTest: _defaultTests.VideoBandwidthTest,
-  VideoFrameChecker: _VideoFrameChecker2.default
-};
-
-},{"./defaultTests":41,"./utils/TestSuite":53,"./utils/VideoFrameChecker":54}],43:[function(require,module,exports){
+},{"./defaultTests":30,"./utils/TestSuite":42,"./utils/VideoFrameChecker":43}],32:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -6529,7 +6538,7 @@ var AdvancedCameraTest = function (_TestSuite) {
 
 exports.default = AdvancedCameraTest;
 
-},{"../utils/TestSuite":53,"../utils/VideoFrameChecker":54,"../utils/WebrtcCall":55,"./CameraResolutionTest":45}],44:[function(require,module,exports){
+},{"../utils/TestSuite":42,"../utils/VideoFrameChecker":43,"../utils/WebrtcCall":44,"./CameraResolutionTest":34}],33:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -6544,6 +6553,10 @@ var _Test2 = require('../utils/Test');
 
 var _Test3 = _interopRequireDefault(_Test2);
 
+var _localMedia = require('localMedia');
+
+var _localMedia2 = _interopRequireDefault(_localMedia);
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -6551,8 +6564,6 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
 function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
 
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var localMedia = require('localMedia');
 
 var AudioTest = function (_Test) {
   _inherits(AudioTest, _Test);
@@ -6565,7 +6576,7 @@ var AudioTest = function (_Test) {
     _this.name = 'Audio Test';
     _this.volumeTimeout = _this.options.volumeTimeout || 5000;
 
-    _this.localMedia = new localMedia({ detectSpeakingEvents: true });
+    _this.localMedia = new _localMedia2.default({ detectSpeakingEvents: true });
     return _this;
   }
 
@@ -6621,7 +6632,7 @@ var AudioTest = function (_Test) {
 
 exports.default = AudioTest;
 
-},{"../utils/Test":52,"localMedia":2}],45:[function(require,module,exports){
+},{"../utils/Test":41,"localMedia":5}],34:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -6980,7 +6991,7 @@ var CameraResolutionTest = function (_Test) {
 
 exports.default = CameraResolutionTest;
 
-},{"../utils/Test":52,"../utils/VideoFrameChecker":54,"../utils/WebrtcCall":55}],46:[function(require,module,exports){
+},{"../utils/Test":41,"../utils/VideoFrameChecker":43,"../utils/WebrtcCall":44}],35:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -6995,6 +7006,10 @@ var _Test2 = require('../utils/Test');
 
 var _Test3 = _interopRequireDefault(_Test2);
 
+var _rtcpeerconnection = require('rtcpeerconnection');
+
+var _rtcpeerconnection2 = _interopRequireDefault(_rtcpeerconnection);
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -7002,8 +7017,6 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
 function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
 
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var PeerConnection = require('rtcpeerconnection');
 
 var ConnectivityTest = function (_Test) {
   _inherits(ConnectivityTest, _Test);
@@ -7039,8 +7052,8 @@ var ConnectivityTest = function (_Test) {
       var _this3 = this;
 
       _get(Object.getPrototypeOf(ConnectivityTest.prototype), 'start', this).call(this);
-      this.pc1 = new PeerConnection(this.options);
-      this.pc2 = new PeerConnection(this.options);
+      this.pc1 = new _rtcpeerconnection2.default(this.options);
+      this.pc2 = new _rtcpeerconnection2.default(this.options);
 
       var connectivityCheckFailure = window.setTimeout(function () {
         _this3.logger.error('Connectivity timeout error');
@@ -7130,8 +7143,9 @@ var ConnectivityTest = function (_Test) {
 }(_Test3.default);
 
 exports.default = ConnectivityTest;
+exports.default = ConnectivityTest;
 
-},{"../utils/Test":52,"rtcpeerconnection":21}],47:[function(require,module,exports){
+},{"../utils/Test":41,"rtcpeerconnection":9}],36:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -7281,7 +7295,7 @@ var DataChannelThroughputTest = function (_Test) {
 
 exports.default = DataChannelThroughputTest;
 
-},{"../utils/Test":52,"../utils/WebrtcCall":55}],48:[function(require,module,exports){
+},{"../utils/Test":41,"../utils/WebrtcCall":44}],37:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -7577,9 +7591,8 @@ var VideoBandwidthTest = function (_Test) {
 }(_Test3.default);
 
 exports.default = VideoBandwidthTest;
-exports.default = VideoBandwidthTest;
 
-},{"../utils/StatisticsAggregate":51,"../utils/Test":52,"../utils/WebrtcCall":55}],49:[function(require,module,exports){
+},{"../utils/StatisticsAggregate":40,"../utils/Test":41,"../utils/WebrtcCall":44}],38:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -7594,6 +7607,10 @@ var _Test2 = require('../utils/Test');
 
 var _Test3 = _interopRequireDefault(_Test2);
 
+var _localMedia = require('localMedia');
+
+var _localMedia2 = _interopRequireDefault(_localMedia);
+
 function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
@@ -7601,8 +7618,6 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
 function _possibleConstructorReturn(self, call) { if (!self) { throw new ReferenceError("this hasn't been initialised - super() hasn't been called"); } return call && (typeof call === "object" || typeof call === "function") ? call : self; }
 
 function _inherits(subClass, superClass) { if (typeof superClass !== "function" && superClass !== null) { throw new TypeError("Super expression must either be null or a function, not " + typeof superClass); } subClass.prototype = Object.create(superClass && superClass.prototype, { constructor: { value: subClass, enumerable: false, writable: true, configurable: true } }); if (superClass) Object.setPrototypeOf ? Object.setPrototypeOf(subClass, superClass) : subClass.__proto__ = superClass; }
-
-var LocalMedia = require('localMedia');
 
 var VideoTest = function (_Test) {
   _inherits(VideoTest, _Test);
@@ -7614,7 +7629,7 @@ var VideoTest = function (_Test) {
 
     _this.name = 'Video Test';
 
-    _this.localMedia = new LocalMedia({ detectSpeakingEvents: true });
+    _this.localMedia = new _localMedia2.default({ detectSpeakingEvents: true });
     return _this;
   }
 
@@ -7661,17 +7676,12 @@ var VideoTest = function (_Test) {
 
 exports.default = VideoTest;
 
-},{"../utils/Test":52,"localMedia":2}],50:[function(require,module,exports){
+},{"../utils/Test":41,"localMedia":5}],39:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
   value: true
 });
-
-var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
-
-function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
-
 // adapted from https://github.com/webrtc/testrtc
 
 /* This is an implementation of the algorithm for calculating the Structural
@@ -7687,86 +7697,68 @@ function _classCallCheck(instance, Constructor) { if (!(instance instanceof Cons
  * [4] http://www.cns.nyu.edu/~lcv/ssim/ssim_index.m
  */
 
-var Ssim = function () {
-  function Ssim() {
-    _classCallCheck(this, Ssim);
+// Implementation of Eq.2, a simple average of a vector and Eq.4., except the
+// square root. The latter is actually an unbiased estimate of the variance,
+// not the exact variance.
+var statistics = exports.statistics = function statistics(a) {
+  var accu = 0;
+  var i = void 0;
+  for (i = 0; i < a.length; ++i) {
+    accu += a[i];
+  }
+  var meanA = accu / (a.length - 1);
+  var diff = 0;
+  for (i = 1; i < a.length; ++i) {
+    diff = a[i - 1] - meanA;
+    accu += a[i] + diff * diff;
+  }
+  return { mean: meanA, variance: accu / a.length };
+};
+
+// Implementation of Eq.11., cov(Y, Z) = E((Y - uY), (Z - uZ)).
+var covariance = exports.covariance = function covariance(a, b, meanA, meanB) {
+  var accu = 0;
+  for (var i = 0; i < a.length; i += 1) {
+    accu += (a[i] - meanA) * (b[i] - meanB);
+  }
+  return accu / a.length;
+};
+
+var calculate = exports.calculate = function calculate(x, y) {
+  if (x.length !== y.length) {
+    return 0;
   }
 
-  _createClass(Ssim, [{
-    key: "statistics",
+  // Values of the constants come from the Matlab code referred before.
+  var K1 = 0.01;
+  var K2 = 0.03;
+  var L = 255;
+  var C1 = K1 * L * (K1 * L);
+  var C2 = K2 * L * (K2 * L);
+  var C3 = C2 / 2;
 
-    // Implementation of Eq.2, a simple average of a vector and Eq.4., except the
-    // square root. The latter is actually an unbiased estimate of the variance,
-    // not the exact variance.
-    value: function statistics(a) {
-      var accu = 0;
-      var i;
-      for (i = 0; i < a.length; ++i) {
-        accu += a[i];
-      }
-      var meanA = accu / (a.length - 1);
-      var diff = 0;
-      for (i = 1; i < a.length; ++i) {
-        diff = a[i - 1] - meanA;
-        accu += a[i] + diff * diff;
-      }
-      return { mean: meanA, variance: accu / a.length };
-    }
+  var statsX = statistics(x);
+  var muX = statsX.mean;
+  var sigmaX2 = statsX.variance;
+  var sigmaX = Math.sqrt(sigmaX2);
+  var statsY = undefined.statistics(y);
+  var muY = statsY.mean;
+  var sigmaY2 = statsY.variance;
+  var sigmaY = Math.sqrt(sigmaY2);
+  var sigmaXy = covariance(x, y, muX, muY);
 
-    // Implementation of Eq.11., cov(Y, Z) = E((Y - uY), (Z - uZ)).
+  // Implementation of Eq.6.
+  var luminance = (2 * muX * muY + C1) / (muX * muX + muY * muY + C1);
+  // Implementation of Eq.10.
+  var structure = (sigmaXy + C3) / (sigmaX * sigmaY + C3);
+  // Implementation of Eq.9.
+  var contrast = (2 * sigmaX * sigmaY + C2) / (sigmaX2 + sigmaY2 + C2);
 
-  }, {
-    key: "covariance",
-    value: function covariance(a, b, meanA, meanB) {
-      var accu = 0;
-      for (var i = 0; i < a.length; i += 1) {
-        accu += (a[i] - meanA) * (b[i] - meanB);
-      }
-      return accu / a.length;
-    }
-  }, {
-    key: "calculate",
-    value: function calculate(x, y) {
-      if (x.length !== y.length) {
-        return 0;
-      }
+  // Implementation of Eq.12.
+  return luminance * contrast * structure;
+};
 
-      // Values of the constants come from the Matlab code referred before.
-      var K1 = 0.01;
-      var K2 = 0.03;
-      var L = 255;
-      var C1 = K1 * L * (K1 * L);
-      var C2 = K2 * L * (K2 * L);
-      var C3 = C2 / 2;
-
-      var statsX = this.statistics(x);
-      var muX = statsX.mean;
-      var sigmaX2 = statsX.variance;
-      var sigmaX = Math.sqrt(sigmaX2);
-      var statsY = this.statistics(y);
-      var muY = statsY.mean;
-      var sigmaY2 = statsY.variance;
-      var sigmaY = Math.sqrt(sigmaY2);
-      var sigmaXy = this.covariance(x, y, muX, muY);
-
-      // Implementation of Eq.6.
-      var luminance = (2 * muX * muY + C1) / (muX * muX + muY * muY + C1);
-      // Implementation of Eq.10.
-      var structure = (sigmaXy + C3) / (sigmaX * sigmaY + C3);
-      // Implementation of Eq.9.
-      var contrast = (2 * sigmaX * sigmaY + C2) / (sigmaX2 + sigmaY2 + C2);
-
-      // Implementation of Eq.12.
-      return luminance * contrast * structure;
-    }
-  }]);
-
-  return Ssim;
-}();
-
-exports.default = Ssim;
-
-},{}],51:[function(require,module,exports){
+},{}],40:[function(require,module,exports){
 "use strict";
 
 Object.defineProperty(exports, "__esModule", {
@@ -7827,7 +7819,7 @@ var StatisticsAggregate = function () {
 
 exports.default = StatisticsAggregate;
 
-},{}],52:[function(require,module,exports){
+},{}],41:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -7880,7 +7872,7 @@ var Test = function () {
 
 exports.default = Test;
 
-},{}],53:[function(require,module,exports){
+},{}],42:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -7984,7 +7976,7 @@ var TestSuite = function () {
 
 exports.default = TestSuite;
 
-},{}],54:[function(require,module,exports){
+},{}],43:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -7994,10 +7986,6 @@ Object.defineProperty(exports, "__esModule", {
 var _createClass = function () { function defineProperties(target, props) { for (var i = 0; i < props.length; i++) { var descriptor = props[i]; descriptor.enumerable = descriptor.enumerable || false; descriptor.configurable = true; if ("value" in descriptor) descriptor.writable = true; Object.defineProperty(target, descriptor.key, descriptor); } } return function (Constructor, protoProps, staticProps) { if (protoProps) defineProperties(Constructor.prototype, protoProps); if (staticProps) defineProperties(Constructor, staticProps); return Constructor; }; }();
 
 var _Ssim = require('./Ssim.js');
-
-var _Ssim2 = _interopRequireDefault(_Ssim);
-
-function _interopRequireDefault(obj) { return obj && obj.__esModule ? obj : { default: obj }; }
 
 function _classCallCheck(instance, Constructor) { if (!(instance instanceof Constructor)) { throw new TypeError("Cannot call a class as a function"); } }
 
@@ -8016,7 +8004,6 @@ var VideoFrameChecker = function () {
     this.nonBlackPixelLumaThreshold = 20;
     this.previousFrame = [];
     this.identicalFrameSsimThreshold = 0.985;
-    this.frameComparator = new _Ssim2.default();
 
     this.canvas = document.createElement('canvas');
     this.videoElement = videoElement;
@@ -8056,7 +8043,7 @@ var VideoFrameChecker = function () {
         this.frameStats.numBlackFrames++;
       }
 
-      if (this.frameComparator.calculate(this.previousFrame, imageData.data) > this.identicalFrameSsimThreshold) {
+      if ((0, _Ssim.calculate)(this.previousFrame, imageData.data) > this.identicalFrameSsimThreshold) {
         this.frameStats.numFrozenFrames++;
       }
       this.previousFrame = imageData.data;
@@ -8087,7 +8074,7 @@ var VideoFrameChecker = function () {
 
 exports.default = VideoFrameChecker;
 
-},{"./Ssim.js":50}],55:[function(require,module,exports){
+},{"./Ssim.js":39}],44:[function(require,module,exports){
 'use strict';
 
 Object.defineProperty(exports, "__esModule", {
@@ -8249,5 +8236,5 @@ var WebrtcCall = function () {
 
 exports.default = WebrtcCall;
 
-},{}]},{},[42])(42)
+},{}]},{},[31])(31)
 });

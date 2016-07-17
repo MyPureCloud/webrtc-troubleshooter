@@ -1,8 +1,7 @@
 import Test from '../utils/Test';
+import localMedia from 'localMedia';
 
-const localMedia = require('localMedia');
-
-class AudioTest extends Test {
+export default class AudioTest extends Test {
   constructor () {
     super(...arguments);
     this.name = 'Audio Test';
@@ -52,5 +51,3 @@ class AudioTest extends Test {
     this.localMedia.stop();
   }
 }
-
-export default AudioTest;

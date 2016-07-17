@@ -1,7 +1,7 @@
 /* global RTCPeerConnection, mozRTCPeerConnection */
 // adapted from https://github.com/webrtc/testrtc
 
-class WebrtcCall {
+export default class WebrtcCall {
   constructor (config) {
     this.pc1 = new RTCPeerConnection(config);
     this.pc2 = new RTCPeerConnection(config);
@@ -113,5 +113,3 @@ class WebrtcCall {
     return candidate.type === 'relay';
   }
 }
-
-export default WebrtcCall;
