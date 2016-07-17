@@ -237,5 +237,3 @@ export default class VideoBandwidthTest extends Test {
     }
   }
 }
-
-export default VideoBandwidthTest;

@@ -1,8 +1,6 @@
-import AudioTest from './tests/AudioTest';
-import VideoTest from './tests/VideoTest';
-import ConnectivityTest from './tests/ConnectivityTest';
-import AdvancedCameraTest from './tests/AdvancedCameraTest';
-import ThroughputTest from './tests/DataThroughputTest';
-import VideoBandwidthTest from './tests/VideoBandwidthTest';
-
-export { AudioTest, VideoTest, ConnectivityTest, AdvancedCameraTest, ThroughputTest, VideoBandwidthTest };
+export { default as AudioTest } from './tests/AudioTest';
+export { default as VideoTest } from './tests/VideoTest';
+export { default as ConnectivityTest } from './tests/ConnectivityTest';
+export { default as AdvancedCameraTest } from './tests/AdvancedCameraTest';
+export { default as ThroughputTest } from './tests/DataThroughputTest';
+export { default as VideoBandwidthTest } from './tests/VideoBandwidthTest';

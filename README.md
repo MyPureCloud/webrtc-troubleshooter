@@ -20,5 +20,5 @@ TODO:
 
 # Test Page
 
-test-page/index.html
-for console output of 6 tests to ensure webrtc is properly functioning
+- Open examples/troubleshooter/index.html
+- Console output of 6 tests is to ensure webrtc is properly functioning

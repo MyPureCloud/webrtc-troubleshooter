@@ -1,8 +1,7 @@
 import Test from '../utils/Test';
+import PeerConnection from 'rtcpeerconnection';
 
-const PeerConnection = require('rtcpeerconnection');
-
-class ConnectivityTest extends Test {
+export default class ConnectivityTest extends Test {
   constructor () {
     super(...arguments);
     this.name = 'Connectivity Test';

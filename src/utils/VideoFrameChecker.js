@@ -1,4 +1,4 @@
-import Ssim from './Ssim.js';
+import { calculate } from './Ssim.js';
 export default class VideoFrameChecker {
   constructor (videoElement) {
     this.frameStats = {
@@ -12,7 +12,6 @@ export default class VideoFrameChecker {
     this.nonBlackPixelLumaThreshold = 20;
     this.previousFrame = [];
     this.identicalFrameSsimThreshold = 0.985;
-    this.frameComparator = new Ssim();
 
     this.canvas = document.createElement('canvas');
     this.videoElement = videoElement;
@@ -46,7 +45,7 @@ export default class VideoFrameChecker {
       this.frameStats.numBlackFrames++;
     }
 
-    if (this.frameComparator.calculate(this.previousFrame, imageData.data) >
+    if (calculate(this.previousFrame, imageData.data) >
       this.identicalFrameSsimThreshold) {
       this.frameStats.numFrozenFrames++;
     }

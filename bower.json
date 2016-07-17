@@ -1,15 +1,25 @@
 {
   "name": "webrtc-troubleshooter",
-  "version": "0.0.1",
+  "version": "1.0.1",
   "description": "A way to add webrtc troubleshooting to your app",
-  "main": "index.js",
-  "dependencies": {},
+  "main": "./dist/webrtc-troubleshooter.bundle.js",
+  "devDependencies": {
+    "babel-cli": "^6.7.7",
+    "babel-preset-es2015": "^6.6.0",
+    "babelify": "^7.2.0",
+    "browserify": "^13.0.1",
+    "semistandard": "^8.0.0"
+  },
+  "dependencies": {
+    "localmedia": "https://github.com/xdumaine/localmedia.git",
+    "rtcpeerconnection": "5.2.0",
+    "webrtc-adapter": "^1.4.0"
+  },
   "ignore": [
     "**/.*",
     "node_modules",
     "bower_components",
-    "test",
-    "tests"
+    "examples"
   ],
   "homepage": "https://github.com/mypurecloud/webrtc-troubleshooter",
   "authors": [

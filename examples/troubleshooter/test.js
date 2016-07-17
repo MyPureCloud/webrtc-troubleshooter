@@ -3,7 +3,7 @@ let video = true;
 let audio = true;
 
 let iceServers = [];
-const webRTCTroubleshooter = WebRTCTroubleshooter.default;
+const webRTCTroubleshooter = WebRTCTroubleshooter;
 const testSuite = new webRTCTroubleshooter.TestSuite();
 
 const iceServersEntry = document.getElementById('ice-servers');
@@ -61,7 +61,7 @@ runButton.onclick = function startTroubleshooter () {
 
   testSuite.start().then(function (results) {
     console.log('Finished the tests', results);
-  }, function(err) {
+  }, function (err) {
     console.warn('test failure', err, err.details);
   });
 };

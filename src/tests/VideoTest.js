@@ -1,5 +1,5 @@
 import Test from '../utils/Test';
-const LocalMedia = require('localMedia');
+import LocalMedia from 'localMedia';
 
 export default class VideoTest extends Test {
   constructor() {
