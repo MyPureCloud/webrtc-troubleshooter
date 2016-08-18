@@ -2,7 +2,9 @@ export default class Test {
   constructor (options) {
     this.options = options || {};
     this.logger = this.options.logger || console;
-    this.deferred = Promise.defer();
+    this.promise = new Promise((resolve, reject) => {
+      this.deferred = {resolve, reject};
+    });
   }
 
   start () {
@@ -13,12 +15,12 @@ export default class Test {
 
   resolve () {
     this.deferred.resolve();
-    return this.deferred.promise;
+    return this.promise;
   }
 
   reject (err) {
     this.deferred.reject(err);
-    return this.deferred.promise;
+    return this.promise;
   }
 
   destroy () {
