@@ -13,7 +13,7 @@ class WebrtcCall {
   }
 
   establishConnection () {
-    return this.pc1.createOffer().then(this.gotOffer.bind(this), console.error.bind(console));
+    return this.pc1.createOffer().then(this.gotOffer.bind(this), () => this.logger.error(...arguments));
   }
 
   close () {

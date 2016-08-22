@@ -9,6 +9,7 @@ import Test from '../utils/Test';
 export default class CameraResolutionTest extends Test {
   constructor (resolutions, options) {
     super(options);
+    this.name = 'Camera resolution test';
     this.resolutions = resolutions;
     this.duration = options.duration;
     this.logger = options && options.logger ? options.logger : console;
@@ -25,7 +26,18 @@ export default class CameraResolutionTest extends Test {
       duration: this.duration
     };
     this.logger.log(`Advanced Camera Test with resolutions: ${JSON.stringify(settings.resolutions)} and duration ${JSON.stringify(settings.duration)}`);
-    return this.startGetUserMedia(this.resolutions[this.currentResolution]).then(this.resolve.bind(this), this.reject.bind(this));
+    return this.startGetUserMedia(this.resolutions[this.currentResolution]).then(() => {
+      if (!this.hasError) {
+        return this.resolve(this.getResults());
+      } else {
+        const err = new Error('Camera resolution check failed');
+        err.details = this.getResults();
+        return this.reject(err);
+      }
+    }, (err) => {
+      err.details = this.getResults();
+      return this.reject(err);
+    });
   }
 
   getResults () {
@@ -39,10 +51,13 @@ export default class CameraResolutionTest extends Test {
   }
 
   reportSuccess (str) {
+    this.log.push(str);
     this.logger.log(`SUCCESS: ${str}`);
   }
 
   reportError (str) {
+    this.hasError = true;
+    this.log.push(str);
     this.logger.warn(`${str}`);
   }
 
@@ -146,14 +161,19 @@ export default class CameraResolutionTest extends Test {
 
     return call.establishConnection().then(() => {
       return call.gatherStats(call.pc1, 100);
+    }, (err) => {
+      return Promise.reject(err);
     }).then(({stats, statsCollectTime}) => {
       const result = this.analyzeStats({resolution, videoElement, stream, frameChecker, stats, statsCollectTime});
       frameChecker.stop();
       return result;
+    }, (err) => {
+      return Promise.reject(err);
     });
   }
 
   analyzeStats ({resolution, videoElement, stream, frameChecker, stats, statsCollectTime}) {
+    this.stats = stats;
     const googAvgEncodeTime = [];
     const googAvgFrameRateInput = [];
     const googAvgFrameRateSent = [];

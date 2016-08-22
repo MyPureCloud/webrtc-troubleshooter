@@ -38,11 +38,11 @@ export default class VideoBandwidthTest extends Test {
       this.constraints.video.deviceId = this.options.mediaOptions.video.deviceId;
     }
     this.log = [];
+    this.stats = {};
   }
 
   start () {
     super.start();
-    this.log = this.results = {log: []};
 
     this.addLog('info', 'Video Bandwidth Test');
 
@@ -58,7 +58,24 @@ export default class VideoBandwidthTest extends Test {
     this.call.disableVideoFec();
     this.call.constrainVideoBitrate(this.maxVideoBitrateKbps);
 
-    return this.doGetUserMedia(this.constraints);
+    return this.doGetUserMedia(this.constraints).then(() => {
+      if (!this.hasError) {
+        return this.resolve(this.getResults());
+      } else {
+        return this.reject(new Error('Video Bandwidth Error'), this.getResults());
+      }
+    }, (err) => {
+      return this.reject(err, this.getResults());
+    });
+  }
+
+  getResults () {
+    const results = {
+      log: this.log,
+      stats: this.stats,
+      constraints: this.constraints
+    };
+    return results;
   }
 
   addLog (level, msg) {
@@ -66,7 +83,10 @@ export default class VideoBandwidthTest extends Test {
     if (msg && typeof msg === 'Object') {
       msg = JSON.stringify(msg);
     }
-    this.results.log.push(`${level}: ${msg}`);
+    if (level === 'error') {
+      this.hasError = true;
+    }
+    this.log.push(`${level}: ${msg}`);
   }
 
   doGetUserMedia (constraints) {
@@ -74,11 +94,10 @@ export default class VideoBandwidthTest extends Test {
     return navigator.mediaDevices.getUserMedia({ audio: true, video: true }).then((stream) => {
       const camera = this.getDeviceName(stream.getVideoTracks());
       this.addLog('info', { status: 'success', camera });
-      return this.gotStream(stream).then(this.resolve.bind(this), this.reject.bind(this));
+      return this.gotStream(stream);
     }, (error) => {
       this.addLog('error', {'status': 'fail', 'error': error});
       this.addLog('error', `Failed to get access to local media due to error: ${error.name}`);
-      console.warn('rejecting2', this);
       return this.reject(error);
     });
   }
@@ -123,10 +142,8 @@ export default class VideoBandwidthTest extends Test {
     const isWebkit = 'WebkitAppearance' in document.documentElement.style;
     const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
     if (isWebkit) {
-      if (response.result) {
-        response = response.result();
-      }
-      response.forEach((report) => {
+      const results = typeof response.result === 'function' ? response.result() : response;
+      results.forEach((report) => {
         if (report.id === 'bweforvideo') {
           this.bweStats.add(Date.parse(report.timestamp), parseInt(report['googAvailableSendBandwidth'], 10));
         } else if (report.type === 'ssrc') {
@@ -171,7 +188,7 @@ export default class VideoBandwidthTest extends Test {
     });
     this.call.close();
     this.call = null;
-    const stats = this.results.stats = {};
+    const stats = this.stats;
 
     if (isWebkit) {
       // Checking if greater than 2 because Chrome sometimes reports 2x2 when a camera starts but fails to deliver frames.
