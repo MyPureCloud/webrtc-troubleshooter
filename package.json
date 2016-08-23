@@ -1,13 +1,15 @@
 {
   "name": "webrtc-troubleshoot",
-  "version": "0.0.2",
+  "version": "1.0.0",
   "description": "A way to add webrtc troubleshooting to your app",
   "main": "index.js",
   "scripts": {
-    "build": "node_modules/.bin/browserify -t [ babelify --presets [ es2015 ] ] --s WebRTCTroubleshooter src/index.js -o dist/webrtc-troubleshooter.bundle.js",
+    "browserify": "node_modules/.bin/browserify -t [ babelify --presets [ es2015 ] ] --s WebRTCTroubleshooter src/index.js -o dist/webrtc-troubleshooter.bundle.js",
+    "uglify": "node_modules/.bin/uglifyjs dist/webrtc-troubleshooter.bundle.js -o dist/webrtc-troubleshooter.bundle.js",
+    "build": "npm run browserify && npm run uglify",
     "test": "node_modules/.bin/semistandard src/utils/**/*.js test-page/**/*.js"
   },
-  "repository": "https://github.com/adflynn/webrtc-troubleshooter",
+  "repository": "https://github.com/mypurecloud/webrtc-troubleshooter",
   "engines": {
     "node": ">= 4.4.0"
   },
@@ -15,10 +17,11 @@
     "babel-cli": "^6.7.7",
     "babel-preset-es2015": "^6.6.0",
     "babelify": "^7.2.0",
-    "browserify": "^13.0.1"
+    "browserify": "^13.0.1",
+    "uglify-js": "^2.7.3"
   },
   "dependencies": {
-    "localmedia": "https://github.com/xdumaine/localmedia.git",
+    "localmedia": "^2.1.1",
     "rtcpeerconnection": "5.2.0",
     "webrtc-adapter": "^1.4.0"
   }
