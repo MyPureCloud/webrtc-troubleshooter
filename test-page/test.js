@@ -32,17 +32,17 @@ runButton.onclick = function startTroubleshooter () {
 
   if (audio) {
     const audioTest = new webRTCTroubleshooter.AudioTest(mediaOptions);
-    audioTest.deferred.promise.then(testCompleted.bind(null, audioTest, true), testCompleted.bind(null, audioTest, false));
+    audioTest.promise.then(testCompleted.bind(null, audioTest, true), testCompleted.bind(null, audioTest, false));
     testSuite.addTest(audioTest);
   }
 
   if (video) {
     const videoTest = new webRTCTroubleshooter.VideoTest(mediaOptions);
-    videoTest.deferred.promise.then(testCompleted.bind(null, videoTest, true), testCompleted.bind(null, videoTest, false));
+    videoTest.promise.then(testCompleted.bind(null, videoTest, true), testCompleted.bind(null, videoTest, false));
     const advancedCameraTest = new webRTCTroubleshooter.AdvancedCameraTest(mediaOptions);
-    advancedCameraTest.deferred.promise.then(testCompleted.bind(null, advancedCameraTest, true), testCompleted.bind(null, advancedCameraTest, false));
+    advancedCameraTest.promise.then(testCompleted.bind(null, advancedCameraTest, true), testCompleted.bind(null, advancedCameraTest, false));
     const bandwidthTest = new webRTCTroubleshooter.VideoBandwidthTest({ iceConfig: iceConfig, mediaOptions: mediaOptions });
-    bandwidthTest.deferred.promise.then(testCompleted.bind(null, bandwidthTest, true), testCompleted.bind(null, bandwidthTest, false));
+    bandwidthTest.promise.then(testCompleted.bind(null, bandwidthTest, true), testCompleted.bind(null, bandwidthTest, false));
 
     testSuite.addTest(videoTest);
     testSuite.addTest(advancedCameraTest);
@@ -51,9 +51,9 @@ runButton.onclick = function startTroubleshooter () {
 
   if (window.RTCPeerConnection) {
     const connectivityTest = new webRTCTroubleshooter.ConnectivityTest(iceConfig);
-    connectivityTest.deferred.promise.then(testCompleted.bind(null, connectivityTest, true), testCompleted.bind(null, connectivityTest, false));
+    connectivityTest.promise.then(testCompleted.bind(null, connectivityTest, true), testCompleted.bind(null, connectivityTest, false));
     const throughputTest = new webRTCTroubleshooter.ThroughputTest(iceConfig);
-    throughputTest.deferred.promise.then(testCompleted.bind(null, throughputTest, true), testCompleted.bind(null, throughputTest, false));
+    throughputTest.promise.then(testCompleted.bind(null, throughputTest, true), testCompleted.bind(null, throughputTest, false));
 
     testSuite.addTest(connectivityTest);
     testSuite.addTest(throughputTest);

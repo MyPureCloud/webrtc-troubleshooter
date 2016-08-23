@@ -33,7 +33,7 @@ export default class VideoTest extends Test {
         }
       }
     });
-    return this.deferred.promise;
+    return this.promise;
   }
 
   destroy () {
