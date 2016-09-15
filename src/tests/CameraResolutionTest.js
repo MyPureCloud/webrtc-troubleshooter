@@ -9,7 +9,7 @@ import Test from '../utils/Test';
 export default class CameraResolutionTest extends Test {
   constructor (resolutions, options) {
     super(options);
-    this.name = 'Camera resolution test';
+    this.name = `Camera resolution test ${JSON.stringify(resolutions)}`;
     this.resolutions = resolutions;
     this.duration = options.duration;
     this.logger = options && options.logger ? options.logger : console;

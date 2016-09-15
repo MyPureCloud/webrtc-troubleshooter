@@ -56,13 +56,20 @@ export default class TestSuite {
     };
 
     return test.start().then((results) => {
-      if (results) {
-        this.results.push(results);
-      }
+      this.results.push({
+        status: 'passed',
+        name: test.name,
+        results
+      });
       return next();
     }, (err) => {
       this.hasError = true;
-      const errInfo = { message: err.message, details: err.details };
+      const errInfo = {
+        status: 'failed',
+        name: test.name,
+        message: err.message,
+        details: err.details
+      };
       this.results.push(errInfo);
       this.logger.error('Test failure', errInfo, test);
       return next(err);

@@ -44,11 +44,10 @@ export default class VideoBandwidthTest extends Test {
   start () {
     super.start();
 
-    this.addLog('info', 'Video Bandwidth Test');
-
     if (!this.options.iceConfig.iceServers.length) {
-      this.addLog('error', 'No ice servers were provided');
-      return this.reject(this.log);
+      const error = new Error('No ice servers were provided');
+      error.details = this.log;
+      return this.reject(error);
     }
     this.call = new WebrtcCall(this.options.iceConfig);
     this.call.setIceCandidateFilter(WebrtcCall.isRelay);
@@ -237,5 +236,3 @@ export default class VideoBandwidthTest extends Test {
     }
   }
 }
-
-export default VideoBandwidthTest;
