@@ -143,10 +143,12 @@ export default class VideoBandwidthTest extends Test {
     if (isWebkit) {
       const results = typeof response.result === 'function' ? response.result() : response;
       results.forEach((report) => {
-        if (report.id === 'bweforvideo') {
-          this.bweStats.add(Date.parse(report.timestamp), parseInt(report['googAvailableSendBandwidth'], 10));
-        } else if (report.type === 'ssrc') {
-          this.rttStats.add(Date.parse(report.timestamp), parseInt(report['googRtt'], 10));
+        if (report.id === 'bweforvideo' && report.googAvailableSendBandwidth) {
+          const value = parseInt(report['googAvailableSendBandwidth'], 10);
+          this.bweStats.add(Date.parse(report.timestamp), value);
+        } else if (report.type === 'ssrc' && report.googRtt) {
+          const value = parseInt(report['googRtt'], 10);
+          this.rttStats.add(Date.parse(report.timestamp), value);
           // Grab the last stats.
           this.videoStats[0] = report['googFrameWidthSent'];
           this.videoStats[1] = report['googFrameHeightSent'];
