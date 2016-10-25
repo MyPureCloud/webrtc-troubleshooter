@@ -28,9 +28,11 @@ class AudioTest extends Test {
       }
     });
 
-    this.localMedia.on('volumeChange', () => {
-      window.clearTimeout(volumeCheckFailure);
-      this.resolve();
+    this.localMedia.on('volumeChange', (volume) => {
+      if (volume > Number.NEGATIVE_INFINITY) {
+        window.clearTimeout(volumeCheckFailure);
+        this.resolve();
+      }
     });
 
     this.localMedia.on('localStream', (stream) => {
