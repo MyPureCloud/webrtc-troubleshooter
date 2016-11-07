@@ -1,6 +1,7 @@
 import Test from '../utils/Test';
 
 const localMedia = require('localMedia');
+const MIC_DETECTION_THRESHOLD = -100;
 
 class AudioTest extends Test {
   constructor () {
@@ -29,7 +30,7 @@ class AudioTest extends Test {
     });
 
     this.localMedia.on('volumeChange', (volume) => {
-      if (volume > Number.NEGATIVE_INFINITY) {
+      if (volume > MIC_DETECTION_THRESHOLD) {
         window.clearTimeout(volumeCheckFailure);
         this.resolve();
       }
