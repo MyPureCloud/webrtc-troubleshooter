@@ -61,7 +61,7 @@ runButton.onclick = function startTroubleshooter () {
 
   testSuite.start().then(function (results) {
     console.log('Finished the tests', results);
-  }, function(err) {
+  }, function (err) {
     console.warn('test failure', err, err.details);
   });
 };
