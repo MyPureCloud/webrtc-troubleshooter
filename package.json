@@ -21,8 +21,8 @@
     "uglify-js": "^2.7.3"
   },
   "dependencies": {
-    "localmedia": "^2.1.1",
-    "rtcpeerconnection": "5.2.0",
-    "webrtc-adapter": "^1.4.0"
+    "localmedia": "^3.0.0",
+    "rtcpeerconnection": "6.0.0",
+    "webrtc-adapter": "^2.0.8"
   }
 }
