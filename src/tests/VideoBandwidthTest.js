@@ -9,7 +9,7 @@ export default class VideoBandwidthTest extends Test {
     super(...arguments);
     this.name = 'Bandwidth Test';
     this.maxVideoBitrateKbps = 2000;
-    this.durationMs = 10000;
+    this.durationMs = 40000;
     this.statStepMs = 100;
     this.bweStats = new StatisticsAggregate(0.75 * this.maxVideoBitrateKbps * 1000);
     this.rttStats = new StatisticsAggregate();
