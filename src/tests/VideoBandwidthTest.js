@@ -201,13 +201,13 @@ export default class VideoBandwidthTest extends Test {
         this.addLog('error', `Camera failure: ${this.videoStats[0]}x${this.videoStats[1]}. Cannot test bandwidth without a working camera.`);
       } else {
         stats.resolution = `${this.videoStats[0]}x${this.videoStats[1]}`;
-        stats.bpsAvg = this.bweStats.getAverage();
-        stats.bpsMax = this.bweStats.getMax();
+        stats.mbpsAvg = this.bweStats.getAverage() / 1000;
+        stats.mbpsMax = this.bweStats.getMax() / 1000;
         stats.rampUpTimeMs = this.bweStats.getRampUpTime();
 
         this.addLog('info', `Video resolution: ${stats.resolution}`);
-        this.addLog('info', `Send bandwidth estimate average: ${stats.bpsAvg} bps`);
-        this.addLog('info', `Send bandwidth estimate max: ${stats.bpsMax} bps`);
+        this.addLog('info', `Send bandwidth estimate average: ${stats.mbpsAvg} mpbs`);
+        this.addLog('info', `Send bandwidth estimate max: ${stats.mbpsMax} mbps`);
         this.addLog('info', `Send bandwidth ramp-up time: ${stats.rampUpTimeMs} ms`);
       }
     } else if (isFirefox) {
@@ -218,10 +218,10 @@ export default class VideoBandwidthTest extends Test {
       }
       stats.framerateMean = this.framerateMean || null;
 
-      stats.bitrateMean = this.bitrateMean;
-      stats.bitrateStdDev = this.bitrateStdDev;
-      this.addLog('info', `Send bitrate mean: ${stats.bitrateMean} bps`);
-      this.addLog('info', `Send bitrate standard deviation: ${stats.bitrateStdDev} bps`);
+      stats.mbpsAvg = this.bitrateMean / 1000;
+      stats.mbpsStdDev = this.bitrateStdDev / 1000;
+      this.addLog('info', `Send bitrate mean: ${stats.mbpsAvg} mbps`);
+      this.addLog('info', `Send bitrate standard deviation: ${stats.mbpsStdDev} mbps`);
     }
     stats.rttAverage = this.rttStats.getAverage();
     stats.rttMax = this.rttStats.getMax();
