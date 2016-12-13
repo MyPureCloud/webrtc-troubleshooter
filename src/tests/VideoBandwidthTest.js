@@ -58,13 +58,17 @@ export default class VideoBandwidthTest extends Test {
     this.call.constrainVideoBitrate(this.maxVideoBitrateKbps);
 
     return this.doGetUserMedia(this.constraints).then(() => {
+      const results = this.getResults();
       if (!this.hasError) {
-        return this.resolve(this.getResults());
+        return this.resolve(results);
       } else {
-        return this.reject(new Error('Video Bandwidth Error'), this.getResults());
+        results.error = new Error('Video Bandwidth Error');
+        return this.reject(results);
       }
     }, (err) => {
-      return this.reject(err, this.getResults());
+      const results = this.getResults();
+      results.error = err;
+      return this.reject(err);
     });
   }
 
@@ -158,12 +162,12 @@ export default class VideoBandwidthTest extends Test {
     } else if (isFirefox) {
       for (let j in response) {
         let stats = response[j];
-        if (stats.id === 'outbound_rtcp_video_0') {
+        if (stats.id.startsWith('outbound_rtcp_video_')) {
           this.rttStats.add(Date.parse(stats.timestamp), parseInt(stats.mozRtt, 10));
           // Grab the last stats.
           this.jitter = stats.jitter;
           this.packetsLost = stats.packetsLost;
-        } else if (stats.id === 'outbound_rtp_video_0') {
+        } else if (stats.id.startsWith('outbound_rtp_video_')) {
           // TODO: Get dimensions from getStats when supported in FF.
           this.videoStats[0] = 'Not supported on Firefox';
           this.videoStats[1] = 'Not supported on Firefox';
@@ -208,7 +212,7 @@ export default class VideoBandwidthTest extends Test {
       }
     } else if (isFirefox) {
       if (parseInt(this.framerateMean, 10) > 0) {
-        this.addLog('SUCCESS', `Frame rate mean: ${parseInt(this.framerateMean, 10)}`);
+        this.addLog('info', `Frame rate mean: ${parseInt(this.framerateMean, 10)}`);
       } else {
         this.addLog('error', 'Frame rate mean is 0, cannot test bandwidth without a working camera.');
       }

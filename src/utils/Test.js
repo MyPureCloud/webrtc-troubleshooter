@@ -13,8 +13,8 @@ export default class Test {
     }, 45000);
   }
 
-  resolve () {
-    this.deferred.resolve();
+  resolve (data) {
+    this.deferred.resolve(data);
     return this.promise;
   }
 
