@@ -157,6 +157,7 @@ export default class VideoBandwidthTest extends Test {
           this.videoStats[0] = report['googFrameWidthSent'];
           this.videoStats[1] = report['googFrameHeightSent'];
           this.packetsLost = report['packetsLost'];
+          this.packetsSent = report['packetsSent'];
         }
       });
     } else if (isFirefox) {
@@ -173,6 +174,7 @@ export default class VideoBandwidthTest extends Test {
           this.videoStats[1] = 'Not supported on Firefox';
           this.bitrateMean = stats.bitrateMean;
           this.bitrateStdDev = stats.bitrateStdDev;
+          this.packetsSent = stats.packetsSent;
           this.framerateMean = stats.framerateMean;
         }
       }
@@ -225,7 +227,10 @@ export default class VideoBandwidthTest extends Test {
     }
     stats.rttAverage = this.rttStats.getAverage();
     stats.rttMax = this.rttStats.getMax();
-    stats.lostPackets = parseInt(this.packetsLost, 10);
+
+    if (this.packetsSent) {
+      stats.packetLoss = parseInt(this.packetsLost, 10) / parseFloat(this.packetsSent);
+    }
 
     this.addLog('info', `RTT average: ${stats.rttAverage} ms`);
     this.addLog('info', `RTT max: ${stats.rttMax} ms`);
