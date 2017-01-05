@@ -37,6 +37,9 @@ export default class VideoBandwidthTest extends Test {
     if (this.options.mediaOptions.video.deviceId) {
       this.constraints.video.deviceId = this.options.mediaOptions.video.deviceId;
     }
+
+    this.providedStream = this.options.screenStream;
+
     this.log = [];
     this.stats = {};
   }
@@ -57,7 +60,14 @@ export default class VideoBandwidthTest extends Test {
     this.call.disableVideoFec();
     this.call.constrainVideoBitrate(this.maxVideoBitrateKbps);
 
-    return this.doGetUserMedia(this.constraints).then(() => {
+    let promise;
+    if (this.providedStream) {
+      promise = this.gotStream(this.providedStream);
+    } else {
+      promise = this.doGetUserMedia(this.constraints);
+    }
+
+    return promise.then(() => {
       const results = this.getResults();
       if (!this.hasError) {
         return this.resolve(results);
@@ -73,12 +83,11 @@ export default class VideoBandwidthTest extends Test {
   }
 
   getResults () {
-    const results = {
+    return {
       log: this.log,
       stats: this.stats,
       constraints: this.constraints
     };
-    return results;
   }
 
   addLog (level, msg) {
