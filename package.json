@@ -2,7 +2,7 @@
   "name": "webrtc-troubleshoot",
   "version": "2.1.0",
   "description": "A way to add webrtc troubleshooting to your app",
-  "main": "index.js",
+  "main": "src/index.js",
   "scripts": {
     "browserify": "node_modules/.bin/browserify -t [ babelify --presets [ es2015 ] ] --s WebRTCTroubleshooter src/index.js -o dist/webrtc-troubleshooter.bundle.js",
     "uglify": "node_modules/.bin/uglifyjs dist/webrtc-troubleshooter.bundle.js -o dist/webrtc-troubleshooter.bundle.js",
