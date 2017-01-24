@@ -212,8 +212,8 @@ export default class VideoBandwidthTest extends Test {
         this.addLog('error', `Camera failure: ${this.videoStats[0]}x${this.videoStats[1]}. Cannot test bandwidth without a working camera.`);
       } else {
         stats.resolution = `${this.videoStats[0]}x${this.videoStats[1]}`;
-        stats.mbpsAvg = this.bweStats.getAverage() / 1000;
-        stats.mbpsMax = this.bweStats.getMax() / 1000;
+        stats.mbpsAvg = this.bweStats.getAverage() / (1000 * 1000);
+        stats.mbpsMax = this.bweStats.getMax() / (1000 * 1000);
         stats.rampUpTimeMs = this.bweStats.getRampUpTime();
 
         this.addLog('info', `Video resolution: ${stats.resolution}`);
@@ -229,8 +229,8 @@ export default class VideoBandwidthTest extends Test {
       }
       stats.framerateMean = this.framerateMean || null;
 
-      stats.mbpsAvg = this.bitrateMean / 1000;
-      stats.mbpsStdDev = this.bitrateStdDev / 1000;
+      stats.mbpsAvg = this.bitrateMean / (1000 * 1000);
+      stats.mbpsStdDev = this.bitrateStdDev / (1000 * 1000);
       this.addLog('info', `Send bitrate mean: ${stats.mbpsAvg} mbps`);
       this.addLog('info', `Send bitrate standard deviation: ${stats.mbpsStdDev} mbps`);
     }
