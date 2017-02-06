@@ -23,6 +23,6 @@
   "dependencies": {
     "localmedia": "^3.0.0",
     "rtcpeerconnection": "6.1.0",
-    "webrtc-adapter": "^2.0.8"
+    "webrtc-adapter": "^3.0.1"
   }
 }
