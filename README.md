@@ -1,5 +1,7 @@
 # webrtc-troubleshooter
 
+[![Greenkeeper badge](https://badges.greenkeeper.io/MyPureCloud/webrtc-troubleshooter.svg)](https://greenkeeper.io/)
+
 #### PSA
 
 This addon is still under development and not *quite* ready for use.
