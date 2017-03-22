@@ -144,7 +144,7 @@ export default class VideoBandwidthTest extends Test {
     if (now - this.startTime > this.durationMs) {
       return Promise.resolve(this.completed());
     }
-    return this.call.pc1.getStats(this.localStream)
+    return this.call.pc1.getStats(null)
       .then(this.gotStats.bind(this), (error) => {
         this.addLog('error', 'Failed to getStats: ' + error);
       });

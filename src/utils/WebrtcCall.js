@@ -1,4 +1,4 @@
-/* global RTCPeerConnection, mozRTCPeerConnection */
+/* global RTCPeerConnection */
 // adapted from https://github.com/webrtc/testrtc
 
 class WebrtcCall {
@@ -29,22 +29,27 @@ class WebrtcCall {
 
     return new Promise((resolve, reject) => {
       const getStats = () => {
+        window.pc = peerConnection;
         if (peerConnection.signalingState === 'closed') {
           return resolve({stats, statsCollectTime});
         }
-        // Work around for webrtc/testrtc#74
-        if (typeof mozRTCPeerConnection !== 'undefined' && peerConnection instanceof mozRTCPeerConnection) {
-          setTimeout(getStats, interval);
-        } else {
-          setTimeout(peerConnection.getStats.bind(peerConnection, gotStats), interval);
-        }
+        setTimeout(() => {
+          let getStatsTimeout = setTimeout(() => {
+            resolve({stats, statsCollectTime});
+          }, 1000);
+          peerConnection.getStats(null).then((response) => {
+            clearTimeout(getStatsTimeout);
+            getStatsTimeout = null;
+            gotStats(response);
+          });
+        }, interval);
       };
 
       const gotStats = (response) => {
         const now = Date.now();
-        const results = response.result();
+        const results = response.result ? response.result() : response;
         stats = results;
-        statsCollectTime = results.map(() => now);
+        statsCollectTime = Object.keys(results).map(() => now);
         getStats();
       };
 

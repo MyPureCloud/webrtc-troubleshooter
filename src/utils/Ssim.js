@@ -65,12 +65,12 @@ export default class Ssim {
     var sigmaXy = this.covariance(x, y, muX, muY);
 
     // Implementation of Eq.6.
-    var luminance = (2 * muX * muY + C1) /
+    var luminance = ((2 * muX * muY) + C1) /
       ((muX * muX) + (muY * muY) + C1);
     // Implementation of Eq.10.
-    var structure = (sigmaXy + C3) / (sigmaX * sigmaY + C3);
+    var structure = (sigmaXy + C3) / ((sigmaX * sigmaY) + C3);
     // Implementation of Eq.9.
-    var contrast = (2 * sigmaX * sigmaY + C2) / (sigmaX2 + sigmaY2 + C2);
+    var contrast = ((2 * sigmaX * sigmaY) + C2) / (sigmaX2 + sigmaY2 + C2);
 
     // Implementation of Eq.12.
     return luminance * contrast * structure;
