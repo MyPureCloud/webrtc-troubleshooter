@@ -8,16 +8,15 @@ export default class AudioBandwidthTest extends Test {
   constructor() {
     super(...arguments);
     this.name = 'Bandwidth Test';
-    this.maxVideoBitrateKbps = 2000;
+    this.maxAudioBitrateKbps = 510;
     this.durationMs = 40000;
     this.statStepMs = 100;
-    this.bweStats = new StatisticsAggregate(0.75 * this.maxVideoBitrateKbps * 1000);
+    this.bweStats = new StatisticsAggregate(0.75 * this.maxAudioBitrateKbps * 1000);
     this.rttStats = new StatisticsAggregate();
     this.packetsLost = null;
-    this.videoStats = [];
     this.startTime = null;
     this.call = null;
-    // Open the camera with hd resolution specs to get a correct measurement of ramp-up time.
+    // No Camera for audio only test
     this.constraints = {
       video: false
     };
@@ -84,8 +83,8 @@ export default class AudioBandwidthTest extends Test {
     this.addLog('info', { status: 'pending', constraints });
     return navigator.mediaDevices.getUserMedia(constraints)
       .then((stream) => {
-        const camera = this.getDeviceName(stream.getVideoTracks());
-        this.addLog('info', {status: 'success', camera});
+        const audioTrack = this.getDeviceName(stream.getAudioTracks());
+        this.addLog('info', {status: 'success', audioTrack});
         return stream;
       })
       .catch(error => {
