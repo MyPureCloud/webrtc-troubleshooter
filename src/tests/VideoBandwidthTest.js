@@ -103,7 +103,7 @@ export default class VideoBandwidthTest extends Test {
 
   doGetUserMedia (constraints) {
     this.addLog('info', { status: 'pending', constraints });
-    return navigator.mediaDevices.getUserMedia({ audio: true, video: true }).then((stream) => {
+    return navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
       const camera = this.getDeviceName(stream.getVideoTracks());
       this.addLog('info', { status: 'success', camera });
       return this.gotStream(stream);
