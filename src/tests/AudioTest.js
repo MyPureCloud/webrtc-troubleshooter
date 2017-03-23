@@ -1,6 +1,6 @@
 import Test from '../utils/Test';
 
-const localMedia = require('localMedia');
+const LocalMedia = require('localmedia');
 const MIC_DETECTION_THRESHOLD = -100;
 
 class AudioTest extends Test {
@@ -9,7 +9,7 @@ class AudioTest extends Test {
     this.name = 'Audio Test';
     this.volumeTimeout = this.options.volumeTimeout || 5000;
 
-    this.localMedia = new localMedia({detectSpeakingEvents: true});
+    this.localMedia = new LocalMedia({detectSpeakingEvents: true});
   }
 
   start () {

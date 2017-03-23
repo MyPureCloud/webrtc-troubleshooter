@@ -61,7 +61,7 @@ export default class VideoFrameChecker {
     var accuLuma = 0;
     for (var i = 4; i < length; i += 4) {
       // Use Luma as in Rec. 709: Y′709 = 0.21R + 0.72G + 0.07B
-      accuLuma += 0.21 * data[i] + 0.72 * data[i + 1] + 0.07 * data[i + 2];
+      accuLuma += (0.21 * data[i]) + (0.72 * data[i + 1]) + (0.07 * data[i + 2]);
       // Early termination if the average Luma so far is bright enough.
       if (accuLuma > (thresh * i / 4)) {
         return false;

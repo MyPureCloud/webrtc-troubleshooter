@@ -180,19 +180,16 @@ export default class CameraResolutionTest extends Test {
     const statsReport = {};
     const frameStats = frameChecker.frameStats;
 
-    for (let index = 0; index < stats.length - 1; index++) {
-      if (stats[index].type === 'ssrc') {
-        // Make sure to only capture stats after the encoder is setup.
-        if (stats[index].stat('googFrameRateInput') > 0) {
-          googAvgEncodeTime.push(
-            parseInt(stats[index].stat('googAvgEncodeMs'), 10));
-          googAvgFrameRateInput.push(
-            parseInt(stats[index].stat('googFrameRateInput'), 10));
-          googAvgFrameRateSent.push(
-            parseInt(stats[index].stat('googFrameRateSent'), 10));
+    stats.forEach((stat) => {
+      if (stat.type === 'ssrc') {
+        // make sure to only capture stats after the encoder is setup.
+        if (parseInt(stat.googFrameRateInput, 10) > 0) {
+          googAvgEncodeTime.push(parseInt(stat.googAvgEncodeMs, 10));
+          googAvgFrameRateInput.push(parseInt(stat.googFrameRateInput, 10));
+          googAvgFrameRateSent.push(parseInt(stat.googFrameRateSent, 10));
         }
       }
-    }
+    });
 
     statsReport.cameraName = stream.getVideoTracks()[0].label || NaN;
     statsReport.actualVideoWidth = videoElement.videoWidth;
@@ -227,14 +224,15 @@ export default class CameraResolutionTest extends Test {
   }
 
   extractEncoderSetupTime (stats, statsCollectTime) {
-    for (let index = 0; index !== stats.length; index++) {
-      if (stats[index].type === 'ssrc') {
-        if (stats[index].stat('googFrameRateInput') > 0) {
-          return JSON.stringify(statsCollectTime[index] - statsCollectTime[0]);
-        }
+    let res = NaN;
+    let index = 0;
+    stats.forEach((stat) => {
+      if (stat.type === 'ssrc' && parseInt(stat.googFrameRateInput, 10) > 0) {
+        res = JSON.stringify(statsCollectTime[index] - statsCollectTime[0]);
       }
-    }
-    return NaN;
+      index++;
+    });
+    return res;
   }
 
   resolutionMatchesIndependentOfRotationOrCrop (aWidth, aHeight, bWidth, bHeight) {
