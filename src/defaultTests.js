@@ -1,9 +1,9 @@
-import AudioTest from './tests/AudioTest';
-import VideoTest from './tests/VideoTest';
-import ConnectivityTest from './tests/ConnectivityTest';
-import AdvancedCameraTest from './tests/AdvancedCameraTest';
-import ThroughputTest from './tests/DataThroughputTest';
-import VideoBandwidthTest from './tests/VideoBandwidthTest';
-import AudioBandwidthTest from './tests/AudioBandwidthTest';
+import AudioTest from './diagnostics/AudioTest';
+import VideoTest from './diagnostics/VideoTest';
+import ConnectivityTest from './diagnostics/ConnectivityTest';
+import AdvancedCameraTest from './diagnostics/AdvancedCameraTest';
+import ThroughputTest from './diagnostics/DataThroughputTest';
+import VideoBandwidthTest from './diagnostics/VideoBandwidthTest';
+import AudioBandwidthTest from './diagnostics/AudioBandwidthTest';
 
 export { AudioTest, VideoTest, ConnectivityTest, AdvancedCameraTest, ThroughputTest, VideoBandwidthTest, AudioBandwidthTest };

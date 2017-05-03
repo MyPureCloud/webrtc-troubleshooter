@@ -5,7 +5,7 @@ import Test from '../utils/Test';
 import StatisticsAggregate from '../utils/StatisticsAggregate';
 
 export default class AudioBandwidthTest extends Test {
-  constructor() {
+  constructor () {
     super(...arguments);
     this.name = 'Bandwidth Test';
     this.maxAudioBitrateKbps = 510;
@@ -31,7 +31,7 @@ export default class AudioBandwidthTest extends Test {
     this.stats = {};
   }
 
-  start() {
+  start () {
     super.start();
 
     if (!this.options.iceConfig.iceServers.length) {
@@ -60,7 +60,7 @@ export default class AudioBandwidthTest extends Test {
       });
   }
 
-  getResults() {
+  getResults () {
     return {
       log: this.log,
       stats: this.stats,
@@ -68,9 +68,9 @@ export default class AudioBandwidthTest extends Test {
     };
   }
 
-  addLog(level, msg) {
+  addLog (level, msg) {
     this.logger[level.toLowerCase()](msg);
-    if (msg && typeof msg === 'Object') {
+    if (msg && typeof msg === 'object') {
       msg = JSON.stringify(msg);
     }
     if (level === 'error') {
@@ -79,7 +79,7 @@ export default class AudioBandwidthTest extends Test {
     this.log.push(`${level}: ${msg}`);
   }
 
-  doGetUserMedia(constraints) {
+  doGetUserMedia (constraints) {
     this.addLog('info', { status: 'pending', constraints });
     return navigator.mediaDevices.getUserMedia(constraints)
       .then((stream) => {
@@ -94,14 +94,14 @@ export default class AudioBandwidthTest extends Test {
       });
   }
 
-  getDeviceName(tracks) {
+  getDeviceName (tracks) {
     if (tracks.length === 0) {
       return null;
     }
     return tracks[0].label;
   }
 
-  setupCall(stream) {
+  setupCall (stream) {
     this.call.pc1.addStream(stream);
     return this.call.establishConnection().then(() => {
       this.addLog('info', { status: 'success', message: 'establishing connection' });
@@ -113,7 +113,7 @@ export default class AudioBandwidthTest extends Test {
     });
   }
 
-  runTest() {
+  runTest () {
     return new Promise((resolve, reject) => {
       this.nextTimeout = setTimeout(() => {
         this.gatherStats().then(resolve, reject);
@@ -131,7 +131,7 @@ export default class AudioBandwidthTest extends Test {
       .catch((error) => this.addLog('error', 'Failed to getStats: ' + error));
   }
 
-  gotStats(response) {
+  gotStats (response) {
     const isWebkit = 'WebkitAppearance' in document.documentElement.style;
     const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
     if (isWebkit) {
@@ -167,13 +167,13 @@ export default class AudioBandwidthTest extends Test {
       }
     } else {
       this.addLog('error', 'Only Firefox and Chrome getStats implementations are supported.');
-      return Promise.reject()
+      return Promise.reject(new Error('Only Firefox and Chrome getStats implementations are supported.'));
     }
 
     return this.runTest();
   }
 
-  completed() {
+  completed () {
     const stats = this.stats;
 
     stats.mbpsAvg = this.bweStats.getAverage() / (1000 * 1000);
@@ -199,7 +199,7 @@ export default class AudioBandwidthTest extends Test {
     return this.results;
   }
 
-  destroy() {
+  destroy () {
     super.destroy();
     window.clearTimeout(this.nextTimeout);
     if (this.call) {

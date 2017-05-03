@@ -92,7 +92,7 @@ export default class VideoBandwidthTest extends Test {
 
   addLog (level, msg) {
     this.logger[level.toLowerCase()](msg);
-    if (msg && typeof msg === 'Object') {
+    if (msg && typeof msg === 'object') {
       msg = JSON.stringify(msg);
     }
     if (level === 'error') {

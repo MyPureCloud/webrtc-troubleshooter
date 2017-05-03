@@ -2,7 +2,7 @@ import Test from '../utils/Test';
 const LocalMedia = require('localmedia');
 
 export default class VideoTest extends Test {
-  constructor() {
+  constructor () {
     super(...arguments);
     this.name = 'Video Test';
 
