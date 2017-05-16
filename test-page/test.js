@@ -55,8 +55,12 @@ runButton.onclick = function startTroubleshooter () {
     const throughputTest = new webRTCTroubleshooter.ThroughputTest(iceConfig);
     throughputTest.promise.then(testCompleted.bind(null, throughputTest, true), testCompleted.bind(null, throughputTest, false));
 
+    const symmetricNatTest = new webRTCTroubleshooter.SymmetricNatTest();
+    symmetricNatTest.promise.then(testCompleted.bind(null, symmetricNatTest, true), testCompleted.bind(null, symmetricNatTest, false));
+
     testSuite.addTest(connectivityTest);
     testSuite.addTest(throughputTest);
+    testSuite.addTest(symmetricNatTest);
   }
 
   testSuite.start().then(function (results) {
