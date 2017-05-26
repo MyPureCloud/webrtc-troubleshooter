@@ -37,8 +37,8 @@
     "uglify-js": "^2.7.3"
   },
   "dependencies": {
-    "localmedia": "^3.0.0",
-    "rtcpeerconnection": "~7.0.0",
+    "localmedia": "^4.0.0",
+    "rtcpeerconnection": "~8.0.0",
     "webrtc-adapter": "^3.1.1"
   },
   "babel": {
