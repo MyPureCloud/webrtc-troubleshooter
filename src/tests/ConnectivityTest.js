@@ -11,7 +11,7 @@ class ConnectivityTest extends Test {
   logIceServers () {
     if (this.options.iceServers) {
       this.options.iceServers.forEach((iceServer) => {
-        this.logger.log(`Using ICE Server: ${iceServer.url}`);
+        this.logger.log(`Using ICE Server: ${iceServer.urls}`);
       });
       if (this.options.iceServers.length === 0) {
         this.logger.error('no ice servers provided');
@@ -23,6 +23,7 @@ class ConnectivityTest extends Test {
 
   start () {
     super.start();
+    this.logIceServers();
     this.pc1 = new PeerConnection(this.options);
     this.pc2 = new PeerConnection(this.options);
 
