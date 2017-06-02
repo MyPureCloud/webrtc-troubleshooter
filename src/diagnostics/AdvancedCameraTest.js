@@ -1,6 +1,4 @@
 import TestSuite from '../utils/TestSuite';
-import VideoFrameChecker from '../utils/VideoFrameChecker';
-import WebrtcCall from '../utils/WebrtcCall';
 import CameraResolutionTest from './CameraResolutionTest';
 
 export default class AdvancedCameraTest extends TestSuite {

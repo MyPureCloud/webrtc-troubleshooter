@@ -6,7 +6,8 @@ import {
   AdvancedCameraTest,
   ThroughputTest,
   VideoBandwidthTest,
-  AudioBandwidthTest
+  AudioBandwidthTest,
+  SymmetricNatTest
 } from './defaultTests';
 import VideoFrameChecker from './utils/VideoFrameChecker';
 
@@ -19,5 +20,6 @@ export default {
   ThroughputTest,
   VideoBandwidthTest,
   VideoFrameChecker,
-  AudioBandwidthTest
+  AudioBandwidthTest,
+  SymmetricNatTest
 };
