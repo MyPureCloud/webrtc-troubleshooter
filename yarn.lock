@@ -4160,10 +4160,6 @@ sdp-jingle-json@^3.0.0:
   version "3.0.0"
   resolved "https://registry.yarnpkg.com/sdp-jingle-json/-/sdp-jingle-json-3.0.0.tgz#94e19b7e9a2a74128e0f2fdf0b19ad9dad40bd06"
 
-sdp@^1.5.0:
-  version "1.5.4"
-  resolved "https://registry.yarnpkg.com/sdp/-/sdp-1.5.4.tgz#8e038f6ddb14bd765ae1f4b5216e12094511e0d0"
-
 semistandard@^10.0.0:
   version "10.0.0"
   resolved "https://registry.yarnpkg.com/semistandard/-/semistandard-10.0.0.tgz#d6894f7673b9b737c262dca94cadf35e8392dde9"
@@ -4761,12 +4757,6 @@ webidl-conversions@^3.0.0:
 webidl-conversions@^4.0.0:
   version "4.0.1"
   resolved "https://registry.yarnpkg.com/webidl-conversions/-/webidl-conversions-4.0.1.tgz#8015a17ab83e7e1b311638486ace81da6ce206a0"
-
-webrtc-adapter@^3.1.1:
-  version "3.4.3"
-  resolved "https://registry.yarnpkg.com/webrtc-adapter/-/webrtc-adapter-3.4.3.tgz#b636062eee9a6ef158acd0d8501b678434b56f16"
-  dependencies:
-    sdp "^1.5.0"
 
 whatwg-encoding@^1.0.1:
   version "1.0.1"

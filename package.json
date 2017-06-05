@@ -38,8 +38,7 @@
   },
   "dependencies": {
     "localmedia": "^4.0.0",
-    "rtcpeerconnection": "~8.0.0",
-    "webrtc-adapter": "^3.1.1"
+    "rtcpeerconnection": "~8.0.0"
   },
   "babel": {
     "presets": [
