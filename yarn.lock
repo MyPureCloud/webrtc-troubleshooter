@@ -4122,9 +4122,9 @@ ripemd160@^2.0.0, ripemd160@^2.0.1:
     hash-base "^2.0.0"
     inherits "^2.0.1"
 
-rtcpeerconnection@~8.0.0:
-  version "8.0.0"
-  resolved "https://registry.yarnpkg.com/rtcpeerconnection/-/rtcpeerconnection-8.0.0.tgz#e07304301e2cfa4d7393af377f1f5dcb54414409"
+rtcpeerconnection@^8.0.1:
+  version "8.0.1"
+  resolved "https://registry.yarnpkg.com/rtcpeerconnection/-/rtcpeerconnection-8.0.1.tgz#9e775a7648691df34ac0b6011bb473ac1fa96432"
   dependencies:
     lodash.clonedeep "^4.3.2"
     sdp-jingle-json "^3.0.0"

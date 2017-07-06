@@ -266,7 +266,7 @@ export default class CameraResolutionTest extends Test {
     if (!this.resolutionMatchesIndependentOfRotationOrCrop(
         report.actualVideoWidth, report.actualVideoHeight, report.mandatoryWidth,
         report.mandatoryHeight)) {
-      this.reportError('Incorrect captured resolution.');
+      this.reportError(`Incorrect captured resolution. Expected ${report.mandatoryWidth} by ${report.mandatoryHeight} but got ${report.actualVideoWidth} by ${report.actualVideoHeight}`);
     } else {
       this.reportSuccess('Captured video using expected resolution.');
     }
