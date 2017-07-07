@@ -4,7 +4,7 @@
   "description": "A way to add webrtc troubleshooting to your app",
   "main": "src/index.js",
   "config": {
-    "report": "report --reporter=lcov"
+    "report": "report --reporter=lcov --reporter=cobertura"
   },
   "scripts": {
     "browserify": "browserify -t [ babelify --presets [ es2015 ] ] --s WebRTCTroubleshooter src/index.js -o dist/webrtc-troubleshooter.bundle.js",
