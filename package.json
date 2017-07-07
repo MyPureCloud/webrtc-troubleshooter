@@ -39,7 +39,7 @@
   },
   "dependencies": {
     "localmedia": "^4.0.0",
-    "rtcpeerconnection": "~8.0.0"
+    "rtcpeerconnection": "^8.0.1"
   },
   "babel": {
     "presets": [

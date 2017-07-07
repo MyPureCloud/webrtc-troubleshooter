@@ -570,6 +570,38 @@ test('completed() should call addLog 6 times if firefox browser and compute stat
   t.deepEqual(actual, expected);
 });
 
+test('completed() should stop transceivers if they exist', function (t) {
+  const mockTransceiver = { stop: sinon.stub() };
+  const context = {
+    addLog: sinon.stub(),
+    rttStats: {
+      add: sinon.stub(),
+      getAverage: sinon.stub(),
+      getMax: sinon.stub()
+    },
+    bweStats: {
+      add: sinon.stub(),
+      getAverage: () => 100,
+      getMax: () => 1000,
+      getRampUpTime: () => 8
+    },
+    runTest: () => Promise.resolve(),
+    gatherStats: () => Promise.resolve(),
+    call: {
+      pc1: {
+        getTransceivers: () => [ mockTransceiver ]
+      },
+      close: () => {}
+    },
+    stats: {},
+    results: {
+      prop: 'prop for firefox results'
+    }
+  };
+  videoBandwidthTest.completed.call(context);
+  t.is(mockTransceiver.stop.called, true);
+});
+
 test('destroy() should clearTimeout and call close', t => {
   t.plan(0);
   const context = {
