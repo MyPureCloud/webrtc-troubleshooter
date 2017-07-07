@@ -199,7 +199,6 @@ export default class VideoBandwidthTest extends Test {
   completed () {
     const isWebkit = 'WebkitAppearance' in document.documentElement.style;
     const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
-    window.thecall = this.call;
     const pc = this.call.pc1;
     if (pc.getLocalStreams) {
       pc.getLocalStreams()[0].getTracks().forEach(t => t.stop());
