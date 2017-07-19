@@ -10,7 +10,11 @@ const iceServersEntry = document.getElementById('ice-servers');
 const runButton = document.getElementById('run-button');
 
 const testCompleted = function (test, success, res) {
-  console.log('test completed', test.name, success ? 'success' : 'failure', res, res ? res.details : 'no results');
+  const result = `test completed ${test.name} ${success ? 'success' : 'failure'} ${res} ${res && res.details ? res.details : 'no results'}`;
+  console.log(result);
+  const p = document.createElement('p');
+  p.innerText = result;
+  document.body.appendChild(p);
 };
 
 runButton.onclick = function startTroubleshooter () {
@@ -63,10 +67,17 @@ runButton.onclick = function startTroubleshooter () {
     testSuite.addTest(symmetricNatTest);
   }
 
+  const p = document.createElement('p');
   testSuite.start().then(function (results) {
-    console.log('Finished the tests', results);
+    const result = 'Finished the tests';
+    console.log(result, results);
+    p.innerText = result;
   }, function (err) {
-    console.warn('test failure', err, err.details);
+    const result = 'test failure';
+    console.warn(result, err, err.details);
+    p.innerText = result;
+  }).then(function () {
+    document.body.appendChild(p);
   });
 };
 
