@@ -2270,6 +2270,13 @@ graceful-fs@^4.1.11, graceful-fs@^4.1.2, graceful-fs@^4.1.4, graceful-fs@^4.1.6:
   version "1.0.1"
   resolved "https://registry.yarnpkg.com/graceful-readlink/-/graceful-readlink-1.0.1.tgz#4cafad76bc62f02fa039b2f94e9a3dd3a391a725"
 
+grunt-shell@^2.1.0:
+  version "2.1.0"
+  resolved "https://registry.yarnpkg.com/grunt-shell/-/grunt-shell-2.1.0.tgz#439f79159ed11e64a651a69cc8a3d02bebf5ecc2"
+  dependencies:
+    chalk "^1.0.0"
+    npm-run-path "^2.0.0"
+
 handlebars@^4.0.3:
   version "4.0.10"
   resolved "https://registry.yarnpkg.com/handlebars/-/handlebars-4.0.10.tgz#3d30c718b09a3d96f23ea4cc1f403c4d3ba9ff4f"
@@ -4122,6 +4129,12 @@ ripemd160@^2.0.0, ripemd160@^2.0.1:
     hash-base "^2.0.0"
     inherits "^2.0.1"
 
+rtcpeerconnection-shim@^1.0.1:
+  version "1.1.4"
+  resolved "https://registry.yarnpkg.com/rtcpeerconnection-shim/-/rtcpeerconnection-shim-1.1.4.tgz#c7e06eec029ebab3997bceb825ddb3c5d820073b"
+  dependencies:
+    sdp "^2.2.0"
+
 rtcpeerconnection@^8.0.1:
   version "8.0.1"
   resolved "https://registry.yarnpkg.com/rtcpeerconnection/-/rtcpeerconnection-8.0.1.tgz#9e775a7648691df34ac0b6011bb473ac1fa96432"
@@ -4160,9 +4173,9 @@ sdp-jingle-json@^3.0.0:
   version "3.0.0"
   resolved "https://registry.yarnpkg.com/sdp-jingle-json/-/sdp-jingle-json-3.0.0.tgz#94e19b7e9a2a74128e0f2fdf0b19ad9dad40bd06"
 
-sdp@^1.5.0:
-  version "1.5.4"
-  resolved "https://registry.yarnpkg.com/sdp/-/sdp-1.5.4.tgz#8e038f6ddb14bd765ae1f4b5216e12094511e0d0"
+sdp@^2.2.0, sdp@^2.3.0:
+  version "2.3.0"
+  resolved "https://registry.yarnpkg.com/sdp/-/sdp-2.3.0.tgz#34600675379fac0508993bea42bc7b228986d5cf"
 
 semistandard@^10.0.0:
   version "10.0.0"
@@ -4762,11 +4775,13 @@ webidl-conversions@^4.0.0:
   version "4.0.1"
   resolved "https://registry.yarnpkg.com/webidl-conversions/-/webidl-conversions-4.0.1.tgz#8015a17ab83e7e1b311638486ace81da6ce206a0"
 
-webrtc-adapter@^4.0.0:
-  version "4.0.0"
-  resolved "https://registry.yarnpkg.com/webrtc-adapter/-/webrtc-adapter-4.0.0.tgz#00212e9b4bf85318fb6c82e6a6060a8947573300"
+webrtc-adapter@^5.0.3:
+  version "5.0.3"
+  resolved "https://registry.yarnpkg.com/webrtc-adapter/-/webrtc-adapter-5.0.3.tgz#cc0e326811f6d5f5e740bda453f76a94920fcc5a"
   dependencies:
-    sdp "^1.5.0"
+    grunt-shell "^2.1.0"
+    rtcpeerconnection-shim "^1.0.1"
+    sdp "^2.3.0"
 
 whatwg-encoding@^1.0.1:
   version "1.0.1"

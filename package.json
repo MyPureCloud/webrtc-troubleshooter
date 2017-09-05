@@ -35,7 +35,7 @@
     "semistandard": "^10.0.0",
     "sinon": "^2.2.0",
     "uglify-js": "^2.7.3",
-    "webrtc-adapter": "^4.0.0"
+    "webrtc-adapter": "^5.0.3"
   },
   "dependencies": {
     "localmedia": "^4.0.0",
