@@ -57,6 +57,7 @@ test('start() should create offer and return promise', t => {
     return {
       addEventListener: () => {},
       addStream: () => {},
+      addTrack: () => {},
       createOffer: sinon.stub().returns(Promise.resolve()),
       setLocalDescription: () => {},
       setRemoteDescription: () => {},

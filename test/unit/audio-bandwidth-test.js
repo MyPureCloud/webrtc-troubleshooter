@@ -18,7 +18,7 @@ test.beforeEach(() => {
     getDeviceName: () => {},
     call: {
       pc1: {
-        addStream: sinon.stub()
+        addTrack: sinon.stub()
       },
       establishConnection: () => Promise.resolve()
     },
@@ -161,7 +161,7 @@ test('setupCall() should call establishConnection function and addLog function',
     getDeviceName: () => {},
     call: {
       pc1: {
-        addStream: sinon.stub()
+        addTrack: sinon.stub()
       },
       establishConnection: () => Promise.resolve()
     },
@@ -170,6 +170,7 @@ test('setupCall() should call establishConnection function and addLog function',
   const audioBandwidthTest = new AudioBandwidthTest(options);
   t.notThrows(() => audioBandwidthTest.setupCall.apply(options, [
     {
+      getTracks () { return this.getAudioTracks(); },
       getAudioTracks: () => {
         return [
           {

@@ -155,7 +155,8 @@ export default class CameraResolutionTest extends Test {
     videoElement.srcObject = stream;
     const frameChecker = new VideoFrameChecker(videoElement);
     const call = new WebrtcCall();
-    call.pc1.addStream(stream);
+
+    stream.getTracks().forEach(t => call.pc1.addTrack(t));
 
     setTimeout(this.endCall.bind(this, call, stream), 8000);
 

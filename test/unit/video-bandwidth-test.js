@@ -204,7 +204,7 @@ test('gotStream() should call establishConnect', t => {
   const context = {
     call: {
       pc1: {
-        addStream: sinon.stub()
+        addTrack: sinon.stub()
       },
       establishConnection: () => Promise.resolve()
     },
@@ -214,6 +214,7 @@ test('gotStream() should call establishConnect', t => {
   return videoBandwidthTest.gotStream.call(
     context,
     {
+      getTracks () { return this.getVideoTracks(); },
       getVideoTracks: () => {
         return [
           {
@@ -223,7 +224,7 @@ test('gotStream() should call establishConnect', t => {
       }
     }
   ).then(() => {
-    t.is(context.call.pc1.addStream.called, true);
+    t.is(context.call.pc1.addTrack.called, true);
     t.is(context.addLog.called, true);
   });
 });

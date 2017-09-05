@@ -122,7 +122,7 @@ export default class VideoBandwidthTest extends Test {
   }
 
   gotStream (stream) {
-    this.call.pc1.addStream(stream);
+    stream.getTracks().forEach(t => this.call.pc1.addTrack(t));
     return this.call.establishConnection().then(() => {
       this.addLog('info', { status: 'success', message: 'establishing connection' });
       this.startTime = new Date();

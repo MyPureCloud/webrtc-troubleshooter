@@ -32,7 +32,7 @@ test('start() should setup webrtc call', async t => {
   global.RTCPeerConnection = () => {
     return {
       addEventListener: () => {},
-      addStream: () => {},
+      addTrack: () => {},
       createOffer: () => Promise.resolve(),
       setLocalDescription: () => {},
       setRemoteDescription: () => {},
