@@ -31,6 +31,7 @@
     "browser-env": "^2.0.31",
     "browserify": "^14.0.0",
     "coveralls": "^2.13.1",
+    "ember-cli-github-pages": "^0.1.2",
     "nyc": "^10.3.2",
     "semistandard": "^10.0.0",
     "sinon": "^2.2.0",
