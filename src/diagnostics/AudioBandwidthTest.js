@@ -102,7 +102,14 @@ export default class AudioBandwidthTest extends Test {
   }
 
   setupCall (stream) {
-    stream.getTracks().forEach(t => this.call.pc1.addTrack(t));
+    try {
+      stream.getTracks.forEach(t => {
+        this.call.pc1 && this.call.pc1.addTrack && this.call.pc1.addTrack(t);
+      });
+    } catch (err) {
+      // fallback for chrome
+      this.call.pc1.addStream(stream);
+    }
 
     return this.call.establishConnection().then(() => {
       this.addLog('info', { status: 'success', message: 'establishing connection' });

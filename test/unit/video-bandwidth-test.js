@@ -204,7 +204,8 @@ test('gotStream() should call establishConnect', t => {
   const context = {
     call: {
       pc1: {
-        addTrack: sinon.stub()
+        addTrack: sinon.stub(),
+        addStream: sinon.stub()
       },
       establishConnection: () => Promise.resolve()
     },
@@ -224,7 +225,11 @@ test('gotStream() should call establishConnect', t => {
       }
     }
   ).then(() => {
-    t.is(context.call.pc1.addTrack.called, true);
+    if (context.call.pc1.addTrack.called) {
+      t.is(context.call.pc1.addTrack.called, true);
+    } else {
+      t.is(context.call.pc1.addStream.called, true);
+    }
     t.is(context.addLog.called, true);
   });
 });
