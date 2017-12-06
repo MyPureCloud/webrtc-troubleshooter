@@ -318,7 +318,6 @@ test('collectAndAnalyzeStats(stream, resolution) should return data with analyze
     return {
       addEventListener: () => {},
       addTrack: () => {},
-      addStream: () => {},
       createOffer: () => Promise.resolve(),
       setLocalDescription: () => {},
       setRemoteDescription: () => {},

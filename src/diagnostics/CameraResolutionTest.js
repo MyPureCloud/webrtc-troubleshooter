@@ -156,14 +156,7 @@ export default class CameraResolutionTest extends Test {
     const frameChecker = new VideoFrameChecker(videoElement);
     const call = new WebrtcCall();
 
-    try {
-      stream.getTracks.forEach(t => {
-        call.pc1 && call.pc1.addTrack && call.pc1.addTrack(t);
-      });
-    } catch (err) {
-      // fallback for chrome
-      call.pc1.addStream(stream);
-    }
+    stream.getTracks().forEach(t => call.pc1.addTrack(t));
 
     setTimeout(this.endCall.bind(this, call, stream), 8000);
 

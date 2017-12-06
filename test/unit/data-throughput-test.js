@@ -33,7 +33,6 @@ test('start() should setup webrtc call', async t => {
     return {
       addEventListener: () => {},
       addTrack: () => {},
-      addStream: () => {},
       createOffer: () => Promise.resolve(),
       setLocalDescription: () => {},
       setRemoteDescription: () => {},
