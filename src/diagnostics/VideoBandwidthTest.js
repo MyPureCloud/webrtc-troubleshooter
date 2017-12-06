@@ -122,7 +122,7 @@ export default class VideoBandwidthTest extends Test {
   }
 
   gotStream (stream) {
-    stream.getTracks().forEach(t => this.call.pc1.addTrack(t));
+    stream.getTracks().forEach(t => this.call.pc1.addTrack(t, stream));
     return this.call.establishConnection().then(() => {
       this.addLog('info', { status: 'success', message: 'establishing connection' });
       this.startTime = new Date();
@@ -153,7 +153,7 @@ export default class VideoBandwidthTest extends Test {
   gotStats (response) {
     const isWebkit = 'WebkitAppearance' in document.documentElement.style;
     const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
-    if (isWebkit) {
+    if (isWebkit && response) {
       const results = typeof response.result === 'function' ? response.result() : response;
       results.forEach((report) => {
         if (report.id === 'bweforvideo' && report.googAvailableSendBandwidth) {
@@ -169,7 +169,7 @@ export default class VideoBandwidthTest extends Test {
           this.packetsSent = report['packetsSent'];
         }
       });
-    } else if (isFirefox) {
+    } else if (isFirefox && response) {
       for (let j in response) {
         let stats = response[j];
         if (stats.id.startsWith('outbound_rtcp_video_')) {
@@ -187,6 +187,8 @@ export default class VideoBandwidthTest extends Test {
           this.framerateMean = stats.framerateMean;
         }
       }
+    } else if (!response) {
+      this.addLog('error', 'Got no response from stats... oddd..');
     } else {
       this.addLog('error', 'Only Firefox and Chrome getStats implementations are supported.');
     }

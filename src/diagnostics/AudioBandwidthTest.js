@@ -102,7 +102,7 @@ export default class AudioBandwidthTest extends Test {
   }
 
   setupCall (stream) {
-    stream.getTracks().forEach(t => this.call.pc1.addTrack(t));
+    stream.getTracks().forEach(t => this.call.pc1.addTrack(t, stream));
 
     return this.call.establishConnection().then(() => {
       this.addLog('info', { status: 'success', message: 'establishing connection' });
@@ -135,7 +135,7 @@ export default class AudioBandwidthTest extends Test {
   gotStats (response) {
     const isWebkit = 'WebkitAppearance' in document.documentElement.style;
     const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
-    if (isWebkit) {
+    if (isWebkit && response) {
       const results = typeof response.result === 'function' ? response.result() : response;
       results.forEach((report) => {
         if (report.type === 'ssrc' && report.mediaType === 'audio') {
@@ -151,7 +151,7 @@ export default class AudioBandwidthTest extends Test {
           this.packetsSent = report['packetsSent'];
         }
       });
-    } else if (isFirefox) {
+    } else if (isFirefox && response) {
       for (let j in response) {
         let stats = response[j];
         if (stats.id.startsWith('outbound_rtcp_audio_')) {
@@ -166,6 +166,9 @@ export default class AudioBandwidthTest extends Test {
           this.packetsSent = stats.packetsSent;
         }
       }
+    } else if (!response) {
+      this.addLog('error', 'Got no response from stats... oddd..');
+      return Promise.reject(new Error('No response from stats'));
     } else {
       this.addLog('error', 'Only Firefox and Chrome getStats implementations are supported.');
       return Promise.reject(new Error('Only Firefox and Chrome getStats implementations are supported.'));

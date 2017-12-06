@@ -46,6 +46,9 @@ class WebrtcCall {
       };
 
       const gotStats = (response) => {
+        if (!response) {
+          return getStats();
+        }
         const now = Date.now();
         const results = response.result ? response.result() : response;
         stats = results;
