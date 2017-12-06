@@ -18,7 +18,8 @@ test.beforeEach(() => {
     getDeviceName: () => {},
     call: {
       pc1: {
-        addTrack: sinon.stub()
+        addTrack: sinon.stub(),
+        addStream: sinon.stub()
       },
       establishConnection: () => Promise.resolve()
     },
@@ -67,13 +68,14 @@ test('start() should call doGetUserMedia if there is iceServers and return error
     },
     reject: () => 'return results and err'
   };
-  const audioBandwidthTest = new AudioBandwidthTest(options);
+
   // Mock out RTCPeerConnection for node runtime.
   global.RTCPeerConnection = () => {
     return {
       addEventListener: () => {}
     };
   };
+  const audioBandwidthTest = new AudioBandwidthTest(options);
   const actual = await audioBandwidthTest.start.call(options);
   t.is(actual, 'return results and err');
 });
@@ -161,7 +163,8 @@ test('setupCall() should call establishConnection function and addLog function',
     getDeviceName: () => {},
     call: {
       pc1: {
-        addTrack: sinon.stub()
+        addTrack: sinon.stub(),
+        addStream: sinon.stub()
       },
       establishConnection: () => Promise.resolve()
     },
