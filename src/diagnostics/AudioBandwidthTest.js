@@ -209,11 +209,12 @@ export default class AudioBandwidthTest extends Test {
     if (this.call) {
       const pc = this.call.pc1;
       if (pc.getLocalStreams) {
-        pc.getLocalStreams()[0].getTracks().forEach(t => t.stop());
+        pc.getLocalStreams().forEach(stream => stream.getTracks().forEach(t => t.stop()));
       }
       if (pc.getTransceivers) {
         pc.getTransceivers().forEach(t => t.stop());
       }
+
       this.call.close();
       this.call = null;
     }
