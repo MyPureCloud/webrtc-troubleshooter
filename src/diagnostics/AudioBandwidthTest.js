@@ -208,8 +208,8 @@ export default class AudioBandwidthTest extends Test {
     window.clearTimeout(this.nextTimeout);
     if (this.call) {
       const pc = this.call.pc1;
-      if (pc.getLocalStreams) {
-        pc.getLocalStreams().forEach(stream => stream.getTracks().forEach(t => t.stop()));
+      if (pc.getSenders) {
+        pc.getSenders().forEach(sender => sender.track.stop());
       }
       if (pc.getTransceivers) {
         pc.getTransceivers().forEach(t => t.stop());
