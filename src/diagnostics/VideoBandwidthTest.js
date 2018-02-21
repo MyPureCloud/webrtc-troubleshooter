@@ -202,8 +202,8 @@ export default class VideoBandwidthTest extends Test {
     const isWebkit = 'WebkitAppearance' in document.documentElement.style;
     const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
     const pc = this.call.pc1;
-    if (pc.getLocalStreams) {
-      pc.getLocalStreams()[0].getTracks().forEach(t => t.stop());
+    if (pc.getSenders) {
+      pc.getSenders().forEach(sender => sender.track.stop());
     }
     if (pc.getTransceivers) {
       pc.getTransceivers().forEach(t => t.stop());
