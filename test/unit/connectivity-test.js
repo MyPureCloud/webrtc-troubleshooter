@@ -58,41 +58,6 @@ test('logIceServers() should call logger.log if no options.iceServers property p
   t.is(context.logger.log.called, true);
 });
 
-test('start() should create offer and return promise', async t => {
-  t.plan(0);
-  // Mock out RTCPeerConnection for node runtime.
-  global.RTCPeerConnection = () => {
-    return {
-      addEventListener: () => {},
-      addStream: () => {},
-      createOffer: () => Promise.resolve(),
-      setLocalDescription: () => {},
-      setRemoteDescription: () => {},
-      createAnswer: () => Promise.resolve(),
-      gatherStats: () => {},
-      getStats: () => {
-        return {
-          then: () => {}
-        };
-      },
-      gotStats: () => {},
-      getRemoteStreams: () => {},
-      createDataChannel: () => {
-        return {
-          onmessage: null
-        };
-      },
-      offer: () => {}
-    };
-  };
-  const context = {
-    logger: {
-      log: sinon.stub()
-    }
-  };
-  await connectivityTest.start.call(context);
-});
-
 test('destroy() should close peer connection', t => {
   const context = {
     pc1: {
