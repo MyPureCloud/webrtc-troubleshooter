@@ -217,7 +217,7 @@ test('gatherStats() should call gotStats', t => {
   });
 });
 
-test('gotStats() calls rttStats and bweStats if is a chrome browser', t => {
+test('gotStats() calls rttStats and bweStats if availableOutgoingBitrate and totalRoundTripTime', t => {
   global.document.documentElement.style.WebkitAppearance = '';
   global.navigator.userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.36 Safari/537.36';
   const context = {
@@ -230,27 +230,23 @@ test('gotStats() calls rttStats and bweStats if is a chrome browser', t => {
     },
     runTest: () => Promise.resolve()
   };
-  return audioBandwidthTest.gotStats.call(context, {
-    result: () => [
-      {
-        type: 'ssrc',
-        mediaType: 'audio',
-        googRtt: 10,
-        timestamp: new Date(),
-        googJitterReceived: 3,
-        packetsLost: 0,
-        packetsSent: 1
-      }
-    ]
-  }).then(() => {
+  return audioBandwidthTest.gotStats.call(context, [{
+    type: 'ssrc',
+    mediaType: 'audio',
+    googRtt: 10,
+    timestamp: new Date(),
+    googJitterReceived: 3,
+    packetsLost: 0,
+    packetsSent: 1,
+    totalRoundTripTime: 55,
+    availableOutgoingBitrate: 2000
+  }]).then(() => {
     t.is(context.rttStats.add.called, true);
     t.is(context.bweStats.add.called, true);
   });
 });
 
-test('gotStats() calls rttStats if id starts with outbound_rtcp_audio_', t => {
-  delete global.document.documentElement.style.WebkitAppearance;
-  global.navigator.userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.11; rv:54.0) Gecko/20100101 Firefox/54.0';
+test('gotStats() calls rttStats if totalRoundTripTime', t => {
   const context = {
     addLog: () => {},
     rttStats: {
@@ -261,44 +257,17 @@ test('gotStats() calls rttStats if id starts with outbound_rtcp_audio_', t => {
     },
     runTest: () => Promise.resolve()
   };
-  return audioBandwidthTest.gotStats.apply(context, [
-    {
-      props: {
-        id: 'outbound_rtcp_audio_',
-        jitter: 'too much caffeine, now I have the jitters',
-        packetsLost: 0,
-        bytesSent: 25,
-        timestamp: new Date(),
-        packetsSent: 3
-      }
-    }
-  ]).then(() => {
+  return audioBandwidthTest.gotStats.call(context, [{
+    id: 'outbound_rtcp_audio_',
+    jitter: 'too much caffeine, now I have the jitters',
+    packetsLost: 0,
+    bytesSent: 25,
+    timestamp: new Date(),
+    packetsSent: 3,
+    totalRoundTripTime: 55
+  }]).then(() => {
     t.is(context.rttStats.add.called, true);
     t.is(context.bweStats.add.called, false);
-  });
-});
-
-test('gotStats() call addLog and rejects with message', t => {
-  delete global.document.documentElement.style.WebkitAppearance;
-  global.navigator.userAgent = '';
-  const context = {
-    addLog: () => {}
-  };
-  return audioBandwidthTest.gotStats.apply(context, [
-    {
-      props: {
-        id: 'outbound_rtp_audio_',
-        jitter: 'too much caffeine, now I have the jitters',
-        packetsLost: 0,
-        bytesSent: 25,
-        timestamp: new Date(),
-        packetsSent: 3
-      }
-    }
-  ])
-  .then(() => t.falsy(true, 'Should not get here'))
-  .catch(err => {
-    t.is(err.message, 'Only Firefox and Chrome getStats implementations are supported.');
   });
 });
 
@@ -327,7 +296,7 @@ test('completed() call addLog multiple times and return results', t => {
     }
   };
   const actual = audioBandwidthTest.completed.call(context);
-  t.is(context.addLog.callCount, 7);
+  t.is(context.addLog.callCount, 6);
   t.is(actual.id, 5);
 });
 

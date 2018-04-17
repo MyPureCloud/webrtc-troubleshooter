@@ -269,9 +269,7 @@ test('gatherStats() should call gotStats if durationMs is greater than differenc
   });
 });
 
-test('gotStats() should call bweStats if is a chrome browser and id is bweforvideo', t => {
-  global.document.documentElement.style.WebkitAppearance = '';
-  global.navigator.userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.36 Safari/537.36';
+test('gotStats() should call bweStats if availableOutgoingBitrate', t => {
   const context = {
     addLog: () => {},
     rttStats: {
@@ -283,30 +281,24 @@ test('gotStats() should call bweStats if is a chrome browser and id is bweforvid
     runTest: () => Promise.resolve(),
     gatherStats: () => Promise.resolve()
   };
-  return videoBandwidthTest.gotStats.call(context, {
-    result: () => [
-      {
-        type: 'ssrc',
-        id: 'bweforvideo',
-        mediaType: 'video',
-        googRtt: 10,
-        timestamp: new Date(),
-        googJitterReceived: 3,
-        packetsLost: 0,
-        packetsSent: 1,
-        googFrameWidthSent: 5,
-        googFrameHeightSent: 9,
-        googAvailableSendBandwidth: 18
-      }
-    ]
-  }).then(() => {
+  return videoBandwidthTest.gotStats.call(context, [{
+    type: 'ssrc',
+    mediaType: 'video',
+    googRtt: 10,
+    timestamp: new Date(),
+    googJitterReceived: 3,
+    packetsLost: 0,
+    packetsSent: 1,
+    googFrameWidthSent: 5,
+    googFrameHeightSent: 9,
+    googAvailableSendBandwidth: 18,
+    availableOutgoingBitrate: 20000
+  }]).then(() => {
     t.is(context.bweStats.add.called, true);
   });
 });
 
-test('gotStats() should call rttStats if is a firefox browser and id is bweforvideo', t => {
-  delete global.document.documentElement.style.WebkitAppearance;
-  global.navigator.userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.11; rv:54.0) Gecko/20100101 Firefox/54.0';
+test('gotStats() should call rttStats if roundTripTime', t => {
   const context = {
     addLog: () => {},
     rttStats: {
@@ -331,14 +323,15 @@ test('gotStats() should call rttStats if is a firefox browser and id is bweforvi
       googFrameWidthSent: 5,
       googFrameHeightSent: 9,
       googAvailableSendBandwidth: 18,
-      jitter: 'some Jitter stuff'
+      jitter: 'some Jitter stuff',
+      roundTripTime: 55
     }
   ]).then(() => {
     t.is(context.rttStats.add.called, true);
   });
 });
 
-test('gotStats() should call addLog if browser is neither firefox nor chrome', t => {
+test('gotStats() should call addLog if no reponse', t => {
   delete global.document.documentElement.style.WebkitAppearance;
   global.navigator.userAgent = '';
   const context = {
@@ -352,22 +345,7 @@ test('gotStats() should call addLog if browser is neither firefox nor chrome', t
     runTest: () => Promise.resolve(),
     gatherStats: () => Promise.resolve()
   };
-  return videoBandwidthTest.gotStats.call(context, [
-    {
-      type: 'ssrc',
-      id: 'outbound_rtcp_video_blah',
-      mediaType: 'video',
-      googRtt: 10,
-      timestamp: new Date(),
-      googJitterReceived: 3,
-      packetsLost: 0,
-      packetsSent: 1,
-      googFrameWidthSent: 5,
-      googFrameHeightSent: 9,
-      googAvailableSendBandwidth: 18,
-      jitter: 'some Jitter stuff'
-    }
-  ]).then(() => {
+  return videoBandwidthTest.gotStats.call(context, null).then(() => {
     t.is(context.addLog.called, true);
   });
 });
