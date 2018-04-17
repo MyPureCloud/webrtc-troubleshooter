@@ -11,7 +11,7 @@ const runButton = document.getElementById('run-button');
 
 const testCompleted = function (test, success, res) {
   const result = `test completed ${test.name} ${success ? 'success' : 'failure'} ${res} ${res && res.details ? res.details : 'no results'}`;
-  console.log(result);
+  console.log(result, res);
   const p = document.createElement('p');
   p.innerText = result;
   document.body.appendChild(p);
@@ -38,6 +38,10 @@ runButton.onclick = function startTroubleshooter () {
     const audioTest = new webRTCTroubleshooter.AudioTest(mediaOptions);
     audioTest.promise.then(testCompleted.bind(null, audioTest, true), testCompleted.bind(null, audioTest, false));
     testSuite.addTest(audioTest);
+
+    const audioBandwidthTest = new webRTCTroubleshooter.AudioBandwidthTest({ iceConfig: iceConfig, mediaOptions: mediaOptions });
+    audioBandwidthTest.promise.then(testCompleted.bind(null, audioBandwidthTest, true), testCompleted.bind(null, audioBandwidthTest, false));
+    testSuite.addTest(audioBandwidthTest);
   }
 
   if (video) {

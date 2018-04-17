@@ -7,7 +7,7 @@ import StatisticsAggregate from '../utils/StatisticsAggregate';
 export default class AudioBandwidthTest extends Test {
   constructor () {
     super(...arguments);
-    this.name = 'Bandwidth Test';
+    this.name = 'Audio Bandwidth Test';
     this.maxAudioBitrateKbps = 510;
     this.durationMs = 40000;
     this.statStepMs = 100;
@@ -133,45 +133,32 @@ export default class AudioBandwidthTest extends Test {
   }
 
   gotStats (response) {
-    const isWebkit = 'WebkitAppearance' in document.documentElement.style;
-    const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
-    if (isWebkit && response) {
+    if (!response) {
+      this.addLog('error', 'Got no response from stats... odd...');
+    } else {
       const results = typeof response.result === 'function' ? response.result() : response;
       results.forEach((report) => {
-        if (report.type === 'ssrc' && report.mediaType === 'audio') {
-          const rtt = parseInt(report['googRtt'], 10) || 0;
-          this.rttStats.add(Date.parse(report.timestamp), rtt);
-
-          const bytes = parseInt(report['bytesSent'], 10);
-          this.bweStats.add(Date.parse(report.timestamp), bytes);
-
-          // Grab the last stats.
-          this.jitter = report['googJitterReceived'];
-          this.packetsLost = report['packetsLost'];
-          this.packetsSent = report['packetsSent'];
+        if (report.availableOutgoingBitrate) {
+          const value = parseInt(report.availableOutgoingBitrate, 10);
+          this.bweStats.add(new Date(report.timestamp), value);
+        }
+        if (report.totalRoundTripTime || report.roundTripTime) {
+          const value = parseInt(report.totalRoundTripTime || report.roundTripTime, 10);
+          this.rttStats.add(new Date(report.timestamp), value);
+        }
+        if (report.packetsSent) {
+          this.packetsSent = report.packetsSent;
+        }
+        if (report.packetsLost) {
+          this.packetsLost = report.packetsLost;
+        }
+        if (report.frameWidth) {
+          this.videoStats[0] = report.frameWidth;
+        }
+        if (report.frameHeight) {
+          this.videoStats[1] = report.frameHeight;
         }
       });
-    } else if (isFirefox && response) {
-      for (let j in response) {
-        let stats = response[j];
-        if (stats.id.startsWith('outbound_rtcp_audio_')) {
-          this.rttStats.add(Date.parse(stats.timestamp), parseInt(stats.mozRtt, 10));
-          // Grab the last stats.
-          this.jitter = stats.jitter;
-          this.packetsLost = stats.packetsLost;
-        } else if (stats.id.startsWith('outbound_rtp_audio_')) {
-          const bytes = parseInt(stats['bytesSent'], 10);
-          this.bweStats.add(Date.parse(stats.timestamp), bytes);
-
-          this.packetsSent = stats.packetsSent;
-        }
-      }
-    } else if (!response) {
-      this.addLog('error', 'Got no response from stats... oddd..');
-      return Promise.reject(new Error('No response from stats'));
-    } else {
-      this.addLog('error', 'Only Firefox and Chrome getStats implementations are supported.');
-      return Promise.reject(new Error('Only Firefox and Chrome getStats implementations are supported.'));
     }
 
     return this.runTest();
@@ -189,15 +176,13 @@ export default class AudioBandwidthTest extends Test {
     stats.rttAverage = this.rttStats.getAverage();
     stats.rttMax = this.rttStats.getMax();
     stats.packetsSent = parseInt(this.packetsSent);
-    stats.jitter = parseInt(this.jitter);
 
     if (this.packetsSent) {
-      stats.packetLoss = parseInt(this.packetsLost, 10) / parseFloat(this.packetsSent);
+      stats.packetLoss = parseInt(this.packetsLost || 0, 10) / parseFloat(this.packetsSent);
     }
 
     this.addLog('info', `RTT average: ${stats.rttAverage} ms`);
     this.addLog('info', `RTT max: ${stats.rttMax} ms`);
-    this.addLog('info', `Jitter: ${stats.rttMax} ms`);
     this.addLog('info', `Packets sent: ${stats.rttMax} ms`);
     this.addLog('info', `Packet loss %: ${stats.packetLoss}`);
     return this.results;

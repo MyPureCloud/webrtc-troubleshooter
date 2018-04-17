@@ -23,7 +23,7 @@ export default class StatisticsAggregate {
     if (this.count === 0) {
       return 0;
     }
-    return Math.round(this.sum / this.count);
+    return this.sum / this.count;
   }
   getMax () {
     return this.max;
