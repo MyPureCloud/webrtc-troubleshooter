@@ -1,19 +1,38 @@
-/* global RTCPeerConnection */
 // adapted from https://github.com/webrtc/testrtc
+import WebrtcStatsGather from 'webrtc-stats-gatherer';
+const PeerConnection = require('rtcpeerconnection');
 
 class WebrtcCall {
-  constructor (config) {
-    this.pc1 = new RTCPeerConnection(config);
-    this.pc2 = new RTCPeerConnection(config);
+  constructor (config, logger) {
+    this.pc1 = new PeerConnection(config);
+    this.pc2 = new PeerConnection(config);
 
-    this.pc1.addEventListener('icecandidate', this.onIceCandidate.bind(this, this.pc2));
-    this.pc2.addEventListener('icecandidate', this.onIceCandidate.bind(this, this.pc1));
+    this.logger = logger;
+
+    this.pc1Gatherer = new WebrtcStatsGather(this.pc1);
+    this.pc1Gatherer.on('stats', stats => this.logger.log('pc1 webrtc stats', stats));
+    this.pc1Gatherer.collectInitialConnectionStats();
+    this.pc1Gatherer.collectStats();
+
+    this.pc2Gatherer = new WebrtcStatsGather(this.pc2);
+    this.pc2Gatherer.on('stats', stats => this.logger.log('pc2 webrtc stats', stats));
+    this.pc2Gatherer.collectInitialConnectionStats();
+    this.pc2Gatherer.collectStats();
+
+    this.pc1.on('ice', candidate => {
+      this.logger.log('webrtc call pc1 candidate', candidate);
+      this.onIceCandidate(this.pc2, candidate);
+    });
+    this.pc2.on('ice', candidate => {
+      this.logger.log('webrtc call pc2 candidate', candidate);
+      this.onIceCandidate(this.pc1, candidate);
+    });
 
     this.iceCandidateFilter = WebrtcCall.noFilter;
   }
 
   establishConnection () {
-    return this.pc1.createOffer().then(this.gotOffer.bind(this), () => this.logger.error(...arguments));
+    return this.pc1.pc.createOffer().then(this.gotOffer.bind(this), () => this.logger.error(...arguments));
   }
 
   close () {
@@ -66,24 +85,24 @@ class WebrtcCall {
     //   offer.sdp = offer.sdp.replace(/a=rtpmap:116 red\/90000\r\n/g, '');
     //   offer.sdp = offer.sdp.replace(/a=rtpmap:117 ulpfec\/90000\r\n/g, '');
     // }
-    this.pc1.setLocalDescription(offer);
-    this.pc2.setRemoteDescription(offer);
-    return this.pc2.createAnswer().then(this.gotAnswer.bind(this), console.error.bind(console));
+    this.pc1.pc.setLocalDescription(offer);
+    this.pc2.pc.setRemoteDescription(offer);
+    return this.pc2.pc.createAnswer().then(this.gotAnswer.bind(this), console.error.bind(console));
   }
 
   gotAnswer (answer) {
     if (this.constrainVideoBitrateKbps) {
       answer.sdp = answer.sdp.replace(/a=mid:video\r\n/g, 'a=mid:video\r\nb=AS:' + this.constrainVideoBitrateKbps + '\r\n');
     }
-    this.pc2.setLocalDescription(answer);
-    return this.pc1.setRemoteDescription(answer);
+    this.pc2.pc.setLocalDescription(answer);
+    return this.pc1.pc.setRemoteDescription(answer);
   }
 
   onIceCandidate (otherPeer, event) {
     if (event.candidate) {
       var parsed = this.parseCandidate(event.candidate.candidate);
       if (this.iceCandidateFilter(parsed)) {
-        otherPeer.addIceCandidate(event.candidate);
+        otherPeer.pc.addIceCandidate(event.candidate);
       }
     }
   }

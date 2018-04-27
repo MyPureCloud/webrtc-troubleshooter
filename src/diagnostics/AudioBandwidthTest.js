@@ -39,7 +39,7 @@ export default class AudioBandwidthTest extends Test {
       error.details = this.log;
       return this.reject(error);
     }
-    this.call = new WebrtcCall(this.options.iceConfig);
+    this.call = new WebrtcCall(this.options.iceConfig, this.logger);
     this.call.setIceCandidateFilter(WebrtcCall.isRelay);
 
     return this.doGetUserMedia(this.constraints)
@@ -102,7 +102,7 @@ export default class AudioBandwidthTest extends Test {
   }
 
   setupCall (stream) {
-    stream.getTracks().forEach(t => this.call.pc1.addTrack(t, stream));
+    stream.getTracks().forEach(t => this.call.pc1.pc.addTrack(t, stream));
 
     return this.call.establishConnection().then(() => {
       this.addLog('info', { status: 'success', message: 'establishing connection' });

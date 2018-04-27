@@ -36,11 +36,12 @@
     "semistandard": "^10.0.0",
     "sinon": "^2.2.0",
     "uglify-js": "^2.7.3",
-    "webrtc-adapter": "^5.0.3"
+    "webrtc-adapter": "^6.1.5"
   },
   "dependencies": {
     "localmedia": "^4.0.0",
-    "rtcpeerconnection": "^8.0.1"
+    "rtcpeerconnection": "^8.0.1",
+    "webrtc-stats-gatherer": "^4.2.10"
   },
   "babel": {
     "presets": [

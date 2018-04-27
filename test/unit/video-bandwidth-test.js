@@ -224,7 +224,7 @@ test('gotStream() should call establishConnect', t => {
       }
     }
   ).then(() => {
-    t.is(context.call.pc1.addTrack.called, true);
+    t.is(context.call.pc1.pc.addTrack.called, true);
     t.is(context.addLog.called, true);
   });
 });
