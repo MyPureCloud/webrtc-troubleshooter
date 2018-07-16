@@ -3,6 +3,7 @@
 import WebrtcCall from '../utils/WebrtcCall';
 import Test from '../utils/Test';
 import StatisticsAggregate from '../utils/StatisticsAggregate';
+import ERROR_CODES from '../utils/testErrorCodes';
 
 export default class AudioBandwidthTest extends Test {
   constructor () {
@@ -36,6 +37,7 @@ export default class AudioBandwidthTest extends Test {
 
     if (!this.options.iceConfig.iceServers.length) {
       const error = new Error('No ice servers were provided');
+      error.pcCode = ERROR_CODES.ICE;
       error.details = this.log;
       return this.reject(error);
     }
@@ -54,6 +56,7 @@ export default class AudioBandwidthTest extends Test {
         return this.resolve(this.getResults());
       })
       .catch(err => {
+        err.pcCode = ERROR_CODES.MEDIA;
         const results = this.getResults();
         results.error = err;
         return this.reject(err);
@@ -88,6 +91,7 @@ export default class AudioBandwidthTest extends Test {
         return stream;
       })
       .catch(error => {
+        error.pcCode = ERROR_CODES.MEDIA;
         this.addLog('error', {'status': 'fail', 'error': error});
         this.addLog('error', `Failed to get access to local media due to error: ${error.name}`);
         return this.reject(error);
