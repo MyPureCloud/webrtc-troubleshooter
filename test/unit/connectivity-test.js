@@ -50,44 +50,6 @@ test('logIceServers() should call logger.log if no options.iceServers property p
   t.is(options.logger.log.called, true);
 });
 
-test('start() should create offer and return promise', t => {
-  t.plan(0);
-  // Mock out RTCPeerConnection for node runtime.
-  global.RTCPeerConnection = function () {
-    return {
-      addEventListener: () => {},
-      addStream: () => {},
-      addTrack: () => {},
-      createOffer: sinon.stub().returns(Promise.resolve()),
-      setLocalDescription: () => {},
-      setRemoteDescription: () => {},
-      createAnswer: () => Promise.resolve(),
-      gatherStats: () => {},
-      getStats: () => {
-        return {
-          then: () => {}
-        };
-      },
-      gotStats: () => {},
-      getRemoteStreams: () => {},
-      createDataChannel: () => {
-        return {
-          onmessage: null
-        };
-      },
-      offer: () => {}
-    };
-  };
-  const options = {
-    logger: {
-      log: sinon.stub()
-    }
-  };
-  connectivityTest = new ConnectivityTest(options);
-  connectivityTest.start();
-  sinon.assert.calledOnce(connectivityTest.pc1.pc.createOffer);
-});
-
 test('destroy() should close peer connection', t => {
   connectivityTest = new ConnectivityTest({});
   connectivityTest.pc1 = {
