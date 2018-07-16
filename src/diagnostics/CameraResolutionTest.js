@@ -154,8 +154,9 @@ export default class CameraResolutionTest extends Test {
     videoElement.height = resolution[1];
     videoElement.srcObject = stream;
     const frameChecker = new VideoFrameChecker(videoElement);
-    const call = new WebrtcCall();
-    call.pc1.addStream(stream);
+    const call = new WebrtcCall(undefined, this.logger);
+
+    stream.getTracks().forEach(t => call.pc1.pc.addTrack(t, stream));
 
     setTimeout(this.endCall.bind(this, call, stream), 8000);
 
@@ -266,7 +267,7 @@ export default class CameraResolutionTest extends Test {
     if (!this.resolutionMatchesIndependentOfRotationOrCrop(
         report.actualVideoWidth, report.actualVideoHeight, report.mandatoryWidth,
         report.mandatoryHeight)) {
-      this.reportError('Incorrect captured resolution.');
+      this.reportError(`Incorrect captured resolution. Expected ${report.mandatoryWidth} by ${report.mandatoryHeight} but got ${report.actualVideoWidth} by ${report.actualVideoHeight}`);
     } else {
       this.reportSuccess('Captured video using expected resolution.');
     }

@@ -7,11 +7,12 @@ import StatisticsAggregate from '../utils/StatisticsAggregate';
 export default class VideoBandwidthTest extends Test {
   constructor () {
     super(...arguments);
-    this.name = 'Bandwidth Test';
+    this.name = 'Video Bandwidth Test';
     this.maxVideoBitrateKbps = 2000;
     this.durationMs = 40000;
     this.statStepMs = 100;
     this.bweStats = new StatisticsAggregate(0.75 * this.maxVideoBitrateKbps * 1000);
+    window.bweStats = this.bweStats;
     this.rttStats = new StatisticsAggregate();
     this.packetsLost = null;
     this.videoStats = [];
@@ -52,7 +53,7 @@ export default class VideoBandwidthTest extends Test {
       error.details = this.log;
       return this.reject(error);
     }
-    this.call = new WebrtcCall(this.options.iceConfig);
+    this.call = new WebrtcCall(this.options.iceConfig, this.logger);
     this.call.setIceCandidateFilter(WebrtcCall.isRelay);
     // FEC makes it hard to study bandwidth estimation since there seems to be
     // a spike when it is enabled and disabled. Disable it for now. FEC issue
@@ -122,7 +123,7 @@ export default class VideoBandwidthTest extends Test {
   }
 
   gotStream (stream) {
-    this.call.pc1.addStream(stream);
+    stream.getTracks().forEach(t => this.call.pc1.pc.addTrack(t, stream));
     return this.call.establishConnection().then(() => {
       this.addLog('info', { status: 'success', message: 'establishing connection' });
       this.startTime = new Date();
@@ -151,44 +152,32 @@ export default class VideoBandwidthTest extends Test {
   }
 
   gotStats (response) {
-    const isWebkit = 'WebkitAppearance' in document.documentElement.style;
-    const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
-    if (isWebkit) {
+    if (!response) {
+      this.addLog('error', 'Got no response from stats... odd...');
+    } else {
       const results = typeof response.result === 'function' ? response.result() : response;
       results.forEach((report) => {
-        if (report.id === 'bweforvideo' && report.googAvailableSendBandwidth) {
-          const value = parseInt(report['googAvailableSendBandwidth'], 10);
-          this.bweStats.add(Date.parse(report.timestamp), value);
-        } else if (report.type === 'ssrc' && report.googRtt) {
-          const value = parseInt(report['googRtt'], 10);
-          this.rttStats.add(Date.parse(report.timestamp), value);
-          // Grab the last stats.
-          this.videoStats[0] = report['googFrameWidthSent'];
-          this.videoStats[1] = report['googFrameHeightSent'];
-          this.packetsLost = report['packetsLost'];
-          this.packetsSent = report['packetsSent'];
+        if (report.availableOutgoingBitrate) {
+          const value = parseInt(report.availableOutgoingBitrate, 10);
+          this.bweStats.add(new Date(report.timestamp), value);
+        }
+        if (report.totalRoundTripTime || report.roundTripTime) {
+          const value = parseInt(report.totalRoundTripTime || report.roundTripTime, 10);
+          this.rttStats.add(new Date(report.timestamp), value);
+        }
+        if (report.packetsSent) {
+          this.packetsSent = report.packetsSent;
+        }
+        if (report.packetsLost) {
+          this.packetsLost = report.packetsLost;
+        }
+        if (report.frameWidth) {
+          this.videoStats[0] = report.frameWidth;
+        }
+        if (report.frameHeight) {
+          this.videoStats[1] = report.frameHeight;
         }
       });
-    } else if (isFirefox) {
-      for (let j in response) {
-        let stats = response[j];
-        if (stats.id.startsWith('outbound_rtcp_video_')) {
-          this.rttStats.add(Date.parse(stats.timestamp), parseInt(stats.mozRtt, 10));
-          // Grab the last stats.
-          this.jitter = stats.jitter;
-          this.packetsLost = stats.packetsLost;
-        } else if (stats.id.startsWith('outbound_rtp_video_')) {
-          // TODO: Get dimensions from getStats when supported in FF.
-          this.videoStats[0] = 'Not supported on Firefox';
-          this.videoStats[1] = 'Not supported on Firefox';
-          this.bitrateMean = stats.bitrateMean;
-          this.bitrateStdDev = stats.bitrateStdDev;
-          this.packetsSent = stats.packetsSent;
-          this.framerateMean = stats.framerateMean;
-        }
-      }
-    } else {
-      this.addLog('error', 'Only Firefox and Chrome getStats implementations are supported.');
     }
     return new Promise((resolve, reject) => {
       this.nextTimeout = setTimeout(() => {
@@ -199,9 +188,13 @@ export default class VideoBandwidthTest extends Test {
   completed () {
     const isWebkit = 'WebkitAppearance' in document.documentElement.style;
     const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
-    this.call.pc1.getLocalStreams()[0].getTracks().forEach((track) => {
-      track.stop();
-    });
+    const pc = this.call.pc1;
+    if (pc.getSenders) {
+      pc.getSenders().forEach(sender => sender.track.stop());
+    }
+    if (pc.getTransceivers) {
+      pc.getTransceivers().forEach(t => t.stop());
+    }
     this.call.close();
     this.call = null;
     const stats = this.stats;
@@ -238,7 +231,7 @@ export default class VideoBandwidthTest extends Test {
     stats.rttMax = this.rttStats.getMax();
 
     if (this.packetsSent) {
-      stats.packetLoss = parseInt(this.packetsLost, 10) / parseFloat(this.packetsSent);
+      stats.packetLoss = parseInt(this.packetsLost || 0, 10) / parseFloat(this.packetsSent);
     }
 
     this.addLog('info', `RTT average: ${stats.rttAverage} ms`);

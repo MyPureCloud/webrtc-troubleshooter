@@ -3,15 +3,6 @@
 [![Build Status](https://travis-ci.org/MyPureCloud/webrtc-troubleshooter.svg?branch=master)](https://travis-ci.org/MyPureCloud/webrtc-troubleshooter)
 [![Coverage Status](https://coveralls.io/repos/github/MyPureCloud/webrtc-troubleshooter/badge.svg?branch=master)](https://coveralls.io/github/MyPureCloud/webrtc-troubleshooter?branch=master)
 
-#### PSA
-
-This addon is still under development and not *quite* ready for use.
-
-TODO:
-* [x] create non-ember based webrtc tester
-* [x] create dummy page for testing
-* [ ] publish as bower package
-
 
 # Develop
 

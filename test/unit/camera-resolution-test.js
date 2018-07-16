@@ -317,7 +317,7 @@ test('collectAndAnalyzeStats(stream, resolution) should return data with analyze
   global.RTCPeerConnection = () => {
     return {
       addEventListener: () => {},
-      addStream: () => {},
+      addTrack: () => {},
       createOffer: () => Promise.resolve(),
       setLocalDescription: () => {},
       setRemoteDescription: () => {},
@@ -334,6 +334,7 @@ test('collectAndAnalyzeStats(stream, resolution) should return data with analyze
   global.gotOffer = () => {};
   const args = [
     {
+      getTracks () { return this.getVideoTracks(); },
       getVideoTracks: () => {
         return [
           {

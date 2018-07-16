@@ -37,19 +37,19 @@ class DataChannelThroughputTest extends Test {
       this.logger.error('No ice servers were provided');
       this.reject(new Error('No ice servers'));
     } else {
-      this.call = new WebrtcCall(this.options);
+      this.call = new WebrtcCall(this.options, this.logger);
       this.call.setIceCandidateFilter(WebrtcCall.isRelay);
       this.senderChannel = this.call.pc1.createDataChannel(null);
       this.senderChannel.addEventListener('open', this.sendingStep.bind(this));
-      this.call.pc2.addEventListener('datachannel', this.onReceiverChannel.bind(this));
+      this.call.pc2.on('addChannel', this.onReceiverChannel.bind(this));
 
       this.call.establishConnection();
     }
     return this.promise;
   }
 
-  onReceiverChannel (event) {
-    this.receiveChannel = event.channel;
+  onReceiverChannel (channel) {
+    this.receiveChannel = channel;
     this.receiveChannel.addEventListener('message', this.onMessageReceived.bind(this));
   }
 

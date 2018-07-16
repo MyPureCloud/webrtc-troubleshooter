@@ -32,11 +32,11 @@ class ConnectivityTest extends Test {
       this.reject(new Error('connectivity timeout'));
     }, 10000);
     this.pc2.on('ice', (candidate) => {
-      this.logger.log('pc2 ICE candidate');
+      this.logger.log('pc2 ICE candidate', candidate);
       this.pc1.processIce(candidate);
     });
     this.pc1.on('ice', (candidate) => {
-      this.logger.log('pc1 ICE candidate');
+      this.logger.log('pc1 ICE candidate', candidate);
       this.pc2.processIce(candidate);
     });
     this.pc2.on('answer', (answer) => {

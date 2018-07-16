@@ -1,10 +1,10 @@
 {
   "name": "webrtc-troubleshoot",
-  "version": "4.0.0",
+  "version": "8.1.0",
   "description": "A way to add webrtc troubleshooting to your app",
   "main": "src/index.js",
   "config": {
-    "report": "report --reporter=lcov"
+    "report": "report --reporter=lcov --reporter=cobertura"
   },
   "scripts": {
     "browserify": "browserify -t [ babelify --presets [ es2015 ] ] --s WebRTCTroubleshooter src/index.js -o dist/webrtc-troubleshooter.bundle.js",
@@ -31,15 +31,17 @@
     "browser-env": "^2.0.31",
     "browserify": "^14.0.0",
     "coveralls": "^2.13.1",
+    "ember-cli-github-pages": "^0.1.2",
     "nyc": "^10.3.2",
     "semistandard": "^10.0.0",
     "sinon": "^2.2.0",
-    "uglify-js": "^2.7.3"
+    "uglify-js": "^2.7.3",
+    "webrtc-adapter": "^6.1.5"
   },
   "dependencies": {
     "localmedia": "^4.0.0",
-    "rtcpeerconnection": "~8.0.0",
-    "webrtc-adapter": "^3.1.1"
+    "rtcpeerconnection": "^8.0.1",
+    "webrtc-stats-gatherer": "^4.2.10"
   },
   "babel": {
     "presets": [

@@ -27,17 +27,38 @@ class SymmetricNatTest extends Test {
         }
         candidates[candidate.relatedPort].push(candidate.port);
       } else if (!e.candidate) {
-        const candidatePorts = Object.keys(candidates);
-        if (candidatePorts.length === 1) {
-          const ports = candidates[candidatePorts];
+        const relatedPorts = Object.keys(candidates);
+        if (relatedPorts.length === 1) {
+          const relatedPort = relatedPorts[0];
+          const ports = candidates[relatedPort];
           this.resolve(ports.length === 1 ? 'nat.asymmetric' : 'nat.symmetric');
-        } else if (candidatePorts.length === 0) {
+        } else if (relatedPorts.length === 0) {
           this.resolve('nat.noSrflx');
         } else {
-          this.resolve('nat.multipleRelated');
+          let hasAsymmetric = false;
+          let hasSymmetric = false;
+          for (let i = 0; i < relatedPorts.length; i++) {
+            const relatedPort = relatedPorts[i];
+            const ports = candidates[relatedPort];
+            if (ports.length === 1) {
+              hasAsymmetric = true;
+            } else {
+              hasSymmetric = true;
+            }
+          }
+          if (hasSymmetric && !hasAsymmetric) {
+            this.resolve('nat.symmetric');
+          } else if (!hasSymmetric && hasAsymmetric) {
+            this.resolve('nat.asymmetric');
+          } else if (hasSymmetric && hasAsymmetric) {
+            this.resolve('nat.both');
+          } else {
+            this.resolve('not.noSrflx');
+          }
         }
       }
     };
+    pc.onendofcandidates = pc.onicecandidate.bind(pc, {});
     pc.createOffer().then(offer => pc.setLocalDescription(offer));
     return this.promise;
   }
