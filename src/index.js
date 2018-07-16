@@ -10,6 +10,7 @@ import {
   SymmetricNatTest
 } from './defaultTests';
 import VideoFrameChecker from './utils/VideoFrameChecker';
+import ERROR_CODES from './utils/testErrorCodes';
 
 export default {
   TestSuite,
@@ -21,5 +22,6 @@ export default {
   VideoBandwidthTest,
   VideoFrameChecker,
   AudioBandwidthTest,
-  SymmetricNatTest
+  SymmetricNatTest,
+  ERROR_CODES
 };

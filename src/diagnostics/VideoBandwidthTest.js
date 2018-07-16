@@ -3,6 +3,7 @@
 import WebrtcCall from '../utils/WebrtcCall';
 import Test from '../utils/Test';
 import StatisticsAggregate from '../utils/StatisticsAggregate';
+import ERROR_CODES from '../utils/testErrorCodes';
 
 export default class VideoBandwidthTest extends Test {
   constructor () {
@@ -50,6 +51,7 @@ export default class VideoBandwidthTest extends Test {
 
     if (!this.options.iceConfig.iceServers.length) {
       const error = new Error('No ice servers were provided');
+      error.pcCode = ERROR_CODES.ICE;
       error.details = this.log;
       return this.reject(error);
     }
@@ -77,6 +79,7 @@ export default class VideoBandwidthTest extends Test {
         return this.reject(results);
       }
     }, (err) => {
+      err.pcCode = ERROR_CODES.MEDIA;
       const results = this.getResults();
       results.error = err;
       return this.reject(err);
@@ -109,6 +112,7 @@ export default class VideoBandwidthTest extends Test {
       this.addLog('info', { status: 'success', camera });
       return this.gotStream(stream);
     }, (error) => {
+      error.pcCode = ERROR_CODES.MEDIA;
       this.addLog('error', {'status': 'fail', 'error': error});
       this.addLog('error', `Failed to get access to local media due to error: ${error.name}`);
       return this.reject(error);
