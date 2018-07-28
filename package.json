@@ -8,9 +8,7 @@
     "report": "report --reporter=lcov --reporter=cobertura"
   },
   "scripts": {
-    "browserify": "browserify -t [ babelify --presets [ es2015 ] ] --s WebRTCTroubleshooter src/index.js -o dist/webrtc-troubleshooter.bundle.js",
-    "uglify": "uglifyjs dist/webrtc-troubleshooter.bundle.js -o dist/webrtc-troubleshooter.bundle.js",
-    "build": "npm run browserify && npm run uglify",
+    "build": "webpack",
     "lint": "semistandard",
     "lint:fix": "semistandard --fix",
     "unit-test": "nyc ava test/unit/*.js",
@@ -30,12 +28,10 @@
     "babel-preset-env": "^1.7.0",
     "babelify": "^7.2.0",
     "browser-env": "^2.0.31",
-    "browserify": "^14.0.0",
     "coveralls": "^3.0.2",
     "nyc": "^13.0.1",
     "semistandard": "^10.0.0",
     "sinon": "^2.2.0",
-    "uglify-js": "^2.7.3",
     "webrtc-adapter": "^6.1.5"
   },
   "dependencies": {
