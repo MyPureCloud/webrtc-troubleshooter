@@ -27,7 +27,6 @@ test.beforeEach(() => {
 });
 
 test.after(() => {
-  delete global.RTCPeerConnection;
   delete global.gotOffer;
 });
 
@@ -313,25 +312,6 @@ test('collectAndAnalyzeStats(stream, resolution) should reportError and call may
 });
 
 test('collectAndAnalyzeStats(stream, resolution) should return data with analyzeStats final call', async t => {
-  // Mock out RTCPeerConnection for node runtime.
-  global.RTCPeerConnection = () => {
-    return {
-      addEventListener: () => {},
-      addTrack: () => {},
-      createOffer: () => Promise.resolve(),
-      setLocalDescription: () => {},
-      setRemoteDescription: () => {},
-      createAnswer: () => Promise.resolve(),
-      gatherStats: () => {},
-      getStats: () => {
-        return {
-          then: () => {}
-        };
-      },
-      gotStats: () => {}
-    };
-  };
-  global.gotOffer = () => {};
   const args = [
     {
       getTracks () { return this.getVideoTracks(); },

@@ -6,13 +6,6 @@ import SymmetricNatTest from '../../src/diagnostics/SymmetricNatTest';
 let audioTest;
 test.beforeEach(() => {
   audioTest = new SymmetricNatTest();
-  window.RTCPeerConnection = class {
-    createOffer () {
-      return Promise.resolve({});
-    }
-    createDataChannel () {}
-    setLocalDescription () {}
-  };
 });
 
 test('should result in asymmetric if it gets a single srflx candidate', t => {

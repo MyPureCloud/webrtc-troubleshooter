@@ -1,5 +1,5 @@
 // adapted from https://github.com/webrtc/testrtc
-import WebrtcStatsGather from 'webrtc-stats-gatherer';
+const WebrtcStatsGather = require('webrtc-stats-gatherer/out/stats-gatherer.js').default;
 const PeerConnection = require('rtcpeerconnection');
 
 class WebrtcCall {

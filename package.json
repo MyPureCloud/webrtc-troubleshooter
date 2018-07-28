@@ -10,7 +10,6 @@
   "scripts": {
     "build": "webpack --env=prod --progress --profile --colors",
     "unit-test": "nyc --reporter=lcov --reporter=cobertura ava test/unit/*.js",
-    "prepublish": "npm run build && npm run test",
     "test": "semistandard && npm run unit-test && npm run report",
     "report": "nyc report"
   },
@@ -32,7 +31,7 @@
     "webrtc-adapter": "^6.1.5"
   },
   "dependencies": {
-    "localmedia": "^4.0.0",
+    "localmedia": "^5.0.0",
     "rtcpeerconnection": "^8.0.1",
     "webrtc-stats-gatherer": "^4.2.10"
   },

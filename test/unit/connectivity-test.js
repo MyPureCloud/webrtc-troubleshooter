@@ -6,8 +6,6 @@ import ConnectivityTest from '../../src/diagnostics/ConnectivityTest';
 let connectivityTest;
 
 test.after(() => {
-  delete global.RTCPeerConnection;
-  delete global.dataChannel;
   connectivityTest = null;
 });
 
