@@ -174,7 +174,7 @@ test('doGetUserMedia() should return stream', async t => {
     }
   };
   let audioElement = document.createElement('video');
-  audioElement.src = `data:audio/x-wav;base64,${new Buffer('wave')}>`;
+  audioElement.src = `data:audio/x-wav;base64,${new Buffer('wave')}>`; // eslint-disable-line
   audioElement.getVideoTracks = () => ['track1', 'track2'];
   const context = {
     gotStream: stream => stream,
@@ -244,9 +244,9 @@ test('gatherStats() should resolve if starttime difference is large enough betwe
     durationMs: 50
   };
   return videoBandwidthTest.gatherStats.call(context)
-  .then(val => {
-    t.is(val, 'completed');
-  });
+    .then(val => {
+      t.is(val, 'completed');
+    });
 });
 
 test('gatherStats() should call gotStats if durationMs is greater than difference of now and startTime', t => {
@@ -264,9 +264,9 @@ test('gatherStats() should call gotStats if durationMs is greater than differenc
     durationMs: 10000000000000000
   };
   return videoBandwidthTest.gatherStats.call(context)
-  .then(val => {
-    t.is(context.gotStats.bind.called, true);
-  });
+    .then(val => {
+      t.is(context.gotStats.bind.called, true);
+    });
 });
 
 test('gotStats() should call bweStats if availableOutgoingBitrate', t => {

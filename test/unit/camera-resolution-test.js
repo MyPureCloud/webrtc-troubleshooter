@@ -277,7 +277,7 @@ test('maybeContinueGetUserMedia() should call this.startGetUserMedia if resoluti
     startGetUserMedia: resolution => Promise.resolve(resolution)
   };
   return cameraResolutionTest.maybeContinueGetUserMedia.call(context)
-  .then(resolution => resolution);
+    .then(resolution => resolution);
 });
 
 test('collectAndAnalyzeStats(stream, resolution) should reportError and call maybeContinueGetUserMedia is tracks is less than 1', async t => {

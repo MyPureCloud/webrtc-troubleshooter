@@ -127,7 +127,7 @@ test('doGetUserMedia() should return stream', async t => {
     }
   };
   let audioElement = document.createElement('audio');
-  audioElement.src = `data:audio/x-wav;base64,${new Buffer('wave')}>`;
+  audioElement.src = `data:audio/x-wav;base64,${new Buffer('wave')}>`; // eslint-disable-line
   audioElement.getAudioTracks = () => ['track1', 'track2'];
   const actual = await audioBandwidthTest.doGetUserMedia(audioElement);
   t.truthy(actual.getAudioTracks(), ['track1', 'track2']);
