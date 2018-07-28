@@ -18,16 +18,16 @@ class Listener {
   }
 }
 
-global.RTCTrackEvent = global.window.RTCTrackEvent = class extends Listener {};
+global.RTCTrackEvent = class extends Listener {};
 
-global.RTCDataChannel = global.window.RTCDataChannel = class extends Listener {
+global.RTCDataChannel = class extends Listener {
   constructor (label) {
     super();
     this.label = label;
   }
 };
 
-global.RTCPeerConnection = global.window.RTCPeerConnection = class extends Listener {
+global.RTCPeerConnection = class extends Listener {
   addTrack () {}
   addStream () {}
   createOffer () { return Promise.resolve(); }
@@ -39,3 +39,43 @@ global.RTCPeerConnection = global.window.RTCPeerConnection = class extends Liste
     return new global.window.RTCDataChannel(label);
   }
 };
+
+global.MediaTrack = class {
+  constructor (kind) {
+    this.kind = kind;
+  }
+  stop () {}
+};
+
+global.MediaStream = class {
+  constructor (constraints) {
+    this._tracks = [];
+    if (constraints.audio) {
+      this._tracks.push(new global.MediaTrack('audio'));
+    }
+    if (constraints.video) {
+      this._tracks.push(new global.MediaTrack('video'));
+    }
+  }
+
+  getTracks () {
+    return this._tracks;
+  }
+
+  getAudioTracks () {
+    return this._tracks.filter(t => t.kind === 'audio');
+  }
+
+  getVideoTracks () {
+    return this._tracks.filter(t => t.kind === 'video');
+  }
+};
+
+global.navigator = {
+  mediaDevices: {
+    getUserMedia: constraints => Promise.resolve(new global.MediaStream(constraints))
+  },
+  userAgent: 'NODE'
+};
+
+global.window = global;

@@ -1,6 +1,6 @@
 {
   "name": "webrtc-troubleshoot",
-  "version": "8.1.1",
+  "version": "9.0.0",
   "description": "A way to add webrtc troubleshooting to your app",
   "main": "src/index.js",
   "license": "MIT",
@@ -33,7 +33,7 @@
   "dependencies": {
     "localmedia": "^5.0.0",
     "rtcpeerconnection": "^8.0.1",
-    "webrtc-stats-gatherer": "^4.2.10"
+    "webrtc-stats-gatherer": "^5.0.2"
   },
   "babel": {
     "presets": [
