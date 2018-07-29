@@ -2,7 +2,6 @@ dist: trusty
 sudo: required
 language: node_js
 node_js:
-  - 6
+  - 8
 after_success:
-  - npm run coverage
-  - npm run coveralls
+  - npm test
