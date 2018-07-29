@@ -33,7 +33,7 @@
   "dependencies": {
     "localmedia": "^5.0.0",
     "rtcpeerconnection": "^8.0.1",
-    "webrtc-stats-gatherer": "^5.0.2"
+    "webrtc-stats-gatherer": "^6.0.2"
   },
   "babel": {
     "presets": [
