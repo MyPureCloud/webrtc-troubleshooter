@@ -3,7 +3,7 @@
 const path = require('path');
 
 module.exports = {
-  target: 'node',
+  target: 'web',
   entry: './src/index.js',
   devtool: 'source-map',
   mode: process.env.MINIMIZE ? 'production' : 'development',
@@ -13,7 +13,7 @@ module.exports = {
   output: {
     path: path.resolve(__dirname, 'dist'),
     filename: process.env.MINIMIZE ? 'webrtc-troubleshooter.min.js' : 'webrtc-troubleshooter.js',
-    library: 'webrtc-troubleshooter',
+    library: 'WebrtcTroubleshooter',
     libraryTarget: 'umd'
   },
   module: {

@@ -1,10 +1,9 @@
-/* global WebRTCTroubleshooter */
+/* global WebrtcTroubleshooter */
 let video = true;
 let audio = true;
 
 let iceServers = [];
-const webRTCTroubleshooter = WebRTCTroubleshooter.default;
-const testSuite = new webRTCTroubleshooter.TestSuite();
+const testSuite = new WebrtcTroubleshooter.TestSuite();
 
 const iceServersEntry = document.getElementById('ice-servers');
 const runButton = document.getElementById('run-button');
@@ -35,21 +34,21 @@ runButton.onclick = function startTroubleshooter () {
   const mediaOptions = { audio: true, video: true };
 
   if (audio) {
-    const audioTest = new webRTCTroubleshooter.AudioTest(mediaOptions);
+    const audioTest = new WebrtcTroubleshooter.AudioTest(mediaOptions);
     audioTest.promise.then(testCompleted.bind(null, audioTest, true), testCompleted.bind(null, audioTest, false));
     testSuite.addTest(audioTest);
 
-    const audioBandwidthTest = new webRTCTroubleshooter.AudioBandwidthTest({ iceConfig: iceConfig, mediaOptions: mediaOptions });
+    const audioBandwidthTest = new WebrtcTroubleshooter.AudioBandwidthTest({ iceConfig: iceConfig, mediaOptions: mediaOptions });
     audioBandwidthTest.promise.then(testCompleted.bind(null, audioBandwidthTest, true), testCompleted.bind(null, audioBandwidthTest, false));
     testSuite.addTest(audioBandwidthTest);
   }
 
   if (video) {
-    const videoTest = new webRTCTroubleshooter.VideoTest(mediaOptions);
+    const videoTest = new WebrtcTroubleshooter.VideoTest(mediaOptions);
     videoTest.promise.then(testCompleted.bind(null, videoTest, true), testCompleted.bind(null, videoTest, false));
-    const advancedCameraTest = new webRTCTroubleshooter.AdvancedCameraTest(mediaOptions);
+    const advancedCameraTest = new WebrtcTroubleshooter.AdvancedCameraTest(mediaOptions);
     advancedCameraTest.promise.then(testCompleted.bind(null, advancedCameraTest, true), testCompleted.bind(null, advancedCameraTest, false));
-    const bandwidthTest = new webRTCTroubleshooter.VideoBandwidthTest({ iceConfig: iceConfig, mediaOptions: mediaOptions });
+    const bandwidthTest = new WebrtcTroubleshooter.VideoBandwidthTest({ iceConfig: iceConfig, mediaOptions: mediaOptions });
     bandwidthTest.promise.then(testCompleted.bind(null, bandwidthTest, true), testCompleted.bind(null, bandwidthTest, false));
 
     testSuite.addTest(videoTest);
@@ -58,12 +57,12 @@ runButton.onclick = function startTroubleshooter () {
   }
 
   if (window.RTCPeerConnection) {
-    const connectivityTest = new webRTCTroubleshooter.ConnectivityTest(iceConfig);
+    const connectivityTest = new WebrtcTroubleshooter.ConnectivityTest(iceConfig);
     connectivityTest.promise.then(testCompleted.bind(null, connectivityTest, true), testCompleted.bind(null, connectivityTest, false));
-    const throughputTest = new webRTCTroubleshooter.ThroughputTest(iceConfig);
+    const throughputTest = new WebrtcTroubleshooter.ThroughputTest(iceConfig);
     throughputTest.promise.then(testCompleted.bind(null, throughputTest, true), testCompleted.bind(null, throughputTest, false));
 
-    const symmetricNatTest = new webRTCTroubleshooter.SymmetricNatTest();
+    const symmetricNatTest = new WebrtcTroubleshooter.SymmetricNatTest();
     symmetricNatTest.promise.then(testCompleted.bind(null, symmetricNatTest, true), testCompleted.bind(null, symmetricNatTest, false));
 
     testSuite.addTest(connectivityTest);
