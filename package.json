@@ -1,51 +1,43 @@
 {
   "name": "webrtc-troubleshoot",
-  "version": "8.1.1",
+  "version": "9.0.0",
   "description": "A way to add webrtc troubleshooting to your app",
   "main": "src/index.js",
+  "license": "MIT",
   "config": {
     "report": "report --reporter=lcov --reporter=cobertura"
   },
   "scripts": {
-    "browserify": "browserify -t [ babelify --presets [ es2015 ] ] --s WebRTCTroubleshooter src/index.js -o dist/webrtc-troubleshooter.bundle.js",
-    "uglify": "uglifyjs dist/webrtc-troubleshooter.bundle.js -o dist/webrtc-troubleshooter.bundle.js",
-    "build": "npm run browserify && npm run uglify",
-    "lint": "semistandard",
-    "lint:fix": "semistandard --fix",
-    "unit-test": "nyc ava test/unit/*.js",
-    "postunit-test": "nyc $npm_package_config_report",
-    "unit-test-file": "ava FILE=process.env.file test/unit/${FILE}",
-    "coverage": "nyc ava test/unit/*.js",
-    "coveralls": "cat ./coverage/lcov.info | coveralls",
-    "test": "npm run lint && npm run unit-test"
+    "build": "webpack --env=prod --progress --profile --colors",
+    "unit-test": "nyc --reporter=lcov --reporter=cobertura ava test/unit/*.js",
+    "test": "semistandard && npm run unit-test && npm run report",
+    "report": "nyc report"
   },
   "repository": "https://github.com/mypurecloud/webrtc-troubleshooter",
   "engines": {
     "node": ">= 4.4.0"
   },
   "devDependencies": {
-    "ava": "^0.19.1",
-    "babel-cli": "^6.22.2",
-    "babel-preset-es2015": "^6.22.0",
-    "babelify": "^7.2.0",
-    "browser-env": "^2.0.31",
-    "browserify": "^14.0.0",
-    "coveralls": "^2.13.1",
-    "ember-cli-github-pages": "^0.1.2",
-    "nyc": "^10.3.2",
-    "semistandard": "^10.0.0",
-    "sinon": "^2.2.0",
-    "uglify-js": "^2.7.3",
+    "ava": "^0.25.0",
+    "babel-core": "^6.25.0",
+    "babel-loader": "^7.1.1",
+    "babel-preset-env": "^1.6.1",
+    "browser-env": "^3.1.0",
+    "nyc": "^13.0.0",
+    "semistandard": "^12.0.1",
+    "sinon": "^2.3.8",
+    "webpack": "^4.16.2",
+    "webpack-cli": "^3.1.0",
     "webrtc-adapter": "^6.1.5"
   },
   "dependencies": {
-    "localmedia": "^4.0.0",
+    "localmedia": "^5.0.0",
     "rtcpeerconnection": "^8.0.1",
-    "webrtc-stats-gatherer": "^4.2.10"
+    "webrtc-stats-gatherer": "^6.0.2"
   },
   "babel": {
     "presets": [
-      "es2015"
+      "env"
     ]
   },
   "ava": {

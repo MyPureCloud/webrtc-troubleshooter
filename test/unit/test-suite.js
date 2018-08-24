@@ -25,9 +25,9 @@ test('start() should resolve with results if no error', t => {
     results: [1, 2, 3]
   };
   return testSuite.start.call(context)
-  .then(results => {
-    t.deepEqual(results, [1, 2, 3]);
-  });
+    .then(results => {
+      t.deepEqual(results, [1, 2, 3]);
+    });
 });
 
 test('start() should reject with error if hasError', t => {
@@ -37,10 +37,10 @@ test('start() should reject with error if hasError', t => {
     hasError: true
   };
   return testSuite.start.call(context)
-  .then(results => t.fail('should not get here'))
-  .catch(err => {
-    t.is(err.message, 'A test failure occurred');
-  });
+    .then(results => t.fail('should not get here'))
+    .catch(err => {
+      t.is(err.message, 'A test failure occurred');
+    });
 });
 
 test('runNextTest() should shift a test from the queue and run next tests', t => {

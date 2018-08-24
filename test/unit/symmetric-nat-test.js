@@ -6,16 +6,9 @@ import SymmetricNatTest from '../../src/diagnostics/SymmetricNatTest';
 let audioTest;
 test.beforeEach(() => {
   audioTest = new SymmetricNatTest();
-  window.RTCPeerConnection = class {
-    createOffer () {
-      return Promise.resolve({});
-    }
-    createDataChannel () {}
-    setLocalDescription () {}
-  };
 });
 
-test('should result in asymmetric if it gets a single srflx candidate', t => {
+test.serial('should result in asymmetric if it gets a single srflx candidate', t => {
   sinon.stub(window.RTCPeerConnection.prototype, 'setLocalDescription').callsFake(function () {
     window.setTimeout(() => {
       this.onicecandidate({
@@ -42,7 +35,8 @@ test('should result in asymmetric if it gets a single srflx candidate', t => {
   });
 });
 
-test('should result in noSrflx if it gets no candidates', t => {
+test.serial('should result in noSrflx if it gets no candidates', t => {
+  window.RTCPeerConnection.prototype.setLocalDescription.restore();
   sinon.stub(window.RTCPeerConnection.prototype, 'setLocalDescription').callsFake(function () {
     window.setTimeout(() => {
       this.onicecandidate({});
@@ -55,28 +49,8 @@ test('should result in noSrflx if it gets no candidates', t => {
   });
 });
 
-test('should result in noSrflx if it gets only host candidates candidates', t => {
-  sinon.stub(window.RTCPeerConnection.prototype, 'setLocalDescription').callsFake(function () {
-    window.setTimeout(() => {
-      this.onicecandidate({
-        candidate: {
-          candidate: 'candidate:1960250409 1 udp 2113937151 172.18.177.27 58600 typ host generation 0 ufrag iksf network-cost 50'
-        }
-      });
-    }, 50);
-    window.setTimeout(() => {
-      this.onicecandidate({});
-    }, 1000);
-  });
-
-  const done = audioTest.start();
-  return done.then(res => {
-    t.is(res, 'nat.noSrflx');
-  });
-});
-
-test('should result in noSrflx if it gets only host candidates candidates', t => {
-  const audioTest = new SymmetricNatTest();
+test.serial('should result in noSrflx if it gets only host candidates candidates', t => {
+  window.RTCPeerConnection.prototype.setLocalDescription.restore();
   sinon.stub(window.RTCPeerConnection.prototype, 'setLocalDescription').callsFake(function () {
     window.setTimeout(() => {
       this.onicecandidate({
@@ -96,8 +70,31 @@ test('should result in noSrflx if it gets only host candidates candidates', t =>
   });
 });
 
-test('should result in symmetric if it gets different ports for the same related port', t => {
+test.serial('should result in noSrflx if it gets only host candidates candidates', t => {
   const audioTest = new SymmetricNatTest();
+  window.RTCPeerConnection.prototype.setLocalDescription.restore();
+  sinon.stub(window.RTCPeerConnection.prototype, 'setLocalDescription').callsFake(function () {
+    window.setTimeout(() => {
+      this.onicecandidate({
+        candidate: {
+          candidate: 'candidate:1960250409 1 udp 2113937151 172.18.177.27 58600 typ host generation 0 ufrag iksf network-cost 50'
+        }
+      });
+    }, 50);
+    window.setTimeout(() => {
+      this.onicecandidate({});
+    }, 1000);
+  });
+
+  const done = audioTest.start();
+  return done.then(res => {
+    t.is(res, 'nat.noSrflx');
+  });
+});
+
+test.serial('should result in symmetric if it gets different ports for the same related port', t => {
+  const audioTest = new SymmetricNatTest();
+  window.RTCPeerConnection.prototype.setLocalDescription.restore();
   sinon.stub(window.RTCPeerConnection.prototype, 'setLocalDescription').callsFake(function () {
     window.setTimeout(() => {
       this.onicecandidate({
