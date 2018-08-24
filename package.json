@@ -1,8 +1,13 @@
 {
   "name": "webrtc-troubleshoot",
-  "version": "9.0.0",
+  "version": "9.0.1",
   "description": "A way to add webrtc troubleshooting to your app",
   "main": "src/index.js",
+  "files": [
+    "dist",
+    "src",
+    "LICENSE"
+  ],
   "license": "MIT",
   "config": {
     "report": "report --reporter=lcov --reporter=cobertura"
