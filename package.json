@@ -36,7 +36,7 @@
     "webrtc-adapter": "^6.1.5"
   },
   "dependencies": {
-    "localmedia": "^5.0.0",
+    "localmedia": "^5.1.0",
     "rtcpeerconnection": "^8.0.1",
     "webrtc-stats-gatherer": "^6.0.2"
   },
