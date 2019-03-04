@@ -154,12 +154,10 @@ export default class AudioBandwidthTest extends Test {
         }
         if (report.currentRoundTripTime) {
           const value = parseFloat(report.currentRoundTripTime) * 1000;
-          console.log('rtt', value);
           this.rttStats.add(new Date(report.timestamp), value);
         }
         if (report.roundTripTime) {
           const value = parseFloat(report.roundTripTime, 10);
-          console.log('rtt', value);
           this.rttStats.add(new Date(report.timestamp), value);
         }
         if (report.bytesSent && report.ssrc) {
@@ -199,8 +197,8 @@ export default class AudioBandwidthTest extends Test {
     this.addLog('info', `Send bandwidth estimate average: ${stats.mbpsAvg} mpbs`);
     this.addLog('info', `Send bandwidth estimate max: ${stats.mbpsMax} mbps`);
 
-    stats.rttAverage = this.rttStats.getAverage().toFixed(3);
-    stats.rttMax = this.rttStats.getMax().toFixed(3);
+    stats.rttAverage = this.rttStats.getAverage();
+    stats.rttMax = this.rttStats.getMax();
     stats.packetsSent = parseInt(this.packetsSent);
 
     if (this.packetsSent) {
