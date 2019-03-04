@@ -10,7 +10,7 @@ export default class AudioBandwidthTest extends Test {
     super(...arguments);
     this.name = 'Audio Bandwidth Test';
     this.maxAudioBitrateKbps = 510;
-    this.durationMs = 10000;
+    this.durationMs = 40000;
     this.statStepMs = 100;
     this.bweStats = new StatisticsAggregate(0.75 * this.maxAudioBitrateKbps * 1000);
 
@@ -136,8 +136,8 @@ export default class AudioBandwidthTest extends Test {
     if (now - this.startTime > this.durationMs) {
       return Promise.resolve();
     }
-    // return this.call.gatherStats(this.call.pc1, 100);
-    return this.call.pc1.getStats(this.localTrack)
+    window.call = this.call;
+    return this.call.pc1.pc.getStats()
       .then(this.gotStats.bind(this))
       .catch((error) => this.addLog('error', 'Failed to getStats: ' + error));
   }
@@ -152,8 +152,14 @@ export default class AudioBandwidthTest extends Test {
           const value = parseInt(report.availableOutgoingBitrate, 10);
           this.bweStats.add(new Date(report.timestamp), value);
         }
-        if (report.totalRoundTripTime || report.roundTripTime) {
-          const value = parseInt(report.totalRoundTripTime || report.roundTripTime, 10);
+        if (report.currentRoundTripTime) {
+          const value = parseFloat(report.currentRoundTripTime) * 1000;
+          console.log('rtt', value);
+          this.rttStats.add(new Date(report.timestamp), value);
+        }
+        if (report.roundTripTime) {
+          const value = parseFloat(report.roundTripTime, 10);
+          console.log('rtt', value);
           this.rttStats.add(new Date(report.timestamp), value);
         }
         if (report.bytesSent && report.ssrc) {
@@ -162,7 +168,6 @@ export default class AudioBandwidthTest extends Test {
           let intervalInSeconds = interval / 1000;
           const bytesSentThisInterval = value - this.lastBytesSent;
           const bwe = bytesSentThisInterval / intervalInSeconds;
-          console.log({ lastBytesSent: this.lastBytesSent, report, interval, value, intervalInSeconds, bytesSentThisInterval, bwe });
           this.bweStats2.add(new Date(report.timestamp), bwe);
           this.lastBytesSent = value;
           this.lastTimestamp = report.timestamp;
@@ -194,8 +199,8 @@ export default class AudioBandwidthTest extends Test {
     this.addLog('info', `Send bandwidth estimate average: ${stats.mbpsAvg} mpbs`);
     this.addLog('info', `Send bandwidth estimate max: ${stats.mbpsMax} mbps`);
 
-    stats.rttAverage = this.rttStats.getAverage();
-    stats.rttMax = this.rttStats.getMax();
+    stats.rttAverage = this.rttStats.getAverage().toFixed(3);
+    stats.rttMax = this.rttStats.getMax().toFixed(3);
     stats.packetsSent = parseInt(this.packetsSent);
 
     if (this.packetsSent) {
