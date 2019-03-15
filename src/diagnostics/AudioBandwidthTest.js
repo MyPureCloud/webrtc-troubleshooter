@@ -76,15 +76,18 @@ export default class AudioBandwidthTest extends Test {
     };
   }
 
-  addLog (level, msg) {
-    this.logger[level.toLowerCase()](msg);
+  addLog (level, msg, details) {
+    this.logger[level.toLowerCase()](msg, details);
     if (msg && typeof msg === 'object') {
       msg = JSON.stringify(msg);
     }
-    if (level === 'error') {
+    if (level.toLowerCase() === 'error') {
       this.hasError = true;
     }
-    this.log.push(`${level}: ${msg}`);
+    // don't buffer debug logs
+    if (level.toLowerCase() !== 'debug') {
+      this.log.push(`${level}: ${msg}`);
+    }
   }
 
   doGetUserMedia (constraints) {
@@ -145,45 +148,46 @@ export default class AudioBandwidthTest extends Test {
   gotStats (response) {
     if (!response) {
       this.addLog('error', 'Got no response from stats... odd...');
-    } else {
-      const results = typeof response.result === 'function' ? response.result() : response;
-      results.forEach((report) => {
-        if (report.availableOutgoingBitrate) {
-          const value = parseInt(report.availableOutgoingBitrate, 10);
-          this.bweStats.add(new Date(report.timestamp), value);
-        }
-        if (report.currentRoundTripTime) {
-          const value = parseFloat(report.currentRoundTripTime) * 1000;
-          this.rttStats.add(new Date(report.timestamp), value);
-        }
-        if (report.roundTripTime) {
-          const value = parseFloat(report.roundTripTime, 10);
-          this.rttStats.add(new Date(report.timestamp), value);
-        }
-        if (report.bytesSent && report.ssrc) {
-          const value = parseInt(report.bytesSent, 10);
-          let interval = this.lastTimestamp ? report.timestamp - this.lastTimestamp : this.statStepMs;
-          let intervalInSeconds = interval / 1000;
-          const bytesSentThisInterval = value - this.lastBytesSent;
-          const bwe = bytesSentThisInterval / intervalInSeconds;
-          this.bweStats2.add(new Date(report.timestamp), bwe);
-          this.lastBytesSent = value;
-          this.lastTimestamp = report.timestamp;
-        }
-        if (report.packetsSent) {
-          this.packetsSent = report.packetsSent;
-        }
-        if (report.packetsLost) {
-          this.packetsLost = report.packetsLost;
-        }
-        if (report.frameWidth) {
-          this.videoStats[0] = report.frameWidth;
-        }
-        if (report.frameHeight) {
-          this.videoStats[1] = report.frameHeight;
-        }
-      });
+      return this.runTest();
     }
+    const results = typeof response.result === 'function' ? response.result() : response;
+    this.addLog('debug', 'Processing audio bandwidth stats', results);
+    results.forEach((report) => {
+      if (report.availableOutgoingBitrate) {
+        const value = parseInt(report.availableOutgoingBitrate, 10);
+        this.bweStats.add(new Date(report.timestamp), value);
+      }
+      if (report.currentRoundTripTime) {
+        const value = parseFloat(report.currentRoundTripTime) * 1000;
+        this.rttStats.add(new Date(report.timestamp), value);
+      }
+      if (report.roundTripTime) {
+        const value = parseFloat(report.roundTripTime, 10);
+        this.rttStats.add(new Date(report.timestamp), value);
+      }
+      if (report.bytesSent && report.ssrc) {
+        const value = parseInt(report.bytesSent, 10);
+        let interval = this.lastTimestamp ? report.timestamp - this.lastTimestamp : this.statStepMs;
+        let intervalInSeconds = interval / 1000;
+        const bytesSentThisInterval = value - this.lastBytesSent;
+        const bwe = bytesSentThisInterval / intervalInSeconds;
+        this.bweStats2.add(new Date(report.timestamp), bwe);
+        this.lastBytesSent = value;
+        this.lastTimestamp = report.timestamp;
+      }
+      if (report.packetsSent) {
+        this.packetsSent = report.packetsSent;
+      }
+      if (report.packetsLost) {
+        this.packetsLost = report.packetsLost;
+      }
+      if (report.frameWidth) {
+        this.videoStats[0] = report.frameWidth;
+      }
+      if (report.frameHeight) {
+        this.videoStats[1] = report.frameHeight;
+      }
+    });
 
     return this.runTest();
   }
