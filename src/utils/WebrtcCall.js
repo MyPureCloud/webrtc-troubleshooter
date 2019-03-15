@@ -48,7 +48,6 @@ class WebrtcCall {
 
     return new Promise((resolve, reject) => {
       const getStats = () => {
-        window.pc = peerConnection;
         if (peerConnection.signalingState === 'closed') {
           return resolve({stats, statsCollectTime});
         }

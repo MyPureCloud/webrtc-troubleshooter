@@ -139,7 +139,7 @@ export default class AudioBandwidthTest extends Test {
     if (now - this.startTime > this.durationMs) {
       return Promise.resolve();
     }
-    window.call = this.call;
+
     return this.call.pc1.pc.getStats()
       .then(this.gotStats.bind(this))
       .catch((error) => this.addLog('error', 'Failed to getStats: ' + error));

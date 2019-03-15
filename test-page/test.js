@@ -40,7 +40,7 @@ runButton.onclick = function startTroubleshooter () {
 
     const audioBandwidthTest = new WebrtcTroubleshooter.AudioBandwidthTest({ iceConfig: iceConfig, mediaOptions: mediaOptions });
     audioBandwidthTest.promise.then(testCompleted.bind(null, audioBandwidthTest, true), testCompleted.bind(null, audioBandwidthTest, false));
-    testSuite.addTest(audioBandwidthTest);
+    // testSuite.addTest(audioBandwidthTest);
   }
 
   if (video) {
@@ -53,7 +53,7 @@ runButton.onclick = function startTroubleshooter () {
 
     // testSuite.addTest(videoTest);
     // testSuite.addTest(advancedCameraTest);
-    // testSuite.addTest(bandwidthTest);
+    testSuite.addTest(bandwidthTest);
   }
 
   if (window.RTCPeerConnection) {
