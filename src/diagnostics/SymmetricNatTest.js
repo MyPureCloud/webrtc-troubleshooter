@@ -60,7 +60,12 @@ class SymmetricNatTest extends Test {
     };
     pc.onendofcandidates = pc.onicecandidate.bind(pc, {});
     pc.createOffer().then(offer => pc.setLocalDescription(offer));
-    return this.promise;
+    return this.promise.then(() => {
+      pc.close();
+    }).catch(e => {
+      pc.close();
+      return Promise.reject(e);
+    });
   }
 
   destroy () {
