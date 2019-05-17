@@ -7,12 +7,14 @@ import {
   ThroughputTest,
   VideoBandwidthTest,
   AudioBandwidthTest,
-  SymmetricNatTest
+  SymmetricNatTest,
+  PermissionsTest
 } from './defaultTests';
 import VideoFrameChecker from './utils/VideoFrameChecker';
 import ERROR_CODES from './utils/testErrorCodes';
 
 module.exports = {
+  PermissionsTest,
   TestSuite,
   AudioTest,
   VideoTest,

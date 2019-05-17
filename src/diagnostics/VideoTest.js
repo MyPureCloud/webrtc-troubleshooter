@@ -6,13 +6,15 @@ export default class VideoTest extends Test {
     super(...arguments);
     this.name = 'Video Test';
 
-    this.localMedia = new LocalMedia({detectSpeakingEvents: true});
+    this.localMedia = new LocalMedia({ detectSpeakingEvents: true });
   }
 
   start () {
     super.start();
 
-    this.localMedia.start(this.options, (err) => {
+    const options = Object.assign({}, this.options, { audio: false });
+
+    this.localMedia.start(options, (err) => {
       if (err) {
         this.logger.log(`Video Local media start failed ${err.name}`);
         this.reject(err);
