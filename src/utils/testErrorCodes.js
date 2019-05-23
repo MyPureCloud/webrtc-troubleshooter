@@ -1,7 +1,7 @@
 const ICE = 1;
 const MEDIA = 2;
 
-module.exports = {
+export default {
   ICE,
   MEDIA
 };

@@ -4,7 +4,7 @@ const path = require('path');
 
 module.exports = {
   target: 'web',
-  entry: './src/index.js',
+  entry: './src/index.ts',
   devtool: 'source-map',
   mode: process.env.MINIMIZE ? 'production' : 'development',
   optimization: {
@@ -24,6 +24,10 @@ module.exports = {
         query: {
           presets: ['env']
         }
+      },
+      {
+        test: /\.ts?$/,
+        loader: 'awesome-typescript-loader'
       }
     ]
   }
