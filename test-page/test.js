@@ -34,6 +34,9 @@ runButton.onclick = function startTroubleshooter () {
   const mediaOptions = { audio: true, video: true };
 
   if (audio) {
+    const microphonePermissionsTest = new WebrtcTroubleshooter.PermissionsTest(false, mediaOptions);
+    microphonePermissionsTest.promise.then(testCompleted.bind(null, microphonePermissionsTest, true), testCompleted.bind(null, microphonePermissionsTest, false));
+    testSuite.addTest(microphonePermissionsTest);
     const audioTest = new WebrtcTroubleshooter.AudioTest(mediaOptions);
     audioTest.promise.then(testCompleted.bind(null, audioTest, true), testCompleted.bind(null, audioTest, false));
     testSuite.addTest(audioTest);
@@ -44,6 +47,9 @@ runButton.onclick = function startTroubleshooter () {
   }
 
   if (video) {
+    const cameraPermissionsTest = new WebrtcTroubleshooter.PermissionsTest(true, mediaOptions);
+    cameraPermissionsTest.promise.then(testCompleted.bind(null, cameraPermissionsTest, true), testCompleted.bind(null, cameraPermissionsTest, false));
+    testSuite.addTest(cameraPermissionsTest);
     const videoTest = new WebrtcTroubleshooter.VideoTest(mediaOptions);
     videoTest.promise.then(testCompleted.bind(null, videoTest, true), testCompleted.bind(null, videoTest, false));
     const advancedCameraTest = new WebrtcTroubleshooter.AdvancedCameraTest(mediaOptions);
