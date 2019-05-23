@@ -1,3 +1,4 @@
+import PermissionsTest from './diagnostics/PermissionsTest';
 import AudioTest from './diagnostics/AudioTest';
 import VideoTest from './diagnostics/VideoTest';
 import ConnectivityTest from './diagnostics/ConnectivityTest';
@@ -8,6 +9,7 @@ import AudioBandwidthTest from './diagnostics/AudioBandwidthTest';
 import SymmetricNatTest from './diagnostics/SymmetricNatTest';
 
 export {
+  PermissionsTest,
   AudioTest,
   VideoTest,
   ConnectivityTest,
