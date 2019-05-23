@@ -36,11 +36,11 @@ runButton.onclick = function startTroubleshooter () {
   if (audio) {
     const audioTest = new WebrtcTroubleshooter.AudioTest(mediaOptions);
     audioTest.promise.then(testCompleted.bind(null, audioTest, true), testCompleted.bind(null, audioTest, false));
-    // testSuite.addTest(audioTest);
+    testSuite.addTest(audioTest);
 
     const audioBandwidthTest = new WebrtcTroubleshooter.AudioBandwidthTest({ iceConfig: iceConfig, mediaOptions: mediaOptions });
     audioBandwidthTest.promise.then(testCompleted.bind(null, audioBandwidthTest, true), testCompleted.bind(null, audioBandwidthTest, false));
-    // testSuite.addTest(audioBandwidthTest);
+    testSuite.addTest(audioBandwidthTest);
   }
 
   if (video) {
@@ -51,8 +51,8 @@ runButton.onclick = function startTroubleshooter () {
     const bandwidthTest = new WebrtcTroubleshooter.VideoBandwidthTest({ iceConfig: iceConfig, mediaOptions: mediaOptions });
     bandwidthTest.promise.then(testCompleted.bind(null, bandwidthTest, true), testCompleted.bind(null, bandwidthTest, false));
 
-    // testSuite.addTest(videoTest);
-    // testSuite.addTest(advancedCameraTest);
+    testSuite.addTest(videoTest);
+    testSuite.addTest(advancedCameraTest);
     testSuite.addTest(bandwidthTest);
   }
 
@@ -65,9 +65,9 @@ runButton.onclick = function startTroubleshooter () {
     const symmetricNatTest = new WebrtcTroubleshooter.SymmetricNatTest();
     symmetricNatTest.promise.then(testCompleted.bind(null, symmetricNatTest, true), testCompleted.bind(null, symmetricNatTest, false));
 
-    // testSuite.addTest(connectivityTest);
-    // testSuite.addTest(throughputTest);
-    // testSuite.addTest(symmetricNatTest);
+    testSuite.addTest(connectivityTest);
+    testSuite.addTest(throughputTest);
+    testSuite.addTest(symmetricNatTest);
   }
 
   const p = document.createElement('p');
