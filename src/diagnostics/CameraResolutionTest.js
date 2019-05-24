@@ -164,8 +164,8 @@ export default class CameraResolutionTest extends Test {
       return call.gatherStats(call.pc1, 100);
     }, (err) => {
       return Promise.reject(err);
-    }).then(({stats, statsCollectTime}) => {
-      const result = this.analyzeStats({resolution, videoElement, stream, frameChecker, stats, statsCollectTime});
+    }).then(({ stats, statsCollectTime }) => {
+      const result = this.analyzeStats({ resolution, videoElement, stream, frameChecker, stats, statsCollectTime });
       frameChecker.stop();
       return result;
     }, (err) => {
@@ -173,7 +173,7 @@ export default class CameraResolutionTest extends Test {
     });
   }
 
-  analyzeStats ({resolution, videoElement, stream, frameChecker, stats, statsCollectTime}) {
+  analyzeStats ({ resolution, videoElement, stream, frameChecker, stats, statsCollectTime }) {
     this.stats = stats;
     const googAvgEncodeTime = [];
     const googAvgFrameRateInput = [];

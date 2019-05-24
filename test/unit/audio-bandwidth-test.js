@@ -18,7 +18,7 @@ test('start() return error if iceConfig has no iceServers', async t => {
 test('start() should call doGetUserMedia if there is iceServers and return error with results', async t => {
   const mediaSpy = sinon.spy(global.navigator.mediaDevices, 'getUserMedia');
   const audioBandwidthTest = new AudioBandwidthTest({
-    iceConfig: { iceServers: [{urls: []}] },
+    iceConfig: { iceServers: [{ urls: [] }] },
     mediaOptions: { audio: true }
   });
   audioBandwidthTest.start();
@@ -28,7 +28,7 @@ test('start() should call doGetUserMedia if there is iceServers and return error
 
 test('getResults() should return object with log, constraints, and stats', t => {
   const audioBandwidthTest = new AudioBandwidthTest({
-    iceConfig: { iceServers: [{urls: []}] },
+    iceConfig: { iceServers: [{ urls: [] }] },
     mediaOptions: { audio: { deviceId: 'someAudioId' } }
   });
   const actual = audioBandwidthTest.getResults();
@@ -42,7 +42,7 @@ test('getResults() should return object with log, constraints, and stats', t => 
 
 test('addLog() should push message to the log', t => {
   const audioBandwidthTest = new AudioBandwidthTest({
-    iceConfig: { iceServers: [{urls: []}] },
+    iceConfig: { iceServers: [{ urls: [] }] },
     mediaOptions: { audio: true }
   });
   audioBandwidthTest.addLog('info', { val: 'Test add log' });
@@ -57,7 +57,7 @@ test('doGetUserMedia() should return add logs with the track label', async t => 
 
 test('getDeviceName() should return null if tracks are empty', t => {
   const audioBandwidthTest = new AudioBandwidthTest({
-    iceConfig: { iceServers: [{urls: []}] },
+    iceConfig: { iceServers: [{ urls: [] }] },
     mediaOptions: { audio: true }
   });
   t.is(audioBandwidthTest.getDeviceName([]), null);
@@ -65,7 +65,7 @@ test('getDeviceName() should return null if tracks are empty', t => {
 
 test('getDeviceName() should return label of first track if not empty', t => {
   const audioBandwidthTest = new AudioBandwidthTest({
-    iceConfig: { iceServers: [{urls: []}] },
+    iceConfig: { iceServers: [{ urls: [] }] },
     mediaOptions: { audio: true }
   });
   const actual = audioBandwidthTest.getDeviceName([
@@ -79,7 +79,7 @@ test('getDeviceName() should return label of first track if not empty', t => {
 
 test('setupCall() should call establishConnection function and addLog function', async t => {
   const audioBandwidthTest = new AudioBandwidthTest({
-    iceConfig: { iceServers: [{urls: []}] },
+    iceConfig: { iceServers: [{ urls: [] }] },
     mediaOptions: { audio: true }
   });
   audioBandwidthTest.call = new WebrtcCall(audioBandwidthTest.options.iceConfig, audioBandwidthTest.logger);
@@ -95,7 +95,7 @@ test('setupCall() should call establishConnection function and addLog function',
 
 test('runTest() should run gatherStats function', async t => {
   const audioBandwidthTest = new AudioBandwidthTest({
-    iceConfig: { iceServers: [{urls: []}] },
+    iceConfig: { iceServers: [{ urls: [] }] },
     mediaOptions: { audio: true }
   });
   audioBandwidthTest.durationMs = 4;
@@ -111,7 +111,7 @@ test('runTest() should run gatherStats function', async t => {
 
 test('gatherStats() should resolve if starttime difference is large enough between durationMs', async t => {
   const audioBandwidthTest = new AudioBandwidthTest({
-    iceConfig: { iceServers: [{urls: []}] },
+    iceConfig: { iceServers: [{ urls: [] }] },
     mediaOptions: { audio: true }
   });
   audioBandwidthTest.call = { pc1: { getStats: sinon.stub() } };
@@ -121,7 +121,7 @@ test('gatherStats() should resolve if starttime difference is large enough betwe
 
 test('gatherStats() should call gotStats', async t => {
   const audioBandwidthTest = new AudioBandwidthTest({
-    iceConfig: { iceServers: [{urls: []}] },
+    iceConfig: { iceServers: [{ urls: [] }] },
     mediaOptions: { audio: true }
   });
   const mockStats = {};
@@ -136,7 +136,7 @@ test('gatherStats() should call gotStats', async t => {
 
 test('gotStats() calls rttStats and bweStats if availableOutgoingBitrate and roundTripTime', async t => {
   const audioBandwidthTest = new AudioBandwidthTest({
-    iceConfig: { iceServers: [{urls: []}] },
+    iceConfig: { iceServers: [{ urls: [] }] },
     mediaOptions: { audio: true }
   });
   sinon.stub(audioBandwidthTest.rttStats, 'add');
@@ -156,7 +156,7 @@ test('gotStats() calls rttStats and bweStats if availableOutgoingBitrate and rou
 
 test('gotStats() calls rttStats if totalRoundTripTime', async t => {
   const audioBandwidthTest = new AudioBandwidthTest({
-    iceConfig: { iceServers: [{urls: []}] },
+    iceConfig: { iceServers: [{ urls: [] }] },
     mediaOptions: { audio: true }
   });
   sinon.stub(audioBandwidthTest.rttStats, 'add');
@@ -171,7 +171,7 @@ test('gotStats() calls rttStats if totalRoundTripTime', async t => {
 
 test('completed() call addLog multiple times and return results', t => {
   const audioBandwidthTest = new AudioBandwidthTest({
-    iceConfig: { iceServers: [{urls: []}] },
+    iceConfig: { iceServers: [{ urls: [] }] },
     mediaOptions: { audio: true }
   });
   sinon.stub(audioBandwidthTest, 'addLog');
@@ -186,7 +186,7 @@ test('completed() call addLog multiple times and return results', t => {
 test('destroy() calls close and stop functions and then assigns null to call', t => {
   t.plan(2);
   const audioBandwidthTest = new AudioBandwidthTest({
-    iceConfig: { iceServers: [{urls: []}] },
+    iceConfig: { iceServers: [{ urls: [] }] },
     mediaOptions: { audio: true },
     logger: { log () {}, error () {}, warn () {}, info () {} }
   });
