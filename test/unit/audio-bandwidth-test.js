@@ -61,7 +61,6 @@ test('doGetUserMedia() should add logs with the track label and return the strea
     id: '1234-asdf',
     getAudioTracks: () => []
   };
-  // const constraints = { audio: true, video: false };
   global.navigator = {
     mediaDevices: {
       getUserMedia: (constraints) => Promise.resolve(stream)
