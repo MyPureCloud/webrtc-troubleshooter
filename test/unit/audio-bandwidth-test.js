@@ -3,11 +3,13 @@ import sinon from 'sinon';
 
 import AudioBandwidthTest from '../../src/diagnostics/AudioBandwidthTest';
 import WebrtcCall from '../../src/utils/WebrtcCall';
+import ERROR_CODES from '../../src/utils/testErrorCodes';
 
 test('start() return error if iceConfig has no iceServers', async t => {
   const audioBandwidthTest = new AudioBandwidthTest({
     iceConfig: { iceServers: [] },
-    mediaOptions: { audio: true } });
+    mediaOptions: { audio: true }
+  });
   try {
     await audioBandwidthTest.start();
   } catch (err) {
@@ -50,9 +52,50 @@ test('addLog() should push message to the log', t => {
   t.is(audioBandwidthTest.log.length, 2);
 });
 
-test('doGetUserMedia() should return add logs with the track label', async t => {
-  t.plan(0);
-  // todo
+test('doGetUserMedia() should add logs with the track label and return the stream', async t => {
+  const audioBandwidthTest = new AudioBandwidthTest({
+    iceConfig: { iceServers: [{ urls: [] }] },
+    mediaOptions: { audio: true }
+  });
+  const stream = {
+    id: '1234-asdf',
+    getAudioTracks: () => []
+  };
+  // const constraints = { audio: true, video: false };
+  global.navigator = {
+    mediaDevices: {
+      getUserMedia: (constraints) => Promise.resolve(stream)
+    }
+  };
+  sinon.stub(audioBandwidthTest, 'getDeviceName').returns('trackName');
+  sinon.stub(audioBandwidthTest, 'addLog');
+
+  const resultStream = await audioBandwidthTest.doGetUserMedia({});
+  t.is(resultStream, stream);
+  sinon.assert.calledTwice(audioBandwidthTest.addLog);
+});
+
+test('doGetUserMedia() should add logs with a media error', async t => {
+  const audioBandwidthTest = new AudioBandwidthTest({
+    iceConfig: { iceServers: [{ urls: [] }] },
+    mediaOptions: { audio: true }
+  });
+  const constraints = { audio: true, video: false };
+  const errorMsg = 'Error on getUserMedia()';
+  global.navigator = {
+    mediaDevices: {
+      getUserMedia: (constraints) => Promise.reject(new Error(errorMsg))
+    }
+  };
+  sinon.stub(audioBandwidthTest, 'addLog');
+
+  const expected = { pcCode: ERROR_CODES.MEDIA, message: errorMsg };
+  audioBandwidthTest.doGetUserMedia(constraints)
+    .then(() => t.fail('should not get here'))
+    .catch(err => {
+      t.deepEqual(err, expected);
+      sinon.assert.calledThrice(audioBandwidthTest.addLog);
+    });
 });
 
 test('getDeviceName() should return null if tracks are empty', t => {
@@ -125,9 +168,10 @@ test('gatherStats() should call gotStats', async t => {
     mediaOptions: { audio: true }
   });
   const mockStats = {};
+  audioBandwidthTest.durationMs = 10000;
   audioBandwidthTest.startTime = new Date();
   audioBandwidthTest.call = new WebrtcCall(audioBandwidthTest.options.iceConfig, audioBandwidthTest.logger);
-  sinon.stub(audioBandwidthTest.call.pc1, 'getStats').returns(Promise.resolve(mockStats));
+  sinon.stub(audioBandwidthTest.call.pc1.pc, 'getStats').returns(Promise.resolve(mockStats));
   sinon.stub(audioBandwidthTest, 'gotStats');
   await audioBandwidthTest.gatherStats();
   sinon.assert.calledOnce(audioBandwidthTest.gotStats);
@@ -162,7 +206,7 @@ test('gotStats() calls rttStats if totalRoundTripTime', async t => {
   sinon.stub(audioBandwidthTest.rttStats, 'add');
   sinon.stub(audioBandwidthTest, 'runTest');
   await audioBandwidthTest.gotStats([{
-    totalRoundTripTime: '30',
+    roundTripTime: '30',
     timestamp: new Date()
   }]);
   sinon.assert.calledOnce(audioBandwidthTest.rttStats.add);
@@ -188,7 +232,7 @@ test('destroy() calls close and stop functions and then assigns null to call', t
   const audioBandwidthTest = new AudioBandwidthTest({
     iceConfig: { iceServers: [{ urls: [] }] },
     mediaOptions: { audio: true },
-    logger: { log () {}, error () {}, warn () {}, info () {} }
+    logger: { log () { }, error () { }, warn () { }, info () { } }
   });
   audioBandwidthTest.call = new WebrtcCall(audioBandwidthTest.options.iceConfig, audioBandwidthTest.logger);
   sinon.stub(audioBandwidthTest.call, 'close').callsFake(() => t.pass());
