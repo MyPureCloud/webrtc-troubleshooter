@@ -28,7 +28,7 @@ export default class AudioBandwidthTest extends Test {
     };
 
     if (this.options.mediaOptions.audio.deviceId) {
-      this.constraints.audio = {deviceId: this.options.mediaOptions.audio.deviceId};
+      this.constraints.audio = { deviceId: this.options.mediaOptions.audio.deviceId };
     } else {
       this.constraints.audio = true;
     }
@@ -95,12 +95,12 @@ export default class AudioBandwidthTest extends Test {
     return navigator.mediaDevices.getUserMedia(constraints)
       .then((stream) => {
         const audioTrack = this.getDeviceName(stream.getAudioTracks());
-        this.addLog('info', {status: 'success', audioTrack});
+        this.addLog('info', { status: 'success', audioTrack });
         return stream;
       })
       .catch(error => {
         error.pcCode = ERROR_CODES.MEDIA;
-        this.addLog('error', {'status': 'fail', 'error': error});
+        this.addLog('error', { 'status': 'fail', 'error': error });
         this.addLog('error', `Failed to get access to local media due to error: ${error.name}`);
         return this.reject(error);
       });

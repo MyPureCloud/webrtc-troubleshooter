@@ -3,7 +3,7 @@ export default class Test {
     this.options = options || {};
     this.logger = this.options.logger || console;
     this.promise = new Promise((resolve, reject) => {
-      this.deferred = {resolve, reject};
+      this.deferred = { resolve, reject };
     });
   }
 

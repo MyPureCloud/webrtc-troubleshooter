@@ -13,7 +13,8 @@
 
 # Scripts 
 
-* `FILE=advanced-camera-test.js npm run unit-test-file` to run a single test file
+* Useful for running individual test files ~~`FILE=advanced-camera-test.js npm run unit-test-file` to run a single test file~~
+  * Personal favorite is with `watch` enabled: `npx ava --watch --fail-fast=false test/unit/video-bandwidth-test.js`
   * Alternatively run `./node_modules/.bin/ava test/unit/advanced-camera-test.js` for an individual test
 * `npm run coverage` runs the code coverage report
   * `npm test` will run both lint and all the unit-test and report coverage in text form in command line

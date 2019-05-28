@@ -7,7 +7,7 @@ export default class AdvancedCameraTest extends TestSuite {
     this.name = 'Advanced Video Test';
     this.tests = [];
     this.promise = new Promise((resolve, reject) => {
-      this.deferred = {resolve, reject};
+      this.deferred = { resolve, reject };
     });
     this.stopOnFailure = true;
 

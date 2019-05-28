@@ -132,7 +132,7 @@ export default class VideoBandwidthTest extends Test {
       return this.gotStream(stream);
     }, (error) => {
       error.pcCode = ERROR_CODES.MEDIA;
-      this.addLog('error', {'status': 'fail', 'error': error});
+      this.addLog('error', { 'status': 'fail', 'error': error });
       this.addLog('error', `Failed to get access to local media due to error: ${error.name}`);
       return this.reject(error);
     });
@@ -160,7 +160,7 @@ export default class VideoBandwidthTest extends Test {
   gatherStats () {
     const now = new Date();
     if (now - this.startTime > this.durationMs) {
-      return Promise.resolve();
+      return Promise.resolve('completed');
     }
 
     return this.call.pc1.pc.getStats()
