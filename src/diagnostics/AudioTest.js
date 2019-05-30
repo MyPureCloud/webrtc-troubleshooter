@@ -9,7 +9,7 @@ class AudioTest extends Test {
     this.name = 'Audio Test';
     this.volumeTimeout = this.options.volumeTimeout || 5000;
 
-    this.localMedia = new LocalMedia({detectSpeakingEvents: true});
+    this.localMedia = new LocalMedia({ detectSpeakingEvents: true });
   }
 
   start () {
@@ -20,7 +20,9 @@ class AudioTest extends Test {
       this.reject(new Error('audio timeout'));
     }, this.volumeTimeout);
 
-    this.localMedia.start(this.options, (err) => {
+    const options = Object.assign({}, this.options, { video: false });
+
+    this.localMedia.start(options, (err) => {
       if (err) {
         this.logger.error('Audio Local media start failed');
         this.reject(err);

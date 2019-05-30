@@ -43,7 +43,7 @@ test.serial('sendingStep() should send packets', t => {
       send: sinon.stub()
     },
     bytesToKeepBuffered: 6,
-    samplePacket: [ {prop: 'val 1'}, {prop: 'val 2'} ],
+    samplePacket: [ { prop: 'val 1' }, { prop: 'val 2' } ],
     startTime: 255,
     testDurationSeconds: 9
   };

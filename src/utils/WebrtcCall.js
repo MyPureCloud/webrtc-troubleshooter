@@ -49,11 +49,11 @@ class WebrtcCall {
     return new Promise((resolve, reject) => {
       const getStats = () => {
         if (peerConnection.signalingState === 'closed') {
-          return resolve({stats, statsCollectTime});
+          return resolve({ stats, statsCollectTime });
         }
         setTimeout(() => {
           let getStatsTimeout = setTimeout(() => {
-            resolve({stats, statsCollectTime});
+            resolve({ stats, statsCollectTime });
           }, 1000);
           peerConnection.getStats(null).then((response) => {
             clearTimeout(getStatsTimeout);

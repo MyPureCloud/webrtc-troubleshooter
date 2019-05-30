@@ -56,7 +56,9 @@ test('start() should call gotStream when providedStream and return results', asy
       };
     },
     hasError: false,
-    resolve: val => val
+    resolve: val => val,
+    runTest: () => null,
+    completed: () => null
   };
   const actual = await videoBandwidthTest.start.call(context);
   t.deepEqual(actual.verses, ['I can do all this through him who gives me strength.']);
@@ -80,7 +82,9 @@ test('start() should call doGetUserMedia when not providedStream and return resu
       };
     },
     hasError: false,
-    resolve: val => val
+    resolve: val => val,
+    runTest: () => null,
+    completed: () => null
   };
   const actual = await videoBandwidthTest.start.call(context);
   t.deepEqual(actual.verses, ['Finally, be strong in the Lord and in his mighty power.']);
@@ -104,7 +108,9 @@ test('start() should return error if hasError', async t => {
       };
     },
     hasError: true,
-    reject: val => val
+    reject: val => val,
+    runTest: () => null,
+    completed: () => null
   };
   const actual = await videoBandwidthTest.start.call(context);
   t.is(actual.error.message, 'Video Bandwidth Error');
@@ -190,7 +196,9 @@ test('gatherStats() should resolve if starttime difference is large enough betwe
     completed: () => 'completed',
     call: {
       pc1: {
-        getStats: () => Promise.resolve()
+        pc: {
+          getStats: () => Promise.resolve()
+        }
       }
     },
     gotStats: {
@@ -210,7 +218,9 @@ test('gatherStats() should call gotStats if durationMs is greater than differenc
     completed: () => 'completed',
     call: {
       pc1: {
-        getStats: () => Promise.resolve()
+        pc: {
+          getStats: () => Promise.resolve()
+        }
       }
     },
     gotStats: {
@@ -306,7 +316,7 @@ test('gotStats() should call addLog if no reponse', t => {
   });
 });
 
-test('completed() should call addLog 4 times if chrome browser and videoStats are below 2 threshold', t => {
+test('completed() should call addLog 5 times if chrome browser and videoStats are below 2 threshold', t => {
   global.document.documentElement.style.WebkitAppearance = '';
   global.navigator.userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.36 Safari/537.36';
   const context = {
@@ -347,11 +357,11 @@ test('completed() should call addLog 4 times if chrome browser and videoStats ar
   };
   const actual = videoBandwidthTest.completed.call(context);
   const expected = { prop: 'prop for chrom results' };
-  t.is(context.addLog.callCount, 4);
+  t.is(context.addLog.callCount, 5);
   t.deepEqual(actual, expected);
 });
 
-test('completed() should call addLog 7 times if chrome browser and videoStats are over 2 threshold', t => {
+test('completed() should call addLog 8 times if chrome browser and videoStats are over 2 threshold', t => {
   global.document.documentElement.style.WebkitAppearance = '';
   global.navigator.userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_11_6) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/59.0.3071.36 Safari/537.36';
   const context = {
@@ -366,6 +376,10 @@ test('completed() should call addLog 7 times if chrome browser and videoStats ar
       getAverage: () => 100,
       getMax: () => 1000,
       getRampUpTime: () => 8
+    },
+    bweStats2: {
+      getAverage: () => 0,
+      getMax: () => 0
     },
     runTest: () => Promise.resolve(),
     gatherStats: () => Promise.resolve(),
@@ -395,11 +409,11 @@ test('completed() should call addLog 7 times if chrome browser and videoStats ar
   };
   const actual = videoBandwidthTest.completed.call(context);
   const expected = { prop: 'prop for chrom results' };
-  t.is(context.addLog.callCount, 7);
+  t.is(context.addLog.callCount, 8);
   t.deepEqual(actual, expected);
 });
 
-test('completed() should call addLog 6 times if firefox browser and compute stats', t => {
+test('completed() should call addLog 7 times if firefox browser and compute stats', t => {
   delete global.document.documentElement.style.WebkitAppearance;
   global.navigator.userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.11; rv:54.0) Gecko/20100101 Firefox/54.0';
   const context = {
@@ -447,11 +461,11 @@ test('completed() should call addLog 6 times if firefox browser and compute stat
   };
   const actual = videoBandwidthTest.completed.call(context);
   const expected = { prop: 'prop for firefox results' };
-  t.is(context.addLog.callCount, 6);
+  t.is(context.addLog.callCount, 7);
   t.deepEqual(actual, expected);
 });
 
-test('completed() should call addLog 6 times if firefox browser and compute stats but log error if framerateMean is not positive number', t => {
+test('completed() should call addLog 7 times if firefox browser and compute stats but log error if framerateMean is not positive number', t => {
   delete global.document.documentElement.style.WebkitAppearance;
   global.navigator.userAgent = 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.11; rv:54.0) Gecko/20100101 Firefox/54.0';
   const context = {
@@ -501,7 +515,7 @@ test('completed() should call addLog 6 times if firefox browser and compute stat
   };
   const actual = videoBandwidthTest.completed.call(context);
   const expected = { prop: 'prop for firefox results' };
-  t.is(context.addLog.callCount, 6);
+  t.is(context.addLog.callCount, 7);
   t.deepEqual(actual, expected);
 });
 

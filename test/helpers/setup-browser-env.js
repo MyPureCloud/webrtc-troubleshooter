@@ -38,6 +38,7 @@ global.RTCPeerConnection = class extends Listener {
   createDataChannel (label) {
     return new global.window.RTCDataChannel(label);
   }
+  close () {}
 };
 
 global.MediaTrack = class {
