@@ -231,5 +231,8 @@ export default class AudioBandwidthTest extends Test {
       this.call.close();
       this.call = null;
     }
+    if (this.localTrack) {
+      this.localTrack.stop();
+    }
   }
 }
