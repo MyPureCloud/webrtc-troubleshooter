@@ -30,7 +30,7 @@ runButton.onclick = function startTroubleshooter () {
   }
   const iceConfig = {
     iceServers: iceServers,
-    iceTransports: 'relay'
+    iceTransportPolicy: 'relay'
   };
   const mediaOptions = { audio: true, video: true };
 
