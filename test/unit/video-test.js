@@ -10,7 +10,7 @@ test.beforeEach(() => {
 
 test('start() should call localMedia.start & localMedia.stop', t => {
   const fakeStream = {
-    getVideoTracks: () => [{id: 'hash1234'}]
+    getVideoTracks: () => [{ id: 'hash1234' }]
   };
   const context = {
     logger: {

@@ -41,7 +41,7 @@
   "dependencies": {
     "localmedia": "^5.1.2",
     "rtcpeerconnection": "^8.0.1",
-    "webrtc-stats-gatherer": "^6.0.2"
+    "webrtc-stats-gatherer": "^7.1.1"
   },
   "babel": {
     "presets": [
