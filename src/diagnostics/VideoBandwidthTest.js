@@ -278,5 +278,8 @@ export default class VideoBandwidthTest extends Test {
       this.call.close();
       this.call = null;
     }
+    if (this.localStream) {
+      this.localStream.stop();
+    }
   }
 }

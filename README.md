@@ -18,8 +18,16 @@
   * Alternatively run `./node_modules/.bin/ava test/unit/advanced-camera-test.js` for an individual test
 * `npm run coverage` runs the code coverage report
   * `npm test` will run both lint and all the unit-test and report coverage in text form in command line
+* `npm start` will run webpack with the `--watch` flag and serve the test-page using stupid server. 
+  * This is super helpful when you are writing new tests. You will still need to refrash the browser to pick up any new changes, but at least webpack will rebuild the app when you save a file :) 
 
 # Test Page
 
 test-page/index.html
 for console output of 6 tests to ensure webrtc is properly functioning
+
+Here is a stringified version of google's STUN servers for quick reference: 
+
+```
+[{"type":"stun","urls":"stun:stun.l.google.com:19302"}]
+```

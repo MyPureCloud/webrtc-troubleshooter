@@ -13,7 +13,6 @@ export default class VideoTest extends Test {
     super.start();
 
     const options = Object.assign({}, this.options, { audio: false });
-
     this.localMedia.start(options, (err) => {
       if (err) {
         this.logger.log(`Video Local media start failed ${err.name}`);
@@ -25,6 +24,7 @@ export default class VideoTest extends Test {
 
     this.localMedia.on('localStream', (stream) => {
       if (stream.getVideoTracks().length) {
+        this.localMedia.stop();
         var videoTrack = stream.getVideoTracks()[0];
         if (videoTrack) {
           this.logger.log('Video stream passed');
@@ -40,6 +40,5 @@ export default class VideoTest extends Test {
 
   destroy () {
     super.destroy();
-    this.localMedia.stop();
   }
 }

@@ -8,26 +8,25 @@ test.beforeEach(() => {
   videoTest = new VideoTest();
 });
 
-test('start() should call localMedia.start', t => {
+test('start() should call localMedia.start & localMedia.stop', t => {
+  const fakeStream = {
+    getVideoTracks: () => [{id: 'hash1234'}]
+  };
   const context = {
     logger: {
       log: () => {}
     },
+    resolve: sinon.stub(),
     localMedia: {
       start: sinon.stub(),
-      on: () => {}
+      stop: sinon.stub(),
+      on: (event, callback) => {
+        callback(fakeStream);
+      }
     }
   };
   videoTest.start.call(context);
+  t.is(context.resolve.called, true);
   t.is(context.localMedia.start.called, true);
-});
-
-test('destroy() should call localMedia.stop', t => {
-  const context = {
-    localMedia: {
-      stop: sinon.stub()
-    }
-  };
-  videoTest.destroy.call(context);
   t.is(context.localMedia.stop.called, true);
 });
