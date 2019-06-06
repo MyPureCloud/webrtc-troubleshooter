@@ -16,6 +16,9 @@ module.exports = {
     library: 'WebrtcTroubleshooter',
     libraryTarget: 'umd'
   },
+  resolve: {
+    extensions: ['.ts', '.js', '.json']
+  },
   module: {
     rules: [
       {
@@ -26,7 +29,7 @@ module.exports = {
         }
       },
       {
-        test: /\.ts?$/,
+        test: /\.ts$/,
         loader: 'awesome-typescript-loader'
       }
     ]

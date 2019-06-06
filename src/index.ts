@@ -13,7 +13,7 @@ import {
 import VideoFrameChecker from './utils/VideoFrameChecker';
 import ERROR_CODES from './utils/testErrorCodes';
 
-module.exports = {
+export {
   PermissionsTest,
   TestSuite,
   AudioTest,

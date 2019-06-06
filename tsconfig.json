@@ -2,7 +2,23 @@
   "compilerOptions": {
     "outDir": "./dist",
     "allowJs": true,
-    "target": "es5"
+    "target": "es5",
+    "downlevelIteration": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "strictNullChecks": true,
+    // "alwaysStrict": true,
+    // "noImplicitAny": true,
+    // "noImplicitReturns": true,
+    // "noImplicitThis": true,
+    // "noFallthroughCasesInSwitch": true,
+    // "noUnusedLocals": true,
+    // "noUnusedParameters": true,
+    // "suppressExcessPropertyErrors": false,
+    // "suppressImplicitAnyIndexErrors": false,
+    // "strictFunctionTypes": true,
+    // "strictPropertyInitialization": true,
+    // "checkJs": true
   },
   "include": [
     "./src/**/*"
