@@ -1,4 +1,6 @@
 // adapted from https://github.com/webrtc/testrtc
+import ERROR_CODES from './testErrorCodes';
+
 const WebrtcStatsGather = require('webrtc-stats-gatherer');
 const PeerConnection = require('rtcpeerconnection');
 
@@ -6,6 +8,11 @@ class WebrtcCall {
   constructor (config, logger) {
     this.pc1 = new PeerConnection(config);
     this.pc2 = new PeerConnection(config);
+    this.hasIceCandidates = {
+      pc1: false,
+      pc2: false
+    };
+    this.connectionRetries = 6;
 
     this.logger = logger;
 
@@ -21,10 +28,12 @@ class WebrtcCall {
 
     this.pc1.on('ice', candidate => {
       this.logger.log('webrtc call pc1 candidate', candidate);
+      this.hasIceCandidates.pc1 = true;
       this.onIceCandidate(this.pc2, candidate);
     });
     this.pc2.on('ice', candidate => {
       this.logger.log('webrtc call pc2 candidate', candidate);
+      this.hasIceCandidates.pc2 = true;
       this.onIceCandidate(this.pc1, candidate);
     });
 
@@ -32,7 +41,26 @@ class WebrtcCall {
   }
 
   establishConnection () {
-    return this.pc1.pc.createOffer().then(this.gotOffer.bind(this), () => this.logger.error(...arguments));
+    return this.pc1.pc.createOffer()
+      .then(this.gotOffer.bind(this), () => this.logger.error(...arguments))
+      .then(() => {
+        return new Promise((resolve, reject) => {
+          let attempt = 1;
+          let interval = setInterval(() => {
+            if (this.hasIceCandidates.pc1 && this.hasIceCandidates.pc2) {
+              clearInterval(interval);
+              resolve();
+            } else if (attempt > this.connectionRetries) {
+              clearInterval(interval);
+              const error = new Error('No valid ICE candidates were found to establish a peer connection');
+              error.pcCode = ERROR_CODES.ICE;
+              reject(error);
+            } else {
+              attempt++;
+            }
+          }, 500);
+        });
+      });
   }
 
   close () {
