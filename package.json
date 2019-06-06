@@ -15,7 +15,8 @@
   "scripts": {
     "build": "webpack --env=prod --progress --profile --colors",
     "unit-test": "nyc --reporter=lcov --reporter=cobertura ava test/unit/*.js",
-    "lint": "semistandard && tslint -p . -c tslint.json",
+    "lint": "semistandard && npm run tslint",
+    "tslint": "tslint -p . -c tslint.json",
     "test": "npm run lint && npm run unit-test && npm run report",
     "report": "nyc report",
     "start": "concurrently --kill-others \"webpack --env=prod --profile --colors --watch\" \"stupid-server ./\""

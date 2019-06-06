@@ -1,20 +1,34 @@
 // adapted from https://github.com/webrtc/testrtc
-const WebrtcStatsGather = require('webrtc-stats-gatherer');
-const PeerConnection = require('rtcpeerconnection');
+import { WebrtcStatsGather } from 'webrtc-stats-gatherer';
+import { PeerConnection } from 'rtcpeerconnection';
+import { Logger } from '../types/interfaces';
 
-class WebrtcCall {
-  constructor (config, logger) {
-    this.pc1 = new PeerConnection(config);
-    this.pc2 = new PeerConnection(config);
+const _PeerConnection = require('rtcpeerconnection');
+const _WebrtcStatsGather = require('webrtc-stats-gatherer');
+
+export default class WebrtcCall {
+
+  private pc1: PeerConnection;
+  private pc2: PeerConnection;
+  private logger: Logger;
+  private pc1Gatherer: WebrtcStatsGather;
+  private pc2Gatherer: WebrtcStatsGather;
+  private iceCandidateFilter: (arg?: any) => boolean;
+  private constrainVideoBitrateKbps: string;
+  private constrainOfferToRemoveVideoFec: boolean;
+
+  constructor (config: RTCConfiguration, logger: Logger) {
+    this.pc1 = new _PeerConnection(config);
+    this.pc2 = new _PeerConnection(config);
 
     this.logger = logger;
 
-    this.pc1Gatherer = new WebrtcStatsGather(this.pc1);
+    this.pc1Gatherer = new _WebrtcStatsGather(this.pc1);
     this.pc1Gatherer.on('stats', stats => this.logger.log('pc1 webrtc stats', stats));
     this.pc1Gatherer.collectInitialConnectionStats();
     this.pc1Gatherer.collectStats();
 
-    this.pc2Gatherer = new WebrtcStatsGather(this.pc2);
+    this.pc2Gatherer = new _WebrtcStatsGather(this.pc2);
     this.pc2Gatherer.on('stats', stats => this.logger.log('pc2 webrtc stats', stats));
     this.pc2Gatherer.collectInitialConnectionStats();
     this.pc2Gatherer.collectStats();
@@ -32,7 +46,7 @@ class WebrtcCall {
   }
 
   establishConnection () {
-    return this.pc1.pc.createOffer().then(this.gotOffer.bind(this), () => this.logger.error(...arguments));
+    return this.pc1.pc.createOffer().then(this.gotOffer.bind(this), function () { this.logger.error(...arguments); });
   }
 
   close () {
@@ -44,7 +58,7 @@ class WebrtcCall {
   // of gathered stats.
   gatherStats (peerConnection, interval) {
     let stats = [];
-    let statsCollectTime = [];
+    let statsCollectTime: number[] = [];
 
     return new Promise((resolve, reject) => {
       const getStats = () => {
@@ -52,12 +66,12 @@ class WebrtcCall {
           return resolve({ stats, statsCollectTime });
         }
         setTimeout(() => {
-          let getStatsTimeout = setTimeout(() => {
+          let getStatsTimeout: NodeJS.Timeout = setTimeout(() => {
             resolve({ stats, statsCollectTime });
           }, 1000);
           peerConnection.getStats(null).then((response) => {
             clearTimeout(getStatsTimeout);
-            getStatsTimeout = null;
+            // getStatsTimeout = null;
             gotStats(response);
           });
         }, interval);
@@ -84,8 +98,8 @@ class WebrtcCall {
     //   offer.sdp = offer.sdp.replace(/a=rtpmap:116 red\/90000\r\n/g, '');
     //   offer.sdp = offer.sdp.replace(/a=rtpmap:117 ulpfec\/90000\r\n/g, '');
     // }
-    this.pc1.pc.setLocalDescription(offer);
-    this.pc2.pc.setRemoteDescription(offer);
+    this.pc1.pc.setLocalDescription(offer); // tslint:disable-line
+    this.pc2.pc.setRemoteDescription(offer); // tslint:disable-line
     return this.pc2.pc.createAnswer().then(this.gotAnswer.bind(this), console.error.bind(console));
   }
 
@@ -93,13 +107,13 @@ class WebrtcCall {
     if (this.constrainVideoBitrateKbps) {
       answer.sdp = answer.sdp.replace(/a=mid:video\r\n/g, 'a=mid:video\r\nb=AS:' + this.constrainVideoBitrateKbps + '\r\n');
     }
-    this.pc2.pc.setLocalDescription(answer);
+    this.pc2.pc.setLocalDescription(answer); // tslint:disable-line
     return this.pc1.pc.setRemoteDescription(answer);
   }
 
   onIceCandidate (otherPeer, event) {
     if (event.candidate) {
-      var parsed = this.parseCandidate(event.candidate.candidate);
+      let parsed = this.parseCandidate(event.candidate.candidate);
       if (this.iceCandidateFilter(parsed)) {
         otherPeer.pc.addIceCandidate(event.candidate);
       }
@@ -139,5 +153,3 @@ class WebrtcCall {
     return candidate.type === 'relay';
   }
 }
-
-export default WebrtcCall;

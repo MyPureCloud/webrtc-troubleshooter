@@ -1,6 +1,15 @@
+import { Candidate } from '../types/interfaces';
+
 // parseCandidate from https://github.com/fippo/sdp
-function parseCandidate (line) {
-  var parts;
+
+/**
+ * Parse a sdp candidate string into an object
+ *
+ * @param {string} line sdp candidate string
+ * @returns the parsed candidate
+ */
+export default function parseCandidate (line: string): Candidate {
+  let parts: string[];
   // Parse both variants.
   if (line.indexOf('a=candidate:') === 0) {
     parts = line.substring(12).split(' ');
@@ -8,7 +17,7 @@ function parseCandidate (line) {
     parts = line.substring(10).split(' ');
   }
 
-  var candidate = {
+  let candidate: Candidate = {
     foundation: parts[0],
     component: parts[1],
     protocol: parts[2].toLowerCase(),
@@ -19,7 +28,7 @@ function parseCandidate (line) {
     type: parts[7]
   };
 
-  for (var i = 8; i < parts.length; i += 2) {
+  for (let i = 8; i < parts.length; i += 2) {
     switch (parts[i]) {
       case 'raddr':
         candidate.relatedAddress = parts[i + 1];
@@ -36,5 +45,3 @@ function parseCandidate (line) {
   }
   return candidate;
 }
-
-export default parseCandidate;

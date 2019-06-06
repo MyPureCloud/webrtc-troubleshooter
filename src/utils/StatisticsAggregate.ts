@@ -1,5 +1,16 @@
+/**
+ * Call to aggregate statistics
+ */
 export default class StatisticsAggregate {
-  constructor (rampUpThreshold) {
+
+  private startTime: number;
+  private sum: number;
+  private count: number;
+  private max: number;
+  private rampUpThreshold: number;
+  private rampUpTime: number;
+
+  constructor (rampUpThreshold: number) {
     this.startTime = 0;
     this.sum = 0;
     this.count = 0;
@@ -7,7 +18,13 @@ export default class StatisticsAggregate {
     this.rampUpThreshold = rampUpThreshold;
     this.rampUpTime = Infinity;
   }
-  add (time, datapoint) {
+
+  /**
+   * Add a datapoint to the aggregate
+   * @param time time
+   * @param datapoint datapoint to add
+   */
+  public add (time: number, datapoint: number): void {
     if (this.startTime === 0) {
       this.startTime = time;
     }
@@ -19,16 +36,28 @@ export default class StatisticsAggregate {
     }
     this.count++;
   }
-  getAverage () {
+
+  /**
+   * Get the average
+   */
+  public getAverage (): number {
     if (this.count === 0) {
       return 0;
     }
     return this.sum / this.count;
   }
-  getMax () {
+
+  /**
+   * Get the max datapoint
+   */
+  public getMax (): number {
     return this.max;
   }
-  getRampUpTime () {
+
+  /**
+   * Get the ramp up time
+   */
+  public getRampUpTime (): number {
     return this.rampUpTime - this.startTime;
   }
 }

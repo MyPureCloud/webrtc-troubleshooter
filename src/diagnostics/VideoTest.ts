@@ -1,9 +1,11 @@
 import Test from '../utils/Test';
 const LocalMedia = require('localmedia');
 
+/**
+ * Class to test basic Video
+ */
 export default class VideoTest extends Test {
 
-  public name: string;
   private localMedia: any;
 
   constructor () {
@@ -13,7 +15,10 @@ export default class VideoTest extends Test {
     this.localMedia = new LocalMedia({ detectSpeakingEvents: true });
   }
 
-  start () {
+  /**
+   * Start the test
+   */
+  public start (): Promise<any> {
     super.start();
 
     const options = Object.assign({}, this.options, { audio: false });
@@ -42,7 +47,10 @@ export default class VideoTest extends Test {
     return this.promise;
   }
 
-  destroy () {
+  /**
+   * Tear down the test
+   */
+  public destroy (): void {
     super.destroy();
   }
 }
