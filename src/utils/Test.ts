@@ -1,3 +1,5 @@
+import { ObjectLiteral } from '../types/interfaces';
+
 /**
  * Abstract class to extend to write webrtc tests
  */
@@ -43,7 +45,7 @@ export default abstract class Test {
    *
    * @param {any} options options to store on the class
    */
-  constructor (options?: {logger?: any, any}) {
+  constructor (options?: {logger?: any} & ObjectLiteral) {
     this.options = options || {};
     this.logger = this.options.logger || console;
     this.running = false;
@@ -59,7 +61,7 @@ export default abstract class Test {
     this.timeout = window.setTimeout(() => {
       return this.reject(new Error('Test Timeout'));
     }, 45000);
-    return this.promise; //TODO: make sure this return doesn't break anything
+    return this.promise; // TODO: make sure this return doesn't break anything
   }
 
   /**

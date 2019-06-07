@@ -1,23 +1,42 @@
 import Test from '../utils/Test';
 
-const LocalMedia = require('localmedia');
+import LocalMedia from 'localmedia';
+import { ObjectLiteral } from '../types/interfaces';
 
-class PermissionsTest extends Test {
-  constructor (isCamera, options) {
+// this is necessary to get the code to compile
+// since permissions isn't spec yet
+declare var navigator: {
+  permissions: {
+    query: (options: ObjectLiteral) => Promise<any>
+  }
+} & Navigator;
+
+/**
+ * Class to test camera or microphone permissions
+ */
+export default class PermissionsTest extends Test {
+
+  private isCamera: boolean;
+  private localMedia: LocalMedia;
+
+  constructor (isCamera: boolean, options?: ObjectLiteral) {
     super(options);
     this.name = isCamera ? 'Camera Permissions Test' : 'Microphone Permissions Test';
     this.isCamera = isCamera;
     this.localMedia = new LocalMedia();
   }
 
-  start () {
-    super.start();
+  /**
+   * Start running the test
+   */
+  public start (): Promise<any> {
+    super.start(); // tslint:disable-line
 
     // use the permissions api if available
     if (navigator.permissions) {
       this.logger.info('querying using the permissions api');
 
-      let promise;
+      let promise: Promise<any>;
       if (this.isCamera) {
         this.logger.info('checking camera permissions');
         promise = navigator.permissions.query({ name: 'camera' });
@@ -45,8 +64,8 @@ class PermissionsTest extends Test {
     };
 
     return navigator.mediaDevices.enumerateDevices()
-      .then((devices) => {
-        const relevantDevices = devices.filter((device) => device.kind === (this.isCamera ? 'videoinput' : 'audioinput'));
+      .then((devices: MediaDeviceInfo[]) => {
+        const relevantDevices = devices.filter((device: MediaDeviceInfo) => device.kind === (this.isCamera ? 'videoinput' : 'audioinput'));
         if (!relevantDevices.length) {
           this.logger.error('No relevant devices to check for permissions');
           return this.reject(new Error('noDevice'));
@@ -56,7 +75,7 @@ class PermissionsTest extends Test {
         return new Promise((resolve, reject) => {
           this.localMedia.start(options, (err, stream) => {
             if (err) {
-              let message;
+              let message: string;
               if (err.name === 'NotAllowedError') {
                 message = 'noDevicePermissions';
               } else {
@@ -75,10 +94,11 @@ class PermissionsTest extends Test {
       });
   }
 
-  destroy () {
+  /**
+   * Tear down the test
+   */
+  public destroy (): void {
     super.destroy();
     this.localMedia.stop();
   }
 }
-
-export default PermissionsTest;

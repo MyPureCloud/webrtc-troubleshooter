@@ -10,7 +10,7 @@ export default class StatisticsAggregate {
   private rampUpThreshold: number;
   private rampUpTime: number;
 
-  constructor (rampUpThreshold: number) {
+  constructor (rampUpThreshold: number = 0) {
     this.startTime = 0;
     this.sum = 0;
     this.count = 0;

@@ -1,6 +1,6 @@
 // adapted from https://github.com/webrtc/testrtc
-import { PeerConnection } from 'rtcpeerconnection';
-import { WebrtcStatsGather } from 'webrtc-stats-gatherer';
+import PeerConnection from 'rtcpeerconnection';
+import WebrtcStatsGather from 'webrtc-stats-gatherer';
 import { Logger } from '../types/interfaces';
 import ERROR_CODES from './testErrorCodes';
 
@@ -9,8 +9,16 @@ import ERROR_CODES from './testErrorCodes';
  */
 export default class WebrtcCall {
 
-  private pc1: PeerConnection;
-  private pc2: PeerConnection;
+  /**
+   * 1st peer connection
+   */
+  public pc1: PeerConnection;
+
+  /**
+   * 2nd peer connection
+   */
+  public pc2: PeerConnection;
+
   private logger: Logger;
   private pc1Gatherer: WebrtcStatsGather;
   private pc2Gatherer: WebrtcStatsGather;
@@ -58,7 +66,7 @@ export default class WebrtcCall {
   /**
    * Attempt to make a peer connection
    */
-  public establishConnection (): Promise<any> {
+  public establishConnection (): Promise<void> {
     return this.pc1.pc.createOffer()
       .then(this.gotOffer.bind(this), function () { this.logger.error(...arguments); })
       .then(() => {
@@ -79,7 +87,7 @@ export default class WebrtcCall {
           }, 500);
         });
       });
-	}
+  }
 
   /**
    * Close the peer connections
@@ -97,7 +105,7 @@ export default class WebrtcCall {
    * @param interval between stats gathering
    */
   public gatherStats (peerConnection: RTCPeerConnection, interval: number): Promise<{ stats: RTCStatsReport, statsCollectTime: number[] }> {
-    let stats: RTCStatsReport; //TODO: this was an array... why?
+    let stats: RTCStatsReport; // TODO: this was an array... why?
     let statsCollectTime: number[] = [];
 
     return new Promise((resolve, reject) => {
@@ -109,7 +117,7 @@ export default class WebrtcCall {
           let getStatsTimeout = setTimeout(() => {
             resolve({ stats, statsCollectTime });
           }, 1000);
-          peerConnection.getStats(null).then((response) => {
+          peerConnection.getStats(null).then((response) => { // tslint:disable-line
             clearTimeout(getStatsTimeout);
             // getStatsTimeout = null;
             gotStats(response);
@@ -185,9 +193,9 @@ export default class WebrtcCall {
     return this.pc2.pc.createAnswer().then(this.gotAnswer.bind(this), console.error.bind(console));
   }
 
-    /**
+  /**
    * Set the local desc. for pc2 and the remote desc. for pc1.
-   *  Then return the promise from pc1 setting remote desc..
+   * Then return the promise from pc1 setting remote desc.
    * @param offer from pc1
    */
   private gotAnswer (answer: RTCSessionDescriptionInit): Promise<void> {
@@ -207,7 +215,7 @@ export default class WebrtcCall {
     if (event.candidate) {
       let parsed = this.parseCandidate(event.candidate.candidate);
       if (this.iceCandidateFilter(parsed)) {
-        otherPeer.pc.addIceCandidate(event.candidate);
+        otherPeer.pc.addIceCandidate(event.candidate); // tslint:disable-line
       }
     }
   }

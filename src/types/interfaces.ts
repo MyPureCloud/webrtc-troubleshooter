@@ -1,4 +1,11 @@
 /**
+ * Object interface
+ */
+export interface ObjectLiteral {
+  [key: string]: any;
+}
+
+/**
  * Interface for parsed candidates
  */
 export interface Candidate {

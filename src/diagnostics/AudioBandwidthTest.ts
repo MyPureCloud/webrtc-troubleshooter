@@ -5,23 +5,49 @@ import Test from '../utils/Test';
 import StatisticsAggregate from '../utils/StatisticsAggregate';
 import ERROR_CODES from '../utils/testErrorCodes';
 
+/**
+ * Class to test audio bandwidth over a peer connection
+ */
 export default class AudioBandwidthTest extends Test {
+
+  private hasError: boolean;
+
+  private maxAudioBitrateKbps: number;
+  private durationMs: number;
+  private statStepMs: number;
+  private lastBytesSent: number;
+  private lastTimestamp: number;
+  private nextTimeout: number;
+
+  private packetsSent: string;
+  private packetsLost: string;
+
+  private results: any; // TODO - what was this suppose to be???
+
+  private bweStats: StatisticsAggregate;
+  private bweStats2: StatisticsAggregate;
+  private rttStats: StatisticsAggregate;
+
+  private localTrack: MediaStreamTrack;
+  private startTime: Date;
+  private call: WebrtcCall;
+  private constraints: MediaStreamConstraints;
+  private videoStats: number[];
+  private log: string[];
+  private stats: any;
+
   constructor () {
     super(...arguments);
     this.name = 'Audio Bandwidth Test';
     this.maxAudioBitrateKbps = 510;
-    this.durationMs = 40000;
+    this.durationMs = 4000;
     this.statStepMs = 100;
     this.bweStats = new StatisticsAggregate(0.75 * this.maxAudioBitrateKbps * 1000);
 
     this.lastBytesSent = 0;
-    this.lastTimestamp = null;
     this.bweStats2 = new StatisticsAggregate(0.75 * this.maxAudioBitrateKbps * 1000);
 
     this.rttStats = new StatisticsAggregate();
-    this.packetsLost = null;
-    this.startTime = null;
-    this.call = null;
     // No Camera for audio only test
     this.constraints = {
       video: false
@@ -34,16 +60,19 @@ export default class AudioBandwidthTest extends Test {
     }
 
     this.log = [];
-    this.stats = {};
+    this.stats = {}; // TODO: what is this used for?
   }
 
-  start () {
-    super.start();
+  /**
+   * Start the test
+   */
+  public start (): Promise<any> {
+    super.start(); // tslint:disable-line
 
     if (!this.options.iceConfig.iceServers.length) {
       const error = new Error('No ice servers were provided');
-      error.pcCode = ERROR_CODES.ICE;
-      error.details = this.log;
+      error['pcCode'] = ERROR_CODES.ICE;
+      error['details'] = this.log;
       return this.reject(error);
     }
     this.call = new WebrtcCall(this.options.iceConfig, this.logger);
@@ -62,13 +91,39 @@ export default class AudioBandwidthTest extends Test {
       })
       .catch(err => {
         err.pcCode = ERROR_CODES.MEDIA;
-        const results = this.getResults();
-        results.error = err;
+        const results: Result = this.getResults();
+        results.error = err; // TODO: maybe this has someting to do with `this.results`?
         return this.reject(err);
       });
   }
 
-  getResults () {
+  /**
+   * Tear down the test
+   */
+  public destroy (): void {
+    super.destroy();
+    window.clearTimeout(this.nextTimeout);
+    if (this.call) {
+      const pc = this.call.pc1;
+      if (pc.getSenders) {
+        pc.getSenders().forEach(sender => { if (sender.track) sender.track.stop(); });
+      }
+      if (pc.getTransceivers) {
+        pc.getTransceivers().forEach(t => t.stop());
+      }
+
+      this.call.close();
+      delete this.call;
+    }
+    if (this.localTrack) {
+      this.localTrack.stop();
+    }
+  }
+
+  /**
+   * Get the current results
+   */
+  private getResults (): Result {
     return {
       log: this.log,
       stats: this.stats,
@@ -76,7 +131,13 @@ export default class AudioBandwidthTest extends Test {
     };
   }
 
-  addLog (level, msg, details) {
+  /**
+   * Push a new log into the log array
+   * @param level log level
+   * @param msg message to log
+   * @param details details of the log
+   */
+  private addLog (level: string, msg: unknown, details?: string): void {
     this.logger[level.toLowerCase()](msg, details);
     if (msg && typeof msg === 'object') {
       msg = JSON.stringify(msg);
@@ -90,7 +151,11 @@ export default class AudioBandwidthTest extends Test {
     }
   }
 
-  doGetUserMedia (constraints) {
+  /**
+   * Get the user's media devices
+   * @param constraints media constraints
+   */
+  private doGetUserMedia (constraints: MediaStreamConstraints): Promise<MediaStream> {
     this.addLog('info', { status: 'pending', constraints });
     return navigator.mediaDevices.getUserMedia(constraints)
       .then((stream) => {
@@ -106,14 +171,23 @@ export default class AudioBandwidthTest extends Test {
       });
   }
 
-  getDeviceName (tracks) {
+  /**
+   * Return the label of the first track receive OR return null
+   *  if no tracks passed in.
+   * @param tracks list of media tracks
+   */
+  private getDeviceName (tracks: MediaStreamTrack[]): string | null {
     if (tracks.length === 0) {
       return null;
     }
     return tracks[0].label;
   }
 
-  setupCall (stream) {
+  /**
+   * Start the webrtc call
+   * @param stream medai stream
+   */
+  private setupCall (stream: MediaStream): Promise<void> {
     stream.getTracks().forEach(t => this.call.pc1.pc.addTrack(t, stream));
 
     return this.call.establishConnection().then(() => {
@@ -126,17 +200,23 @@ export default class AudioBandwidthTest extends Test {
     });
   }
 
-  runTest () {
+  /**
+   * Run the test in intervals of `this.statsStepMs`
+   */
+  private runTest (): Promise<void> {
     return new Promise((resolve, reject) => {
-      this.nextTimeout = setTimeout(() => {
+      this.nextTimeout = window.setTimeout(() => {
         this.gatherStats().then(resolve, reject);
       }, this.statStepMs);
     });
   }
 
-  gatherStats () {
+  /**
+   * Method to gather stats. It will not run past `this.durationMs`.
+   */
+  private gatherStats (): Promise<any> {
     const now = new Date();
-    if (now - this.startTime > this.durationMs) {
+    if (now.getTime() - this.startTime.getTime() > this.durationMs) {
       return Promise.resolve();
     }
 
@@ -145,25 +225,29 @@ export default class AudioBandwidthTest extends Test {
       .catch((error) => this.addLog('error', 'Failed to getStats: ' + error));
   }
 
-  gotStats (response) {
+  /**
+   * Calculate custom stats from stats passed.
+   * @param response report
+   */
+  private gotStats (response: RTCStatsReport): Promise<void> {
     if (!response) {
       this.addLog('error', 'Got no response from stats... odd...');
       return this.runTest();
     }
-    const results = typeof response.result === 'function' ? response.result() : response;
-    this.addLog('debug', 'Processing audio bandwidth stats', results);
+    const results = response; // = typeof response.result === 'function' ? response.result() : response; // TODO: Was this needed?
+    this.addLog('debug', 'Processing audio bandwidth stats', results as any);
     results.forEach((report) => {
       if (report.availableOutgoingBitrate) {
         const value = parseInt(report.availableOutgoingBitrate, 10);
-        this.bweStats.add(new Date(report.timestamp), value);
+        this.bweStats.add(new Date(report.timestamp).getTime(), value);
       }
       if (report.currentRoundTripTime) {
         const value = parseFloat(report.currentRoundTripTime) * 1000;
-        this.rttStats.add(new Date(report.timestamp), value);
+        this.rttStats.add(new Date(report.timestamp).getTime(), value);
       }
       if (report.roundTripTime) {
-        const value = parseFloat(report.roundTripTime, 10);
-        this.rttStats.add(new Date(report.timestamp), value);
+        const value = parseFloat(report.roundTripTime);
+        this.rttStats.add(new Date(report.timestamp).getTime(), value);
       }
       if (report.bytesSent && report.ssrc) {
         const value = parseInt(report.bytesSent, 10);
@@ -171,7 +255,7 @@ export default class AudioBandwidthTest extends Test {
         let intervalInSeconds = interval / 1000;
         const bytesSentThisInterval = value - this.lastBytesSent;
         const bwe = bytesSentThisInterval / intervalInSeconds;
-        this.bweStats2.add(new Date(report.timestamp), bwe);
+        this.bweStats2.add(new Date(report.timestamp).getTime(), bwe);
         this.lastBytesSent = value;
         this.lastTimestamp = report.timestamp;
       }
@@ -192,8 +276,11 @@ export default class AudioBandwidthTest extends Test {
     return this.runTest();
   }
 
-  completed () {
-    const stats = this.stats;
+  /**
+   * Calculate the final stats and return... something useful?
+   */
+  private completed (): unknown {
+    const stats = this.stats; // this.stats was never set...
 
     stats.mbpsAvg = this.bweStats2.getAverage() / (1000);
     stats.mbpsMax = this.bweStats2.getMax() / (1000);
@@ -203,10 +290,10 @@ export default class AudioBandwidthTest extends Test {
 
     stats.rttAverage = this.rttStats.getAverage();
     stats.rttMax = this.rttStats.getMax();
-    stats.packetsSent = parseInt(this.packetsSent);
+    stats.packetsSent = parseInt(this.packetsSent, 10);
 
     if (this.packetsSent) {
-      stats.packetLoss = parseInt(this.packetsLost || 0, 10) / parseFloat(this.packetsSent);
+      stats.packetLoss = parseInt(this.packetsLost || '0', 10) / parseFloat(this.packetsSent);
     }
 
     this.addLog('info', `RTT average: ${stats.rttAverage} ms`);
@@ -216,23 +303,11 @@ export default class AudioBandwidthTest extends Test {
     return this.results;
   }
 
-  destroy () {
-    super.destroy();
-    window.clearTimeout(this.nextTimeout);
-    if (this.call) {
-      const pc = this.call.pc1;
-      if (pc.getSenders) {
-        pc.getSenders().forEach(sender => sender.track.stop());
-      }
-      if (pc.getTransceivers) {
-        pc.getTransceivers().forEach(t => t.stop());
-      }
+}
 
-      this.call.close();
-      this.call = null;
-    }
-    if (this.localTrack) {
-      this.localTrack.stop();
-    }
-  }
+interface Result {
+  log: string[];
+  stats: any;
+  constraints: MediaStreamConstraints;
+  error?: any;
 }

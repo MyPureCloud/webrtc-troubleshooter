@@ -1,17 +1,16 @@
 import Test from '../utils/Test';
-const LocalMedia = require('localmedia');
+import LocalMedia from 'localmedia';
 
 /**
  * Class to test basic Video
  */
 export default class VideoTest extends Test {
 
-  private localMedia: any;
+  private localMedia: LocalMedia;
 
   constructor () {
     super(...arguments);
     this.name = 'Video Test';
-
     this.localMedia = new LocalMedia({ detectSpeakingEvents: true });
   }
 
@@ -19,7 +18,7 @@ export default class VideoTest extends Test {
    * Start the test
    */
   public start (): Promise<any> {
-    super.start();
+    super.start(); // tslint:disable-line
 
     const options = Object.assign({}, this.options, { audio: false });
     this.localMedia.start(options, (err: any) => {
