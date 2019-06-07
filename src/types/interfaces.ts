@@ -22,3 +22,14 @@ export interface Logger {
   warn (...args: any[]): void;
   error (...args: any[]): void;
 }
+
+/**
+ * Interface for test results
+ */
+export interface TestResult {
+  status: string;
+  name: string;
+  message?: string;
+  details?: string;
+  results?: string[];
+}

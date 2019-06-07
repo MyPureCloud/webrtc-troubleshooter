@@ -9,6 +9,11 @@ export default abstract class Test {
   public name: string;
 
   /**
+   * Flag whether test is running
+   */
+  public running: boolean;
+
+  /**
    * Options to pass into the class
    */
   protected options: any;
@@ -41,18 +46,27 @@ export default abstract class Test {
   constructor (options?: {logger?: any, any}) {
     this.options = options || {};
     this.logger = this.options.logger || console;
+    this.running = false;
     this.promise = new Promise((resolve, reject) => {
       this.deferred = { resolve, reject };
     });
   }
 
   /**
-   * Begin the timeout for the test
+   * Begin the test
    */
-  protected start (): void {
+  public start (): Promise<any> {
     this.timeout = window.setTimeout(() => {
       return this.reject(new Error('Test Timeout'));
     }, 45000);
+    return this.promise; //TODO: make sure this return doesn't break anything
+  }
+
+  /**
+   * Clean up the test
+   */
+  public destroy (): void {
+    window.clearTimeout(this.timeout);
   }
 
   /**
@@ -73,10 +87,4 @@ export default abstract class Test {
     return this.promise;
   }
 
-  /**
-   * Clear class' timeout
-   */
-  protected destroy (): void {
-    window.clearTimeout(this.timeout);
-  }
 }

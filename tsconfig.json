@@ -1,9 +1,10 @@
 {
   "compilerOptions": {
     "module": "commonjs",
-    "target": "es5",
+    "target": "es6",
     "outDir": "./dist",
     "sourceMap": true,
+    "esModuleInterop": true,
     // "declaration": true,
     "allowJs": true,
     "downlevelIteration": true,
@@ -25,8 +26,5 @@
   },
   "include": [
     "./src/**/*"
-  ],
-  "typeRoots": [
-    "@types", "./src/types/modules.d.ts"
   ]
 }

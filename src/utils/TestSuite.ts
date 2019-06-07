@@ -1,26 +1,55 @@
+import { Logger, TestResult } from '../types/interfaces';
+import Test from './Test';
+
+/**
+ * Call to manager, start, stop, and report on tests
+ */
 export default class TestSuite {
-  constructor (options) {
-    options = options || {};
+
+  /**
+   * Flag whether test suite is running
+   */
+  public running: boolean;
+
+  /**
+   * Flag whether all the tests are complete
+   */
+  public allTestsComplete: boolean;
+
+  private stopOnFailure: boolean;
+  private hasError: boolean;
+  private activeTest: Test;
+  private queue: Test[];
+  private results: TestResult[];
+  private logger: Logger;
+
+  constructor (logger?: Logger) {
     this.allTestsComplete = false;
     this.stopOnFailure = false;
     this.running = false;
     this.queue = [];
-    this.logger = options.logger || console;
-
+    this.logger = logger || console;
     this.hasError = false;
     this.results = [];
   }
 
-  addTest (test) {
+  /**
+   * Add a test class to the testing queue.
+   * @param test to push onto the queue
+   */
+  public addTest (test: Test): void {
     this.queue.push(test);
   }
 
-  start () {
+  /**
+   * Start running the tests in the queue
+   */
+  public start (): Promise<any> {
     return new Promise((resolve, reject) => {
       return this.runNextTest().then(() => {
         if (this.hasError) {
           const error = new Error('A test failure occurred');
-          error.details = this.results;
+          error['details'] = this.results;
           return reject(error);
         }
         return resolve(this.results);
@@ -31,19 +60,26 @@ export default class TestSuite {
     });
   }
 
-  runNextTest () {
+  /**
+   * Run the next test. This will call itself until there are no more
+   *  test OR if there is a failure and the `this.stopOnFailure` is set
+   *  to `true`.
+   */
+  private runNextTest (): Promise<any> {
     this.running = true;
+    this.allTestsComplete = !this.queue.length;
     const test = this.queue.shift();
 
     if (!test) {
       this.running = false;
+      this.allTestsComplete = !this.queue.length;
       return Promise.resolve();
     }
 
     this.activeTest = test;
     this.logger.log('Starting ' + test.name);
 
-    const next = (err) => {
+    const next = (err?: any) => {
       test.running = false;
       test.destroy();
       if (err) {
@@ -76,8 +112,15 @@ export default class TestSuite {
     });
   }
 
-  stopAllTests () {
-    this.activeTest.destroy();
+  /**
+   * Terminate running test and clear queue
+   */
+  public stopAllTests (): void {
+    if (this.activeTest) {
+      this.activeTest.destroy();
+    }
     this.queue = [];
+    this.running = false;
+    this.allTestsComplete = !this.queue.length;
   }
 }
