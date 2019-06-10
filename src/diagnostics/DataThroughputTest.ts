@@ -49,11 +49,11 @@ export default class DataChannelThroughputTest extends Test {
    * Start the test
    */
   public start (): Promise<any> {
-    super.start();
+    super.start(); // tslint:disable-line
 
     if (!this.options.iceServers.length) {
       this.logger.error('No ice servers were provided');
-      this.reject(new Error('No ice servers'));
+      this.reject(new Error('No ice servers')); // tslint:disable-line
     } else {
       this.call = new WebrtcCall(this.options, this.logger);
       this.call.setIceCandidateFilter(WebrtcCall.isRelay);
@@ -61,7 +61,7 @@ export default class DataChannelThroughputTest extends Test {
       this.senderChannel.addEventListener('open', this.sendingStep.bind(this));
       this.call.pc2.on('addChannel', this.onReceiverChannel.bind(this));
 
-      this.call.establishConnection();
+      this.call.establishConnection(); // tslint:disable-line
     }
     return this.promise;
   }
@@ -133,7 +133,7 @@ export default class DataChannelThroughputTest extends Test {
       const elapsedTime = Math.round((now.getTime() - this.startTime.getTime()) * 10) / 10000.0;
       const receivedKBits = this.receivedPayloadBytes * 8 / 1000;
       this.logger.log(`${receivedKBits} kb in ${elapsedTime} seconds.`);
-      this.resolve();
+      this.resolve(); // tslint:disable-line
     }
   }
 

@@ -86,7 +86,7 @@ export default class VideoBandwidthTest extends Test {
    * Start the test
    */
   public start (): Promise<any> {
-    super.start();
+    super.start(); // tslint:disable-line
 
     if (!this.options.iceConfig.iceServers.length) {
       const error = new Error('No ice servers were provided');

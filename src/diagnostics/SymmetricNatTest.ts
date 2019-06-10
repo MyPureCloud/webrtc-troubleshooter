@@ -14,7 +14,7 @@ export default class SymmetricNatTest extends Test {
    * Start the test
    */
   public start (): Promise<any> {
-    super.start();
+    super.start(); // tslint:disable-line
 
     const pc = new window.RTCPeerConnection({
       iceServers: [
@@ -37,9 +37,9 @@ export default class SymmetricNatTest extends Test {
         if (relatedPorts.length === 1) {
           const relatedPort = relatedPorts[0];
           const ports = candidates[relatedPort];
-          this.resolve(ports.length === 1 ? 'nat.asymmetric' : 'nat.symmetric');
+          return this.resolve(ports.length === 1 ? 'nat.asymmetric' : 'nat.symmetric');
         } else if (relatedPorts.length === 0) {
-          this.resolve('nat.noSrflx');
+          return this.resolve('nat.noSrflx');
         } else {
           let hasAsymmetric = false;
           let hasSymmetric = false;
@@ -53,19 +53,19 @@ export default class SymmetricNatTest extends Test {
             }
           }
           if (hasSymmetric && !hasAsymmetric) {
-            this.resolve('nat.symmetric');
+            return this.resolve('nat.symmetric');
           } else if (!hasSymmetric && hasAsymmetric) {
-            this.resolve('nat.asymmetric');
+            return this.resolve('nat.asymmetric');
           } else if (hasSymmetric && hasAsymmetric) {
-            this.resolve('nat.both');
+            return this.resolve('nat.both');
           } else {
-            this.resolve('not.noSrflx');
+            return this.resolve('not.noSrflx');
           }
         }
       }
     };
     pc['onendofcandidates'] = pc.onicecandidate.bind(pc, {});
-    pc.createOffer().then(offer => pc.setLocalDescription(offer));
+    pc.createOffer().then(offer => pc.setLocalDescription(offer)); // tslint:disable-line
     this.promise.then(() => {
       pc.close();
     }).catch(e => {

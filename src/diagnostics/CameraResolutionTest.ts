@@ -162,7 +162,7 @@ export default class CameraResolutionTest extends Test {
     // https://developer.mozilla.org/en-US/docs/Web/API/MediaStreamTrack
     // TODO: remove if (...) when event handlers are supported by Firefox.
     const videoTrack: MediaStreamTrack = tracks[0];
-    if (typeof videoTrack.addEventListener === 'function') {
+    if (typeof videoTrack.addEventListener === 'function') { // tslint:disable-line
       // Register events.
       videoTrack.addEventListener('ended', () => {
         // Ignore events when shutting down the test.

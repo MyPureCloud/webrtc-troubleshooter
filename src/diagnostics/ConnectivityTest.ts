@@ -19,14 +19,14 @@ export default class ConnectivityTest extends Test {
    * Start the test
    */
   public start (): Promise<any> {
-    super.start();
+    super.start(); // tslint:disable-line
     this.logIceServers();
     this.pc1 = new PeerConnection(this.options);
     this.pc2 = new PeerConnection(this.options);
 
     const connectivityCheckFailure = window.setTimeout(() => {
       this.logger.error('Connectivity timeout error');
-      this.reject(new Error('connectivity timeout'));
+      return this.reject(new Error('connectivity timeout'));
     }, 10000);
     this.pc2.on('ice', (candidate) => {
       this.logger.log('pc2 ICE candidate', candidate);
@@ -47,13 +47,13 @@ export default class ConnectivityTest extends Test {
       this.pc2.handleOffer(offer, (err) => {
         if (err) {
           this.logger.error('pc2 failed to handle offer');
-          this.reject(err);
+          return this.reject(err);
         }
         this.logger.log('pc2 handle offer');
         this.pc2.answer((err, answer) => {
           if (err) {
             this.logger.error('pc2 failed answer');
-            this.reject(err);
+            return this.reject(err);
           }
           this.logger.log(`pc2 successful ${answer.type}`);
         });
@@ -84,7 +84,7 @@ export default class ConnectivityTest extends Test {
       if (messageQueue.length === 0) {
         window.clearTimeout(connectivityCheckFailure);
         this.logger.log(`Received ${messagesReceived} messages`);
-        this.resolve();
+        return this.resolve();
       }
     };
     // when pc2 gets a data channel, send all messageQueue items on it
