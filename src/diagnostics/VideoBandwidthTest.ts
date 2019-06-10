@@ -5,7 +5,41 @@ import Test from '../utils/Test';
 import StatisticsAggregate from '../utils/StatisticsAggregate';
 import ERROR_CODES from '../utils/testErrorCodes';
 
+/**
+ * Class to test video bandwidth over a peer connection
+ */
 export default class VideoBandwidthTest extends Test {
+
+  private hasError: boolean;
+
+  private maxAudioBitrateKbps: number;
+  private maxVideoBitrateKbps: number;
+  private bitrateMean: number;
+  private bitrateStdDev: number;
+  private lastBytesSent: number;
+  private lastTimestamp: number;
+  private durationMs: number;
+  private statStepMs: number;
+  private videoStats: number[];
+  private nextTimeout: number;
+
+  private framerateMean: string;
+  private packetsSent: string;
+  private packetsLost: string;
+
+  private bweStats: StatisticsAggregate;
+  private bweStats2: StatisticsAggregate;
+  private rttStats: StatisticsAggregate;
+
+  private localStream: MediaStreamTrack;
+  private call: WebrtcCall;
+  private constraints: MediaStreamConstraints;
+  private providedStream: MediaStream;
+  private startTime: Date;
+  private log: string[];
+  private stats: any;
+  private results: unknown;
+
   constructor () {
     super(...arguments);
     this.name = 'Video Bandwidth Test';
@@ -15,14 +49,14 @@ export default class VideoBandwidthTest extends Test {
     this.bweStats = new StatisticsAggregate(0.75 * this.maxVideoBitrateKbps * 1000);
 
     this.lastBytesSent = 0;
-    this.lastTimestamp = null;
+    // this.lastTimestamp = null;
     this.bweStats2 = new StatisticsAggregate(0.75 * this.maxAudioBitrateKbps * 1000);
 
     this.rttStats = new StatisticsAggregate();
-    this.packetsLost = null;
+    // this.packetsLost = null;
     this.videoStats = [];
-    this.startTime = null;
-    this.call = null;
+    // this.startTime = null;
+    // this.call = null;
     // Open the camera with hd resolution specs to get a correct measurement of ramp-up time.
     this.constraints = {
       audio: false,
@@ -36,13 +70,11 @@ export default class VideoBandwidthTest extends Test {
           min: 480,
           ideal: 720,
           max: 1080
-        }
+        },
+        deviceId: this.options.mediaOptions.video.deviceId || undefined
       }
 
     };
-    if (this.options.mediaOptions.video.deviceId) {
-      this.constraints.video.deviceId = this.options.mediaOptions.video.deviceId;
-    }
 
     this.providedStream = this.options.screenStream;
 
@@ -50,13 +82,16 @@ export default class VideoBandwidthTest extends Test {
     this.stats = {};
   }
 
-  start () {
+  /**
+   * Start the test
+   */
+  public start (): Promise<any> {
     super.start();
 
     if (!this.options.iceConfig.iceServers.length) {
       const error = new Error('No ice servers were provided');
-      error.pcCode = ERROR_CODES.ICE;
-      error.details = this.log;
+      error['pcCode'] = ERROR_CODES.ICE;
+      error['details'] = this.log;
       return this.reject(error);
     }
     this.call = new WebrtcCall(this.options.iceConfig, this.logger);
@@ -65,9 +100,9 @@ export default class VideoBandwidthTest extends Test {
     // a spike when it is enabled and disabled. Disable it for now. FEC issue
     // tracked on: https://code.google.com/p/webrtc/issues/detail?id=3050
     this.call.disableVideoFec();
-    this.call.constrainVideoBitrate(this.maxVideoBitrateKbps);
+    this.call.constrainVideoBitrate(this.maxVideoBitrateKbps.toString());
 
-    let promise;
+    let promise: Promise<any>;
     if (this.providedStream) {
       promise = this.gotStream(this.providedStream);
     } else {
@@ -94,15 +129,36 @@ export default class VideoBandwidthTest extends Test {
       });
   }
 
-  runTest () {
+  /**
+   * Tear down the test
+   */
+  public destroy (): void {
+    super.destroy();
+    window.clearTimeout(this.nextTimeout);
+    if (this.call) {
+      this.call.close();
+      delete this.call;
+    }
+    if (this.localStream) {
+      this.localStream.stop();
+    }
+  }
+
+  /**
+   * Run the internal test
+   */
+  private runTest (): Promise<any> {
     return new Promise((resolve, reject) => {
-      this.nextTimeout = setTimeout(() => {
+      this.nextTimeout = window.setTimeout(() => {
         this.gatherStats().then(resolve, reject);
       }, this.statStepMs);
     });
   }
 
-  getResults () {
+  /**
+   * Get the current results
+   */
+  private getResults (): {log: string[], stats: any, constraints: MediaStreamConstraints, error?: any } {
     return {
       log: this.log,
       stats: this.stats,
@@ -110,7 +166,13 @@ export default class VideoBandwidthTest extends Test {
     };
   }
 
-  addLog (level, msg, details) {
+  /**
+   * Add a log to the internal log
+   * @param level log level
+   * @param msg message to log
+   * @param details any additional details
+   */
+  private addLog (level: string, msg: any, details?: any): void {
     this.logger[level.toLowerCase()](msg, details);
     if (msg && typeof msg === 'object') {
       msg = JSON.stringify(msg);
@@ -124,9 +186,13 @@ export default class VideoBandwidthTest extends Test {
     }
   }
 
-  doGetUserMedia (constraints) {
+  /**
+   * Get user media and open the stream
+   * @param constraints constraints for media devices
+   */
+  private doGetUserMedia (constraints: MediaStreamConstraints): Promise<void> {
     this.addLog('info', { status: 'pending', constraints });
-    return navigator.mediaDevices.getUserMedia(constraints).then((stream) => {
+    return navigator.mediaDevices.getUserMedia(constraints).then((stream: MediaStream) => {
       const camera = this.getDeviceName(stream.getVideoTracks());
       this.addLog('info', { status: 'success', camera });
       return this.gotStream(stream);
@@ -138,14 +204,22 @@ export default class VideoBandwidthTest extends Test {
     });
   }
 
-  getDeviceName (tracks) {
+  /**
+   * Get the label of the first media track
+   * @param tracks media stream tracks
+   */
+  private getDeviceName (tracks: MediaStreamTrack[]): string | null {
     if (tracks.length === 0) {
       return null;
     }
     return tracks[0].label;
   }
 
-  gotStream (stream) {
+  /**
+   * Establish the peer connection from the passed in stream
+   * @param stream
+   */
+  private gotStream (stream: MediaStream): Promise<any> {
     stream.getTracks().forEach(t => this.call.pc1.pc.addTrack(t, stream));
     return this.call.establishConnection().then(() => {
       this.addLog('info', { status: 'success', message: 'establishing connection' });
@@ -157,9 +231,12 @@ export default class VideoBandwidthTest extends Test {
     });
   }
 
-  gatherStats () {
+  /**
+   * Gather stats from the peer connection
+   */
+  private gatherStats (): Promise<any> {
     const now = new Date();
-    if (now - this.startTime > this.durationMs) {
+    if (now.getTime() - this.startTime.getTime() > this.durationMs) {
       return Promise.resolve('completed');
     }
 
@@ -168,25 +245,29 @@ export default class VideoBandwidthTest extends Test {
       .catch((error) => this.addLog('error', 'Failed to getStats: ' + error));
   }
 
-  gotStats (response) {
+  /**
+   * Handle the passed in peer connection stats
+   * @param response stats from the peer connection
+   */
+  private gotStats (response: RTCStatsReport): Promise<any> {
     if (!response) {
       this.addLog('error', 'Got no response from stats... odd...');
       return this.runTest();
     }
-    const results = typeof response.result === 'function' ? response.result() : response;
+    const results: RTCStatsReport = typeof response['result'] === 'function' ? response['result']() : response;
     this.addLog('debug', 'Processing video bandwidth stats', results);
     results.forEach((report) => {
       if (report.availableOutgoingBitrate) {
         const value = parseInt(report.availableOutgoingBitrate, 10);
-        this.bweStats.add(new Date(report.timestamp), value);
+        this.bweStats.add(new Date(report.timestamp).getTime(), value);
       }
       if (report.currentRoundTripTime) {
         const value = parseFloat(report.currentRoundTripTime) * 1000;
-        this.rttStats.add(new Date(report.timestamp), value);
+        this.rttStats.add(new Date(report.timestamp).getTime(), value);
       }
       if (report.roundTripTime) {
-        const value = parseFloat(report.roundTripTime, 10);
-        this.rttStats.add(new Date(report.timestamp), value);
+        const value = parseFloat(report.roundTripTime);
+        this.rttStats.add(new Date(report.timestamp).getTime(), value);
       }
       if (report.bytesSent && report.ssrc) {
         const value = parseInt(report.bytesSent, 10);
@@ -194,7 +275,7 @@ export default class VideoBandwidthTest extends Test {
         let intervalInSeconds = interval / 1000;
         const bytesSentThisInterval = value - this.lastBytesSent;
         const bwe = bytesSentThisInterval / intervalInSeconds;
-        this.bweStats2.add(new Date(report.timestamp), bwe);
+        this.bweStats2.add(new Date(report.timestamp).getTime(), bwe);
         this.lastBytesSent = value;
         this.lastTimestamp = report.timestamp;
       }
@@ -215,18 +296,21 @@ export default class VideoBandwidthTest extends Test {
     return this.runTest();
   }
 
-  completed () {
+  /**
+   * Runs once all the test has finished
+   */
+  private completed (): unknown {
     const isWebkit = 'WebkitAppearance' in document.documentElement.style;
     const isFirefox = navigator.userAgent.toLowerCase().indexOf('firefox') > -1;
     const pc = this.call.pc1;
     if (pc.getSenders) {
-      pc.getSenders().forEach(sender => sender.track.stop());
+      pc.getSenders().forEach((sender: RTCRtpSender) => { if (sender.track) sender.track.stop(); });
     }
     if (pc.getTransceivers) {
       pc.getTransceivers().forEach(t => t.stop());
     }
     this.call.close();
-    this.call = null;
+    delete this.call;
     const stats = this.stats;
 
     if (isWebkit) {
@@ -261,7 +345,7 @@ export default class VideoBandwidthTest extends Test {
     stats.rttMax = this.rttStats.getMax();
 
     if (this.packetsSent) {
-      stats.packetLoss = parseInt(this.packetsLost || 0, 10) / parseFloat(this.packetsSent);
+      stats.packetLoss = parseInt(this.packetsLost || '0', 10) / parseFloat(this.packetsSent);
     }
 
     this.addLog('info', `RTT average: ${stats.rttAverage} ms`);
@@ -269,17 +353,5 @@ export default class VideoBandwidthTest extends Test {
     this.addLog('info', `Packets sent: ${stats.packetsSent}`);
     this.addLog('info', `Lost packets: ${stats.lostPackets}`);
     return this.results;
-  }
-
-  destroy () {
-    super.destroy();
-    window.clearTimeout(this.nextTimeout);
-    if (this.call) {
-      this.call.close();
-      this.call = null;
-    }
-    if (this.localStream) {
-      this.localStream.stop();
-    }
   }
 }

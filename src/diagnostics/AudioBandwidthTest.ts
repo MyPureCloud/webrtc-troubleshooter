@@ -40,7 +40,7 @@ export default class AudioBandwidthTest extends Test {
     super(...arguments);
     this.name = 'Audio Bandwidth Test';
     this.maxAudioBitrateKbps = 510;
-    this.durationMs = 4000;
+    this.durationMs = 40000;
     this.statStepMs = 100;
     this.bweStats = new StatisticsAggregate(0.75 * this.maxAudioBitrateKbps * 1000);
 
@@ -234,7 +234,7 @@ export default class AudioBandwidthTest extends Test {
       this.addLog('error', 'Got no response from stats... odd...');
       return this.runTest();
     }
-    const results = response; // = typeof response.result === 'function' ? response.result() : response; // TODO: Was this needed?
+    const results = response; // = typeof response.result === 'function' ? response.result() : response; // TODO: Was this needed? // same thing in video bandwidth test
     this.addLog('debug', 'Processing audio bandwidth stats', results as any);
     results.forEach((report) => {
       if (report.availableOutgoingBitrate) {
