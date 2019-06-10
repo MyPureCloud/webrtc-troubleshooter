@@ -1,27 +1,24 @@
 import Test from '../utils/Test';
+import PeerConnection from 'rtcpeerconnection';
 
-const PeerConnection = require('rtcpeerconnection');
+/**
+ * Class to test connectivity
+ */
+export default class ConnectivityTest extends Test {
 
-class ConnectivityTest extends Test {
+  private pc1: PeerConnection;
+  private pc2: PeerConnection;
+  private dataChannel: RTCDataChannel;
+
   constructor () {
     super(...arguments);
     this.name = 'Connectivity Test';
   }
 
-  logIceServers () {
-    if (this.options.iceServers) {
-      this.options.iceServers.forEach((iceServer) => {
-        this.logger.log(`Using ICE Server: ${iceServer.urls}`);
-      });
-      if (this.options.iceServers.length === 0) {
-        this.logger.error('no ice servers provided');
-      }
-    } else {
-      this.logger.log('Using default ICE Servers');
-    }
-  }
-
-  start () {
+  /**
+   * Start the test
+   */
+  public start (): Promise<any> {
     super.start();
     this.logIceServers();
     this.pc1 = new PeerConnection(this.options);
@@ -103,11 +100,28 @@ class ConnectivityTest extends Test {
     return this.promise;
   }
 
-  destroy () {
+  /**
+   * Tear down the test
+   */
+  public destroy (): void {
     super.destroy();
     this.pc1.close();
     this.pc2.close();
   }
-}
 
-export default ConnectivityTest;
+  /**
+   * Log configured ice servers
+   */
+  private logIceServers (): void {
+    if (this.options.iceServers) {
+      this.options.iceServers.forEach((iceServer: RTCIceServer) => {
+        this.logger.log(`Using ICE Server: ${iceServer.urls}`);
+      });
+      if (this.options.iceServers.length === 0) {
+        this.logger.error('no ice servers provided');
+      }
+    } else {
+      this.logger.log('Using default ICE Servers');
+    }
+  }
+}

@@ -3,9 +3,18 @@ declare module 'rtcpeerconnection' {
     pc: RTCPeerConnection;
     constructor(config: RTCConfiguration | null, constraints?: MediaStreamConstraints);
     on (event: 'ice', callback: (candidate: RTCPeerConnectionIceEvent) => void ): void;
+    on (event: 'answer', callback: (answer: { type: string, sdp: string }) => void ): void;
+    on (event: 'offer', callback: (offer: { type: string, sdp: string }) => void ): void;
+    on (event: 'addChannel', callback: (channel: RTCDataChannel) => void ): void;
     close (): void;
     getSenders (): RTCRtpSender[];
     getTransceivers (): RTCRtpTransceiver[];
+    processIce (candidate: RTCPeerConnectionIceEvent): void;
+    handleAnswer (answer: { type: string, sdp: string }): void;
+    handleOffer (offer: { type: string, sdp: string }, callback: (err: any) => void): void;
+    answer (callback: (err: any, answer: { type: string, sdp: string }) => void): void;
+    offer (): void;
+    createDataChannel (name: string, options?: RTCDataChannelInit): RTCDataChannel;
   }
 }
 
