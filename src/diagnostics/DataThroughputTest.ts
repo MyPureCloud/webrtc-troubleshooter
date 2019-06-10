@@ -1,12 +1,31 @@
 import WebrtcCall from '../utils/WebrtcCall';
 import Test from '../utils/Test';
 
-class DataChannelThroughputTest extends Test {
+/**
+ * Class to test throughput of a RTC data channel
+ */
+export default class DataChannelThroughputTest extends Test {
+
+  private testDurationSeconds: number;
+  private sentPayloadBytes: number;
+  private receivedPayloadBytes: number;
+  private maxNumberOfPacketsToSend: number;
+  private bytesToKeepBuffered: number;
+  private lastBitrateMeasureTime: number;
+  private lastReceivedPayloadBytes: number;
+  private throughputTimeout: number;
+
+  private samplePacket: string;
+  private stopSending: boolean;
+  private startTime: Date;
+  private call: WebrtcCall;
+  private senderChannel: RTCDataChannel;
+  private receiveChannel: RTCDataChannel ;
+
   constructor () {
     super(...arguments);
     this.name = 'Data Throughput Test';
     this.testDurationSeconds = 5.0;
-    this.startTime = null;
     this.sentPayloadBytes = 0;
     this.receivedPayloadBytes = 0;
 
@@ -23,14 +42,13 @@ class DataChannelThroughputTest extends Test {
 
     this.maxNumberOfPacketsToSend = 1;
     this.bytesToKeepBuffered = 1024 * this.maxNumberOfPacketsToSend;
-    this.lastBitrateMeasureTime = null;
     this.lastReceivedPayloadBytes = 0;
-
-    this.call = null;
-    this.senderChannel = null;
-    this.receiveChannel = null;
   }
-  start () {
+
+  /**
+   * Start the test
+   */
+  public start (): Promise<any> {
     super.start();
 
     if (!this.options.iceServers.length) {
@@ -48,16 +66,35 @@ class DataChannelThroughputTest extends Test {
     return this.promise;
   }
 
-  onReceiverChannel (channel) {
+  /**
+   * Tear down the test
+   */
+  public destroy (): void {
+    super.destroy();
+    window.clearTimeout(this.throughputTimeout);
+    if (this.call) {
+      this.call.close();
+      delete this.call;
+    }
+  }
+
+  /**
+   * Handle a passed in data channel
+   * @param channel rtc data channel
+   */
+  private onReceiverChannel (channel: RTCDataChannel): void {
     this.receiveChannel = channel;
     this.receiveChannel.addEventListener('message', this.onMessageReceived.bind(this));
   }
 
-  sendingStep () {
+  /**
+   * Step through sending a message
+   */
+  private sendingStep (): void {
     const now = new Date();
     if (!this.startTime) {
       this.startTime = now;
-      this.lastBitrateMeasureTime = now;
+      this.lastBitrateMeasureTime = now.getTime();
     }
 
     for (let i = 0; i !== this.maxNumberOfPacketsToSend; ++i) {
@@ -68,42 +105,36 @@ class DataChannelThroughputTest extends Test {
       this.senderChannel.send(this.samplePacket);
     }
 
-    if (now - this.startTime >= 1000 * this.testDurationSeconds) {
+    if (now.getTime() - this.startTime.getTime() >= 1000 * this.testDurationSeconds) {
       this.stopSending = true;
     } else {
-      this.throughputTimeout = setTimeout(this.sendingStep.bind(this), 1);
+      this.throughputTimeout = window.setTimeout(this.sendingStep.bind(this), 1);
     }
   }
 
-  onMessageReceived (event) {
+  /**
+   * Handle a new message received
+   * @param event message event
+   */
+  private onMessageReceived (event: MessageEvent): void {
     this.receivedPayloadBytes += event.data.length;
     const now = new Date();
-    if (now - this.lastBitrateMeasureTime >= 1000) {
-      let bitrate = (this.receivedPayloadBytes - this.lastReceivedPayloadBytes) / (now - this.lastBitrateMeasureTime);
+    if (now.getTime() - this.lastBitrateMeasureTime >= 1000) {
+      let bitrate = (this.receivedPayloadBytes - this.lastReceivedPayloadBytes) / (now.getTime() - this.lastBitrateMeasureTime);
       bitrate = Math.round(bitrate * 1000 * 8) / 1000;
       this.logger.log(`Transmitting at ${bitrate} kbps.`);
       this.lastReceivedPayloadBytes = this.receivedPayloadBytes;
-      this.lastBitrateMeasureTime = now;
+      this.lastBitrateMeasureTime = now.getTime();
     }
     if (this.stopSending && this.sentPayloadBytes === this.receivedPayloadBytes) {
       this.call.close();
-      this.call = null;
+      delete this.call;
 
-      const elapsedTime = Math.round((now - this.startTime) * 10) / 10000.0;
+      const elapsedTime = Math.round((now.getTime() - this.startTime.getTime()) * 10) / 10000.0;
       const receivedKBits = this.receivedPayloadBytes * 8 / 1000;
       this.logger.log(`${receivedKBits} kb in ${elapsedTime} seconds.`);
       this.resolve();
     }
   }
 
-  destroy () {
-    super.destroy();
-    window.clearTimeout(this.throughputTimeout);
-    if (this.call) {
-      this.call.close();
-      this.call = null;
-    }
-  }
 }
-
-export default DataChannelThroughputTest;

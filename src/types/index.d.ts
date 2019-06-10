@@ -14,7 +14,7 @@ declare module 'rtcpeerconnection' {
     handleOffer (offer: { type: string, sdp: string }, callback: (err: any) => void): void;
     answer (callback: (err: any, answer: { type: string, sdp: string }) => void): void;
     offer (): void;
-    createDataChannel (name: string, options?: RTCDataChannelInit): RTCDataChannel;
+    createDataChannel (name: string | null, options?: RTCDataChannelInit): RTCDataChannel;
   }
 }
 
