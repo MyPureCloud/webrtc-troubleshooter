@@ -91,7 +91,7 @@ export default class AudioBandwidthTest extends Test {
       })
       .catch(err => {
         err.pcCode = ERROR_CODES.MEDIA;
-        const results: Result = this.getResults();
+        const results = this.getResults();
         results.error = err; // TODO: maybe this has someting to do with `this.results`?
         return this.reject(err);
       });
@@ -123,7 +123,7 @@ export default class AudioBandwidthTest extends Test {
   /**
    * Get the current results
    */
-  private getResults (): Result {
+  private getResults (): { log: string[]; stats: any; constraints: MediaStreamConstraints; error?: any; } {
     return {
       log: this.log,
       stats: this.stats,
@@ -303,11 +303,4 @@ export default class AudioBandwidthTest extends Test {
     return this.results;
   }
 
-}
-
-interface Result {
-  log: string[];
-  stats: any;
-  constraints: MediaStreamConstraints;
-  error?: any;
 }

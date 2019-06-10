@@ -28,7 +28,7 @@ export default class WebrtcCall {
   private constrainOfferToRemoveVideoFec: boolean;
   private connectionRetries: number;
 
-  constructor (config: RTCConfiguration, logger: Logger) {
+  constructor (config: RTCConfiguration | null, logger: Logger) {
     this.pc1 = new PeerConnection(config);
     this.pc2 = new PeerConnection(config);
     this.hasIceCandidates = {
@@ -104,8 +104,8 @@ export default class WebrtcCall {
    * @param peerConnection peer connect to gather stats from
    * @param interval between stats gathering
    */
-  public gatherStats (peerConnection: RTCPeerConnection, interval: number): Promise<{ stats: RTCStatsReport, statsCollectTime: number[] }> {
-    let stats: RTCStatsReport; // TODO: this was an array... why?
+  public gatherStats (peerConnection: RTCPeerConnection, interval: number): Promise<{ stats: RTCStatsReport[], statsCollectTime: number[] }> {
+    let stats: RTCStatsReport[] = []; // TODO: this was an array... why?
     let statsCollectTime: number[] = [];
 
     return new Promise((resolve, reject) => {
@@ -125,13 +125,13 @@ export default class WebrtcCall {
         }, interval);
       };
 
-      const gotStats = (response) => {
+      const gotStats = (response: RTCStatsReport) => {
         if (!response) {
           return getStats();
         }
         const now = Date.now();
-        const results: RTCStatsReport = response.result ? response.result() : response;
-        stats = results;
+        const results: RTCStatsReport = response['result'] ? response['result']() : response;
+        stats.push(results);
         statsCollectTime = Object.keys(results).map(() => now);
         getStats();
       };

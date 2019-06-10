@@ -1,7 +1,7 @@
 declare module 'rtcpeerconnection' {
   export default class PeerConnection {
     pc: RTCPeerConnection;
-    constructor(config: RTCConfiguration, constraints?: MediaStreamConstraints);
+    constructor(config: RTCConfiguration | null, constraints?: MediaStreamConstraints);
     on (event: 'ice', callback: (candidate: RTCPeerConnectionIceEvent) => void ): void;
     close (): void;
     getSenders (): RTCRtpSender[];

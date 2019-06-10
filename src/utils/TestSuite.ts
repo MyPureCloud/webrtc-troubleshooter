@@ -1,4 +1,4 @@
-import { Logger, TestResult } from '../types/interfaces';
+import { Logger, TestResult, ObjectLiteral } from '../types/interfaces';
 import Test from './Test';
 
 /**
@@ -16,19 +16,19 @@ export default class TestSuite {
    */
   public allTestsComplete: boolean;
 
-  private stopOnFailure: boolean;
+  protected stopOnFailure: boolean;
   private hasError: boolean;
   private activeTest: Test;
   private queue: Test[];
   private results: TestResult[];
   private logger: Logger;
 
-  constructor (logger?: Logger) {
+  constructor (options?: { logger?: Logger } & ObjectLiteral) {
     this.allTestsComplete = false;
     this.stopOnFailure = false;
     this.running = false;
     this.queue = [];
-    this.logger = logger || console;
+    this.logger = options && options.logger ? options.logger : console;
     this.hasError = false;
     this.results = [];
   }

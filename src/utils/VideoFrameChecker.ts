@@ -5,7 +5,11 @@ import Ssim from './Ssim';
  */
 export default class VideoFrameChecker {
 
-  private frameStats: { numFrozenFrames: number, numBlackFrames: number, numFrames: number };
+  /**
+   * Object withnumber of frozen, black, and total frames
+   */
+  public frameStats: { numFrozenFrames: number, numBlackFrames: number, numFrames: number };
+
   private running: boolean;
   private nonBlackPixelLumaThreshold: number;
   private identicalFrameSsimThreshold: number;
