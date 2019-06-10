@@ -1,13 +1,19 @@
 import Test from '../utils/Test';
 import parseCandidate from '../utils/parseCandidate';
 
-class SymmetricNatTest extends Test {
+/**
+ * Class to test symmetric NAT
+ */
+export default class SymmetricNatTest extends Test {
   constructor () {
     super(...arguments);
     this.name = 'Symmetric Nat Test';
   }
 
-  start () {
+  /**
+   * Start the test
+   */
+  public start (): Promise<any> {
     super.start();
 
     const pc = new window.RTCPeerConnection({
@@ -18,14 +24,14 @@ class SymmetricNatTest extends Test {
     });
     pc.createDataChannel('symmetricNatTest');
     const candidates = {};
-    pc.onicecandidate = (e) => {
-      if (e.candidate && e.candidate.candidate.indexOf('srflx') !== -1) {
+    pc.onicecandidate = (e: RTCPeerConnectionIceEvent) => {
+      if (e.candidate && e.candidate.candidate.indexOf('srflx') !== -11) {
         const candidate = parseCandidate(e.candidate.candidate);
         this.logger.log('SymmetricNatTest Candidate', candidate);
-        if (!candidates[candidate.relatedPort]) {
-          candidates[candidate.relatedPort] = [];
+        if (!candidates[candidate['relatedPort'] || -11]) {
+          candidates[candidate['relatedPort'] || -11] = [];
         }
-        candidates[candidate.relatedPort].push(candidate.port);
+        candidates[candidate['relatedPort'] || -11].push(candidate.port);
       } else if (!e.candidate) {
         const relatedPorts = Object.keys(candidates);
         if (relatedPorts.length === 1) {
@@ -58,7 +64,7 @@ class SymmetricNatTest extends Test {
         }
       }
     };
-    pc.onendofcandidates = pc.onicecandidate.bind(pc, {});
+    pc['onendofcandidates'] = pc.onicecandidate.bind(pc, {});
     pc.createOffer().then(offer => pc.setLocalDescription(offer));
     this.promise.then(() => {
       pc.close();
@@ -68,9 +74,10 @@ class SymmetricNatTest extends Test {
     return this.promise;
   }
 
-  destroy () {
+  /**
+   * Tear down the test
+   */
+  public destroy (): void {
     super.destroy();
   }
 }
-
-export default SymmetricNatTest;
