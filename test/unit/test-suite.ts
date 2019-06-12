@@ -6,9 +6,9 @@ import TestSuite from '../../src/utils/TestSuite';
 let testSuite;
 test.beforeEach(() => {
   testSuite = new TestSuite({
-    logger: {
-      info: () => {}
-    }
+    // logger: {
+    //   info: () => {}
+    // }
   });
 });
 
@@ -45,12 +45,12 @@ test('start() should reject with error if hasError', t => {
 
 test('runNextTest() should shift a test from the queue and run next tests', t => {
   t.plan(0);
-  const testSuite = new TestSuite({
-    logger: {
-      info: () => {},
-      log: () => {}
-    }
-  });
+  // const testSuite = new TestSuite({
+  //   logger: {
+  //     info: () => {},
+  //     log: () => {}
+  //   }
+  // });
   testSuite.queue.push({
     start: () => Promise.resolve(),
     destroy: sinon.stub()

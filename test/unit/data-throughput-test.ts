@@ -5,12 +5,12 @@ import DataThroughPutTest from '../../src/diagnostics/DataThroughputTest';
 
 let dataThroughPutTest;
 test.beforeEach(() => {
-  dataThroughPutTest = new DataThroughPutTest({
-    iceServers: [],
-    logger: {
-      error: () => {}
-    }
-  });
+  // dataThroughPutTest = new DataThroughPutTest({
+  //   iceServers: [],
+  //   logger: {
+  //     error: () => {}
+  //   }
+  // });
 });
 
 test.serial('start() should reject if there is now iceServers', t => {

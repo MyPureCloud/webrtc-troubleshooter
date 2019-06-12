@@ -20,7 +20,7 @@ test('logIceServers() should call logger.log and log iceServer.url if they exist
       log: sinon.stub()
     }
   };
-  connectivityTest = new ConnectivityTest(options);
+  // connectivityTest = new ConnectivityTest(options);
   connectivityTest.logIceServers();
   t.is(options.logger.log.called, true);
 });
@@ -32,7 +32,7 @@ test('logIceServers() should call logger.error is there is not any iceServers', 
       error: sinon.stub()
     }
   };
-  connectivityTest = new ConnectivityTest(options);
+  // connectivityTest = new ConnectivityTest(options);
   connectivityTest.logIceServers();
   t.is(options.logger.error.called, true);
 });
@@ -43,13 +43,13 @@ test('logIceServers() should call logger.log if no options.iceServers property p
       log: sinon.stub()
     }
   };
-  connectivityTest = new ConnectivityTest(options);
+  // connectivityTest = new ConnectivityTest(options);
   connectivityTest.logIceServers();
   t.is(options.logger.log.called, true);
 });
 
 test('destroy() should close peer connection', t => {
-  connectivityTest = new ConnectivityTest({});
+  // connectivityTest = new ConnectivityTest({});
   connectivityTest.pc1 = {
     close: sinon.stub()
   };

@@ -1,10 +1,12 @@
 import test from 'ava';
 
-import UtilsTest from '../../src/utils/Test';
+import AbstractTest from '../../src/utils/Test';
+
+class Test extends AbstractTest { }
 
 let utilsTest;
 test.beforeEach(() => {
-  utilsTest = new UtilsTest({
+  utilsTest = new Test({
     logger: {
       log: () => {}
     }

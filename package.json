@@ -3,6 +3,7 @@
   "version": "10.2.1",
   "description": "A way to add webrtc troubleshooting to your app",
   "main": "src/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
     "dist",
     "src",
@@ -14,12 +15,18 @@
   },
   "scripts": {
     "build": "webpack --env=prod --progress --profile --colors",
-    "unit-test": "nyc --reporter=lcov --reporter=cobertura ava test/unit/*.js",
-    "lint": "semistandard && npm run tslint",
-    "tslint": "tslint -p . -c tslint.json",
+    "start": "concurrently --kill-others \"webpack --env=prod --profile --colors --watch\" \"stupid-server ./\"",
     "test": "npm run lint && npm run unit-test && npm run report",
-    "report": "nyc report",
-    "start": "concurrently --kill-others \"webpack --env=prod --profile --colors --watch\" \"stupid-server ./\""
+
+    "lint": "semistandard && npm run tslint",
+    "tslint": "tslint --project . --config tslint.json",
+
+    "test:watch": "concurrently --kill-others \"npm run compile-tests -- --watch\" \"npm run ava:watch\"",
+    "unit-test": "npm run compile-tests && nyc --reporter=lcov --reporter=cobertura ava test/compiled/test/**/*test.js",
+    "compile-tests": "tsc --project ./test/tsconfig.test.json",
+    "ava:watch": "ava --fail-fast=false --watch test/compiled/test/**/*test.js",
+    "ava:watch-file": "ava --fail-fast=false --watch",
+    "report": "nyc report"
   },
   "repository": "https://github.com/mypurecloud/webrtc-troubleshooter",
   "engines": {
