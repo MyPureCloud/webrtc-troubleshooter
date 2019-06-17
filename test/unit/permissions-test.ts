@@ -1,7 +1,7 @@
-import test from 'ava';
-import sinon from 'sinon';
+// import test from 'ava';
+// import sinon from 'sinon';
 
-import PermissionsTest from '../../src/diagnostics/PermissionsTest';
+// import PermissionsTest from '../../src/diagnostics/PermissionsTest';
 
 // test('start() should not use local media if permissions api is available', t => {
 //   const permissionsTest = new PermissionsTest();

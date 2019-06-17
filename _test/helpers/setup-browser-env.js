@@ -2,14 +2,14 @@ import browserEnv from 'browser-env';
 browserEnv();
 
 class Listener {
-  constructor () {
+  constructor() {
     this._listeners = {};
   }
-  addEventListener (event, listener) {
+  addEventListener(event, listener) {
     this._listeners[event] = this._listeners[event] || [];
     this._listeners[event].push(listener);
   }
-  trigger (event, args) {
+  trigger(event, args) {
     const listeners = this._listeners[event];
     if (!listeners || listeners.length === 0) {
       return;
@@ -19,11 +19,10 @@ class Listener {
 }
 
 let RTCTrackEvent = class extends Listener { };
-/* Object.defineProperty is so jest actually adds this to the global object */
 Object.defineProperty(global, 'RTCTrackEvent', { value: RTCTrackEvent, writeable: true, configurable: true });
 
 let RTCDataChannel = class extends Listener {
-  constructor (label) {
+  constructor(label) {
     super();
     this.label = label;
   }
@@ -31,30 +30,30 @@ let RTCDataChannel = class extends Listener {
 Object.defineProperty(global, 'RTCDataChannel', { value: RTCDataChannel, writeable: true, configurable: true });
 
 let RTCPeerConnection = class extends Listener {
-  addTrack () { }
-  addStream () { }
-  createOffer () { return Promise.resolve(); }
-  setLocalDescription () { }
-  setRemoteDescription () { }
-  createAnswer () { return Promise.resolve(); }
-  getStats () { return Promise.resolve(); }
-  createDataChannel (label) {
+  addTrack() { }
+  addStream() { }
+  createOffer() { return Promise.resolve(); }
+  setLocalDescription() { }
+  setRemoteDescription() { }
+  createAnswer() { return Promise.resolve(); }
+  getStats() { return Promise.resolve(); }
+  createDataChannel(label) {
     return new global.window.RTCDataChannel(label);
   }
-  close () { }
+  close() { }
 };
 Object.defineProperty(global, 'RTCPeerConnection', { value: RTCPeerConnection, writeable: true, configurable: true });
 
 let MediaTrack = class {
-  constructor (kind) {
+  constructor(kind) {
     this.kind = kind;
   }
-  stop () { }
+  stop() { }
 };
 Object.defineProperty(global, 'MediaTrack', { value: MediaTrack, writeable: true, configurable: true });
 
 let MediaStream = class {
-  constructor (constraints) {
+  constructor(constraints) {
     this._tracks = [];
     if (constraints.audio) {
       this._tracks.push(new global.MediaTrack('audio'));
@@ -64,15 +63,15 @@ let MediaStream = class {
     }
   }
 
-  getTracks () {
+  getTracks() {
     return this._tracks;
   }
 
-  getAudioTracks () {
+  getAudioTracks() {
     return this._tracks.filter(t => t.kind === 'audio');
   }
 
-  getVideoTracks () {
+  getVideoTracks() {
     return this._tracks.filter(t => t.kind === 'video');
   }
 };

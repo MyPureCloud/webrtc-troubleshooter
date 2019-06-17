@@ -36,8 +36,8 @@ export default class AudioBandwidthTest extends Test {
   private log: string[];
   private stats: any;
 
-  constructor () {
-    super(...arguments);
+  constructor (...args: any[]) {
+    super(...args);
     this.name = 'Audio Bandwidth Test';
     this.maxAudioBitrateKbps = 510;
     this.durationMs = 40000;
@@ -84,7 +84,7 @@ export default class AudioBandwidthTest extends Test {
       .then(this.completed.bind(this))
       .then(() => {
         if (this.hasError) {
-          return Promise.reject(new Error('Audio Bandwidth Error'));
+          return this.reject(new Error('Audio Bandwidth Error'));
         }
 
         return this.resolve(this.getResults());

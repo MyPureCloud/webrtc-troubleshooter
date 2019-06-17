@@ -1,16 +1,19 @@
 module.exports = {
   roots: [
-    "src",
-    "test",
+    '<rootDir>/src',
+    '<rootDir>/test'
+  ],
+  testMatch: [
+    '<rootDir>/test/**/*test.(ts|js)'
   ],
   testPathIgnorePatterns: [
-    "test/helpers/*"
+    '<rootDir>/test/helpers/*'
   ],
   transform: {
-    "^.+\\.jsx?$": "babel-jest",
-    "^.+\\.tsx?$": "ts-jest"
+    '^.+\\.jsx?$': 'babel-jest',
+    '^.+\\.tsx?$': 'ts-jest'
   },
   setupFilesAfterEnv: [
-    "<rootDir>/test/helpers/setup-browser-env.js",
-  ],
-}
+    '<rootDir>/test/helpers/setup-browser-env.js'
+  ]
+};

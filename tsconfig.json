@@ -25,6 +25,7 @@
     // "checkJs": true
   },
   "include": [
-    "./src/**/*"
+    "./src/**/*",
+    "./test/**/*"
   ]
 }

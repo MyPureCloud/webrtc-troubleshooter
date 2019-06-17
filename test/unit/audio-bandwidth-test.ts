@@ -1,240 +1,289 @@
-import test from 'ava';
-import sinon from 'sinon';
-
 import AudioBandwidthTest from '../../src/diagnostics/AudioBandwidthTest';
 import WebrtcCall from '../../src/utils/WebrtcCall';
 import ERROR_CODES from '../../src/utils/testErrorCodes';
+import { Logger } from '../../src/types/interfaces';
 
-// test('start() return error if iceConfig has no iceServers', async t => {
-//   const audioBandwidthTest = new AudioBandwidthTest({
-//     iceConfig: { iceServers: [] },
-//     mediaOptions: { audio: true }
-//   });
-//   try {
-//     await audioBandwidthTest.start();
-//   } catch (err) {
-//     t.is(err.message, 'No ice servers were provided');
-//   }
-// });
+declare var global: {
+  navigator: Navigator,
+  MediaStream: { new(...args: any[]) } & MediaStream
+} & NodeJS.Global;
 
-// test('start() should call doGetUserMedia if there is iceServers and return error with results', async t => {
-//   const mediaSpy = sinon.spy(global.navigator.mediaDevices, 'getUserMedia');
-//   const audioBandwidthTest = new AudioBandwidthTest({
-//     iceConfig: { iceServers: [{ urls: [] }] },
-//     mediaOptions: { audio: true }
-//   });
-//   audioBandwidthTest.start();
-//   sinon.assert.calledOnce(mediaSpy);
-//   global.navigator.mediaDevices.getUserMedia.restore();
-// });
+describe('AudioBandwidthTest', () => {
 
-// test('getResults() should return object with log, constraints, and stats', t => {
-//   const audioBandwidthTest = new AudioBandwidthTest({
-//     iceConfig: { iceServers: [{ urls: [] }] },
-//     mediaOptions: { audio: { deviceId: 'someAudioId' } }
-//   });
-//   const actual = audioBandwidthTest.getResults();
-//   const expected = {
-//     log: [],
-//     stats: {},
-//     constraints: { video: false, audio: { deviceId: 'someAudioId' } }
-//   };
-//   t.deepEqual(actual, expected);
-// });
+  describe('start()', () => {
+    test('should return error if iceConfig has no iceServers', async () => {
+      const audioBandwidthTest = new AudioBandwidthTest({
+        iceConfig: { iceServers: [] },
+        mediaOptions: { audio: true }
+      });
+      try {
+        await audioBandwidthTest.start();
+      } catch (err) {
+        expect(err.message).toBe('No ice servers were provided');
+      }
+    });
+    test('should call doGetUserMedia if there are iceServers and return error with results', async () => {
+      let error = new Error('Oops, there was a getUserMedia() error');
+      const mediaSpy = jest.spyOn(window.navigator.mediaDevices, 'getUserMedia').mockRejectedValueOnce(error);
+      const audioBandwidthTest = new AudioBandwidthTest({
+        iceConfig: { iceServers: [{ urls: [] }] },
+        mediaOptions: { audio: true }
+      });
+      error['pcCode'] = ERROR_CODES.MEDIA;
+      try {
+        await audioBandwidthTest.start();
+        fail('Shouldn\'t get here');
+      } catch (e) {
+        expect(mediaSpy).toHaveBeenCalledTimes(1);
+        expect(e).toEqual(error);
+      }
+    });
+  });
 
-// test('addLog() should push message to the log', t => {
-//   const audioBandwidthTest = new AudioBandwidthTest({
-//     iceConfig: { iceServers: [{ urls: [] }] },
-//     mediaOptions: { audio: true }
-//   });
-//   audioBandwidthTest.addLog('info', { val: 'Test add log' });
-//   audioBandwidthTest.addLog('error', 'my error');
-//   t.is(audioBandwidthTest.log.length, 2);
-// });
+  describe('getResults()', () => {
+    test('should return object with log, constraints, and stats', () => {
+      const audioBandwidthTest = new AudioBandwidthTest({
+        iceConfig: { iceServers: [{ urls: [] }] },
+        mediaOptions: { audio: { deviceId: 'someAudioId' } }
+      });
+      const actual = audioBandwidthTest['getResults']();
+      const expected = {
+        log: [],
+        stats: {},
+        constraints: { video: false, audio: { deviceId: 'someAudioId' } }
+      };
+      expect(actual).toEqual(expected);
+    });
+  });
 
-// test('doGetUserMedia() should add logs with the track label and return the stream', async t => {
-//   const audioBandwidthTest = new AudioBandwidthTest({
-//     iceConfig: { iceServers: [{ urls: [] }] },
-//     mediaOptions: { audio: true }
-//   });
-//   const stream = {
-//     id: '1234-asdf',
-//     getAudioTracks: () => []
-//   };
-//   global.navigator = {
-//     mediaDevices: {
-//       getUserMedia: (constraints) => Promise.resolve(stream)
-//     }
-//   };
-//   sinon.stub(audioBandwidthTest, 'getDeviceName').returns('trackName');
-//   sinon.stub(audioBandwidthTest, 'addLog');
+  describe('addLog()', () => {
+    test('should push message to the log', () => {
+      const audioBandwidthTest = new AudioBandwidthTest({
+        iceConfig: { iceServers: [{ urls: [] }] },
+        mediaOptions: { audio: true }
+      });
+      audioBandwidthTest['addLog']('info', { val: 'Test add log' });
+      audioBandwidthTest['addLog']('error', 'my error');
+      expect(audioBandwidthTest['log'].length).toBe(2);
+    });
+  });
 
-//   const resultStream = await audioBandwidthTest.doGetUserMedia({});
-//   t.is(resultStream, stream);
-//   sinon.assert.calledTwice(audioBandwidthTest.addLog);
-// });
+  describe('doGetUserMedia()', () => {
+    test('should add logs with the track label and return the stream', async () => {
+      const audioBandwidthTest = new AudioBandwidthTest({
+        iceConfig: { iceServers: [{ urls: [] }] },
+        mediaOptions: { audio: true }
+      });
+      const stream = {
+        id: '1234-asdf',
+        getAudioTracks: () => []
+      };
+      jest.spyOn(global.navigator.mediaDevices, 'getUserMedia').mockResolvedValueOnce((stream as unknown) as Promise<MediaStream>);
 
-// test('doGetUserMedia() should add logs with a media error', async t => {
-//   const audioBandwidthTest = new AudioBandwidthTest({
-//     iceConfig: { iceServers: [{ urls: [] }] },
-//     mediaOptions: { audio: true }
-//   });
-//   const constraints = { audio: true, video: false };
-//   const errorMsg = 'Error on getUserMedia()';
-//   global.navigator = {
-//     mediaDevices: {
-//       getUserMedia: (constraints) => Promise.reject(new Error(errorMsg))
-//     }
-//   };
-//   sinon.stub(audioBandwidthTest, 'addLog');
+      // .mockReturnValue(Promise.resolve(stream as unknown) as Promise<MediaStream>);
+      jest.spyOn(audioBandwidthTest, 'getDeviceName' as any).mockImplementation(() => 'trackName');
+      const addLogSpy = jest.spyOn(audioBandwidthTest, 'addLog' as any);
+      const resultStream = await audioBandwidthTest['doGetUserMedia']({});
 
-//   const expected = { pcCode: ERROR_CODES.MEDIA, message: errorMsg };
-//   audioBandwidthTest.doGetUserMedia(constraints)
-//     .then(() => t.fail('should not get here'))
-//     .catch(err => {
-//       t.deepEqual(err, expected);
-//       sinon.assert.calledThrice(audioBandwidthTest.addLog);
-//     });
-// });
+      expect(resultStream).toEqual(stream);
+      expect(addLogSpy).toHaveBeenCalledTimes(2);
+    });
+    test('should add logs with a media error', (done) => {
+      const audioBandwidthTest = new AudioBandwidthTest({
+        iceConfig: { iceServers: [{ urls: [] }] },
+        mediaOptions: { audio: true }
+      });
+      const constraints = { audio: true, video: false };
+      const errorMsg = 'Error on getUserMedia()';
+      jest.spyOn(global.navigator.mediaDevices, 'getUserMedia').mockRejectedValueOnce((new Error(errorMsg) as unknown) as Promise<MediaStream>);
+      const addLogSpy = jest.spyOn(audioBandwidthTest, 'addLog' as any).mockImplementation((...args) => null);
 
-// test('getDeviceName() should return null if tracks are empty', t => {
-//   const audioBandwidthTest = new AudioBandwidthTest({
-//     iceConfig: { iceServers: [{ urls: [] }] },
-//     mediaOptions: { audio: true }
-//   });
-//   t.is(audioBandwidthTest.getDeviceName([]), null);
-// });
+      let expected = new Error(errorMsg);
+      expected['pcCode'] = ERROR_CODES.MEDIA;
 
-// test('getDeviceName() should return label of first track if not empty', t => {
-//   const audioBandwidthTest = new AudioBandwidthTest({
-//     iceConfig: { iceServers: [{ urls: [] }] },
-//     mediaOptions: { audio: true }
-//   });
-//   const actual = audioBandwidthTest.getDeviceName([
-//     {
-//       label: 'Plantronics'
-//     }
-//   ]);
-//   const expected = 'Plantronics';
-//   t.is(actual, expected);
-// });
+      audioBandwidthTest['doGetUserMedia'](constraints)
+        .then(() => done.fail('Should not get here'))
+        .catch(err => {
+          console.log('err', err);
+          expect(err).toEqual(expected);
+          expect(addLogSpy).toHaveBeenCalledTimes(3);
+          done();
+        });
+    });
+  });
 
-// test('setupCall() should call establishConnection function and addLog function', async t => {
-//   const audioBandwidthTest = new AudioBandwidthTest({
-//     iceConfig: { iceServers: [{ urls: [] }] },
-//     mediaOptions: { audio: true }
-//   });
-//   audioBandwidthTest.call = new WebrtcCall(audioBandwidthTest.options.iceConfig, audioBandwidthTest.logger);
-//   sinon.stub(audioBandwidthTest.call, 'establishConnection').returns(Promise.resolve());
-//   sinon.stub(audioBandwidthTest.call.pc1.pc, 'addTrack');
+  describe('getDeviceName()', () => {
+    test('should return null if tracks are empty', () => {
+      const audioBandwidthTest = new AudioBandwidthTest({
+        iceConfig: { iceServers: [{ urls: [] }] },
+        mediaOptions: { audio: true }
+      });
+      expect(audioBandwidthTest['getDeviceName']([])).toBeNull();
+    });
+    test('should return label of first track if not empty', () => {
+      const audioBandwidthTest = new AudioBandwidthTest({
+        iceConfig: { iceServers: [{ urls: [] }] },
+        mediaOptions: { audio: true }
+      });
+      const actual = audioBandwidthTest['getDeviceName']([
+        {
+          label: 'Plantronics'
+        }
+      ] as MediaStreamTrack[]);
+      const expected = 'Plantronics';
+      expect(actual).toBe(expected);
+    });
+  });
 
-//   const mockTrack = new global.MediaStream({ audio: true });
-//   await audioBandwidthTest.setupCall(mockTrack);
-//   sinon.assert.calledOnce(audioBandwidthTest.call.pc1.pc.addTrack);
-//   sinon.assert.calledOnce(audioBandwidthTest.call.establishConnection);
-//   t.is(audioBandwidthTest.localTrack, mockTrack.getTracks()[0]);
-// });
+  describe('setupCall()', () => {
+    test('should call establishConnection function and addLog function', async () => {
+      const audioBandwidthTest = new AudioBandwidthTest({
+        iceConfig: { iceServers: [{ urls: [] }] },
+        mediaOptions: { audio: true }
+      });
+      audioBandwidthTest['call'] = new WebrtcCall(audioBandwidthTest['options'].iceConfig, audioBandwidthTest['logger']);
 
-// test('runTest() should run gatherStats function', async t => {
-//   const audioBandwidthTest = new AudioBandwidthTest({
-//     iceConfig: { iceServers: [{ urls: [] }] },
-//     mediaOptions: { audio: true }
-//   });
-//   audioBandwidthTest.durationMs = 4;
-//   sinon.stub(audioBandwidthTest, 'gatherStats').callsFake(() => {
-//     audioBandwidthTest.destroy();
-//   });
-//   sinon.stub(audioBandwidthTest, 'gotStats');
-//   audioBandwidthTest.gatherStats = () => Promise.resolve({ prop: 'some Properties' });
-//   const actual = await audioBandwidthTest.runTest();
-//   const expected = { prop: 'some Properties' };
-//   t.deepEqual(actual, expected);
-// });
+      const callConnectionSpy = jest.spyOn(audioBandwidthTest['call'], 'establishConnection').mockResolvedValueOnce();
+      const addTrackSpy = spyOn(audioBandwidthTest['call'].pc1['pc'], 'addTrack');
+      const mockTrack = new global.MediaStream({ audio: true });
 
-// test('gatherStats() should resolve if starttime difference is large enough between durationMs', async t => {
-//   const audioBandwidthTest = new AudioBandwidthTest({
-//     iceConfig: { iceServers: [{ urls: [] }] },
-//     mediaOptions: { audio: true }
-//   });
-//   audioBandwidthTest.call = { pc1: { getStats: sinon.stub() } };
-//   await audioBandwidthTest.gatherStats();
-//   sinon.assert.notCalled(audioBandwidthTest.call.pc1.getStats);
-// });
+      await audioBandwidthTest['setupCall'](mockTrack);
+      expect(callConnectionSpy).toHaveBeenCalledTimes(1);
+      expect(addTrackSpy).toHaveBeenCalledTimes(1);
+      expect(audioBandwidthTest['localTrack']).toEqual(mockTrack.getTracks()[0]);
+    });
+  });
 
-// test('gatherStats() should call gotStats', async t => {
-//   const audioBandwidthTest = new AudioBandwidthTest({
-//     iceConfig: { iceServers: [{ urls: [] }] },
-//     mediaOptions: { audio: true }
-//   });
-//   const mockStats = {};
-//   audioBandwidthTest.durationMs = 10000;
-//   audioBandwidthTest.startTime = new Date();
-//   audioBandwidthTest.call = new WebrtcCall(audioBandwidthTest.options.iceConfig, audioBandwidthTest.logger);
-//   sinon.stub(audioBandwidthTest.call.pc1.pc, 'getStats').returns(Promise.resolve(mockStats));
-//   sinon.stub(audioBandwidthTest, 'gotStats');
-//   await audioBandwidthTest.gatherStats();
-//   sinon.assert.calledOnce(audioBandwidthTest.gotStats);
-//   sinon.assert.calledWith(audioBandwidthTest.gotStats, mockStats);
-// });
+  describe('runTest()', () => {
+    test('should run gatherStats function', async () => {
+      const audioBandwidthTest = new AudioBandwidthTest({
+        iceConfig: { iceServers: [{ urls: [] }] },
+        mediaOptions: { audio: true }
+      });
+      audioBandwidthTest['durationMs'] = 4;
+      const gatherStatsSpy = jest.spyOn(audioBandwidthTest, 'gatherStats' as any).mockResolvedValueOnce({ prop: 'some Properties' });
+      const actual = await audioBandwidthTest['runTest']();
+      const expected = { prop: 'some Properties' };
+      expect(gatherStatsSpy).toHaveBeenCalled();
+      expect(actual).toEqual(expected);
+    });
+  });
 
-// test('gotStats() calls rttStats and bweStats if availableOutgoingBitrate and roundTripTime', async t => {
-//   const audioBandwidthTest = new AudioBandwidthTest({
-//     iceConfig: { iceServers: [{ urls: [] }] },
-//     mediaOptions: { audio: true }
-//   });
-//   sinon.stub(audioBandwidthTest.rttStats, 'add');
-//   sinon.stub(audioBandwidthTest.bweStats, 'add');
-//   sinon.stub(audioBandwidthTest, 'runTest');
-//   await audioBandwidthTest.gotStats([{
-//     roundTripTime: '30',
-//     timestamp: new Date(),
-//     availableOutgoingBitrate: '2000'
-//   }]);
+  describe('gatherStats()', () => {
+    test('should resolve if starttime difference is large enough between durationMs', async () => {
+      const audioBandwidthTest = new AudioBandwidthTest({
+        iceConfig: { iceServers: [{ urls: [] }] },
+        mediaOptions: { audio: true }
+      });
+      const past = new Date().getTime() - 3000;
+      audioBandwidthTest['startTime'] = new Date(past);
+      audioBandwidthTest['durationMs'] = 3;
+      const spy = jest.fn();
+      audioBandwidthTest['call'] = { pc1: { getStats: spy } as unknown } as WebrtcCall;
+      await audioBandwidthTest['gatherStats']();
+      expect(spy).not.toHaveBeenCalled();
+    });
+    test('should call gotStats', async () => {
+      const audioBandwidthTest = new AudioBandwidthTest({
+        iceConfig: { iceServers: [{ urls: [] }] },
+        mediaOptions: { audio: true }
+      });
+      const mockStats = {};
+      audioBandwidthTest['durationMs'] = 10000;
+      audioBandwidthTest['startTime'] = new Date();
+      audioBandwidthTest['call'] = new WebrtcCall(audioBandwidthTest['options'].iceConfig, audioBandwidthTest['logger']);
+      const getStatsSpy = jest.spyOn(audioBandwidthTest['call'].pc1.pc, 'getStats').mockResolvedValueOnce(Promise.resolve(mockStats as any));
+      const gotStatsSpy = jest.spyOn(audioBandwidthTest, 'gotStats' as any).mockResolvedValueOnce({ stats: 'some stats' });
+      await audioBandwidthTest['gatherStats']();
 
-//   sinon.assert.calledOnce(audioBandwidthTest.rttStats.add);
-//   sinon.assert.calledWith(audioBandwidthTest.rttStats.add, sinon.match.date, 30);
-//   sinon.assert.calledOnce(audioBandwidthTest.bweStats.add);
-//   sinon.assert.calledWith(audioBandwidthTest.bweStats.add, sinon.match.date, 2000);
-// });
+      expect(getStatsSpy).toHaveBeenCalledTimes(1);
+      expect(gotStatsSpy).toHaveBeenCalledWith(mockStats);
+    });
+  });
 
-// test('gotStats() calls rttStats if totalRoundTripTime', async t => {
-//   const audioBandwidthTest = new AudioBandwidthTest({
-//     iceConfig: { iceServers: [{ urls: [] }] },
-//     mediaOptions: { audio: true }
-//   });
-//   sinon.stub(audioBandwidthTest.rttStats, 'add');
-//   sinon.stub(audioBandwidthTest, 'runTest');
-//   await audioBandwidthTest.gotStats([{
-//     roundTripTime: '30',
-//     timestamp: new Date()
-//   }]);
-//   sinon.assert.calledOnce(audioBandwidthTest.rttStats.add);
-//   sinon.assert.calledWith(audioBandwidthTest.rttStats.add, sinon.match.date, 30);
-// });
+  describe('getStats()', () => {
+    const fakeRTCStatsReport = {
+      forEach: function (callback) {
+        callback(fakeRTCStatsReport.values);
+      },
+      values: {
+        id: 'RTCfake_id_103',
+        availableOutgoingBitrate: 300000,
+        roundTripTime: 34423343,
+        currentRoundTripTime: '30',
+        timestamp: 1560778204847,
+        type: 'fake'
+      },
+      get: function (key) {
+        return fakeRTCStatsReport.values[key];
+      }
+    } as unknown as RTCStatsReport;
 
-// test('completed() call addLog multiple times and return results', t => {
-//   const audioBandwidthTest = new AudioBandwidthTest({
-//     iceConfig: { iceServers: [{ urls: [] }] },
-//     mediaOptions: { audio: true }
-//   });
-//   sinon.stub(audioBandwidthTest, 'addLog');
-//   const mockResults = {};
-//   audioBandwidthTest.results = mockResults;
+    test('should call rttStats if currentRoundTripTime', async () => {
+      const audioBandwidthTest = new AudioBandwidthTest({
+        iceConfig: { iceServers: [{ urls: [] }] },
+        mediaOptions: { audio: true }
+      });
+      const rttStatsSpy = jest.spyOn(audioBandwidthTest['rttStats'], 'add');
+      jest.spyOn(audioBandwidthTest, 'runTest' as any).mockResolvedValueOnce({});
 
-//   const results = audioBandwidthTest.completed();
-//   t.is(results, mockResults);
-//   sinon.assert.callCount(audioBandwidthTest.addLog, 6);
-// });
+      await audioBandwidthTest['gotStats'](fakeRTCStatsReport);
+      const rttValue = parseFloat(fakeRTCStatsReport.get('currentRoundTripTime')) * 1000;
+      expect(rttStatsSpy).nthCalledWith(1, fakeRTCStatsReport.get('timestamp'), rttValue);
+    });
 
-// test('destroy() calls close and stop functions and then assigns null to call', t => {
-//   t.plan(2);
-//   const audioBandwidthTest = new AudioBandwidthTest({
-//     iceConfig: { iceServers: [{ urls: [] }] },
-//     mediaOptions: { audio: true },
-//     logger: { log () { }, error () { }, warn () { }, info () { } }
-//   });
-//   audioBandwidthTest.call = new WebrtcCall(audioBandwidthTest.options.iceConfig, audioBandwidthTest.logger);
-//   sinon.stub(audioBandwidthTest.call, 'close').callsFake(() => t.pass());
-//   audioBandwidthTest.destroy();
-//   t.is(audioBandwidthTest.call, null);
-// });
+    test('should call rttStats and bweStats if availableOutgoingBitrate and roundTripTime', async () => {
+      const audioBandwidthTest = new AudioBandwidthTest({
+        iceConfig: { iceServers: [{ urls: [] }] },
+        mediaOptions: { audio: true }
+      });
+      const rttStatsSpy = jest.spyOn(audioBandwidthTest['rttStats'], 'add');
+      const bweStatsSpy = jest.spyOn(audioBandwidthTest['bweStats'], 'add');
+      jest.spyOn(audioBandwidthTest, 'runTest' as any).mockResolvedValueOnce({});
+
+      await audioBandwidthTest['gotStats'](fakeRTCStatsReport);
+      const bweValue = parseInt(fakeRTCStatsReport.get('availableOutgoingBitrate'), 10);
+      const rttValue = parseFloat(fakeRTCStatsReport.get('roundTripTime'));
+      expect(rttStatsSpy).nthCalledWith(2, fakeRTCStatsReport.get('timestamp'), rttValue);
+      expect(bweStatsSpy).nthCalledWith(1, fakeRTCStatsReport.get('timestamp'), bweValue);
+    });
+  });
+
+  describe('completed()', () => {
+    test.skip('should call addLog multiple times and return results', () => {
+      fail('This test does not make sense. `this.results` is never set in AudioBandwidthTest.');
+
+      // const audioBandwidthTest = new AudioBandwidthTest({
+      //   iceConfig: { iceServers: [{ urls: [] }] },
+      //   mediaOptions: { audio: true }
+      // });
+
+      // sinon.stub(audioBandwidthTest, 'addLog');
+      // const mockResults = {};
+      // audioBandwidthTest.results = mockResults;
+
+      // const results = audioBandwidthTest.completed();
+      // t.is(results, mockResults);
+      // sinon.assert.callCount(audioBandwidthTest.addLog, 6);
+    });
+  });
+  describe('destroy()', () => {
+    test('should call close, delete the call, and stop localTrack', () => {
+      const logger: Logger = { log () { }, error () { }, warn () { }, info () { } }; //tslint:disable-line
+      const audioBandwidthTest = new AudioBandwidthTest({
+        iceConfig: { iceServers: [{ urls: [] }] },
+        mediaOptions: { audio: true }
+      });
+      const stopTrackSpy = jest.fn();
+      audioBandwidthTest['call'] = new WebrtcCall(audioBandwidthTest['options'].iceConfig, logger);
+      audioBandwidthTest['localTrack'] = { stop: stopTrackSpy } as any;
+
+      const callSpy = jest.spyOn(audioBandwidthTest['call'], 'close').mockImplementation(() => null);
+
+      audioBandwidthTest.destroy();
+      expect(callSpy).toHaveBeenCalled();
+      expect(stopTrackSpy).toHaveBeenCalled();
+      expect(audioBandwidthTest['call']).toBeFalsy();
+    });
+  });
+});

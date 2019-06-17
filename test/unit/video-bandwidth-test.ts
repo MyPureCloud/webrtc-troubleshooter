@@ -1,7 +1,7 @@
-import test from 'ava';
-import sinon from 'sinon';
+// import test from 'ava';
+// import sinon from 'sinon';
 
-import VideoBandwidthTest from '../../src/diagnostics/VideoBandwidthTest';
+// import VideoBandwidthTest from '../../src/diagnostics/VideoBandwidthTest';
 
 // let videoBandwidthTest;
 // test.beforeEach(() => {
@@ -161,7 +161,7 @@ import VideoBandwidthTest from '../../src/diagnostics/VideoBandwidthTest';
 //     }
 //   };
 //   let audioElement = document.createElement('video');
-//   audioElement.src = `data:audio/x-wav;base64,${new Buffer('wave')}>`; // eslint-disable-line
+//   audioElement.src = `data:audio/x-wav;base64,${new Buffer('wave')}>`; eslint-disable-line
 //   audioElement.getVideoTracks = () => ['track1', 'track2'];
 //   const context = {
 //     gotStream: stream => stream,
