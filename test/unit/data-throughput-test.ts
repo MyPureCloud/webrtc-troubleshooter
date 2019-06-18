@@ -1,79 +1,101 @@
-// import test from 'ava';
-// import sinon from 'sinon';
+import DataThroughPutTest from '../../src/diagnostics/DataThroughputTest';
 
-// import DataThroughPutTest from '../../src/diagnostics/DataThroughputTest';
+describe('DataThroughPutTest', () => {
+  let dataThroughPutTest: DataThroughPutTest;
+  beforeEach(() => {
+    dataThroughPutTest = new DataThroughPutTest({
+      iceServers: [],
+      logger: {
+        error: () => { } // tslint:disable-line
+      }
+    });
+  });
 
-// let dataThroughPutTest;
-// test.beforeEach(() => {
-//   dataThroughPutTest = new DataThroughPutTest({
-//     iceServers: [],
-//     logger: {
-//       error: () => {}
-//     }
-//   });
-// });
+  describe('start()', () => {
+    test('should reject if there is now iceServers', async () => {
+      try {
+        await dataThroughPutTest.start();
+        fail('It should have failed');
+      } catch (e) {
+        expect(e).toBeTruthy();
+      }
+    });
 
-// test.serial('start() should reject if there is now iceServers', t => {
-//   return dataThroughPutTest.start().catch(() => t.pass());
-// });
+    test.skip('should setup webrtc call', async () => {
+      fail('Write tests for this');
+      // previous test had:
+      //   sinon.stub(dataThroughPutTest, 'sendingStep');
+      //   dataThroughPutTest.options.iceServers.push({});
+      //   dataThroughPutTest.start();
+      //   // todo: assertions about event listners n such
+      //   t.plan(0);
+    });
+  });
 
-// test.serial('start() should setup webrtc call', async t => {
-//   sinon.stub(dataThroughPutTest, 'sendingStep');
-//   dataThroughPutTest.options.iceServers.push({});
-//   dataThroughPutTest.start();
-//   // todo: assertions about event listners n such
-//   t.plan(0);
-// });
+  describe('onReceiverChannel()', () => {
+    test('should addEventListener', () => {
+      const mockChannel = {
+        addEventListener: jest.fn()
+      };
+      dataThroughPutTest['onReceiverChannel'](mockChannel as any);
+      expect(mockChannel.addEventListener).toHaveBeenCalledWith('message', expect.any(Function));
+      expect(dataThroughPutTest['receiveChannel']).toEqual(mockChannel);
+    });
+  });
 
-// test.serial('onReceiverChannel(event) should addEventListener', t => {
-//   sinon.stub(dataThroughPutTest.onMessageReceived, 'bind');
-//   const mockChannel = {
-//     addEventListener: sinon.stub()
-//   };
-//   dataThroughPutTest.onReceiverChannel(mockChannel);
-//   sinon.assert.calledOnce(dataThroughPutTest.onMessageReceived.bind);
-//   sinon.assert.calledOnce(mockChannel.addEventListener);
-// });
+  describe('sendingStep()', () => {
+    test('should send packets', () => {
+      const context = {
+        maxNumberOfPacketsToSend: 5,
+        senderChannel: {
+          bufferedAmount: 5,
+          send: jest.fn()
+        },
+        bytesToKeepBuffered: 6,
+        samplePacket: [{ prop: 'val 1' }, { prop: 'val 2' }],
+        startTime: {
+          getTime: () => 255
+        },
+        testDurationSeconds: 9
+      };
+      dataThroughPutTest['sendingStep'].call(context);
+      expect(context.senderChannel.send).toHaveBeenCalled();
+    });
+  });
 
-// test.serial('sendingStep() should send packets', t => {
-//   const context = {
-//     maxNumberOfPacketsToSend: 5,
-//     senderChannel: {
-//       bufferedAmount: 5,
-//       send: sinon.stub()
-//     },
-//     bytesToKeepBuffered: 6,
-//     samplePacket: [ { prop: 'val 1' }, { prop: 'val 2' } ],
-//     startTime: 255,
-//     testDurationSeconds: 9
-//   };
-//   dataThroughPutTest.sendingStep.call(context);
-//   t.is(context.senderChannel.send.called, true);
-// });
+  describe('onMessageReceived()', () => {
+    test('should compute values but not resolve if now - this.lastBitrateMeasureTime >= 1000', () => {
+      const context = {
+        lastBitrateMeasureTime: 0,
+        receivedPayloadBytes: 1000,
+        lastReceivedPayloadBytes: 80,
+        stopSending: true,
+        call: {
+          close: jest.fn()
+        },
+        logger: {
+          log: jest.fn()
+        },
+        resolve: () => { } // tslint:disable-line
+      };
+      dataThroughPutTest['onMessageReceived'].call(
+        context,
+        { data: [] }
+      );
+      expect(context.logger.log).toHaveBeenCalled();
+    });
+  });
 
-// test.serial('onMessageReceived(event) should compute values but not resolve if now - this.lastBitrateMeasureTime >= 1000', t => {
-//   const context = {
-//     lastBitrateMeasureTime: 0,
-//     receivedPayloadBytes: 1000,
-//     lastReceivedPayloadBytes: 80,
-//     stopSending: true,
-//     call: {
-//       close: sinon.stub()
-//     },
-//     logger: {
-//       log: sinon.stub()
-//     },
-//     resolve: () => {}
-//   };
-//   dataThroughPutTest.onMessageReceived.call(
-//     context,
-//     {
-//       data: []
-//     }
-//   );
-//   t.is(context.logger.log.called, true);
-// });
+  describe('destroy()', () => {
+    test('should call close()', () => {
+      const fakeCall = {
+        close: jest.fn()
+      } as any;
+      dataThroughPutTest['call'] = fakeCall;
+      dataThroughPutTest.destroy();
+      expect(fakeCall.close).toHaveBeenCalled();
+      expect(dataThroughPutTest['call']).toBeFalsy();
+    });
+  });
 
-// test.serial('destroy() should call close', t => {
-//   t.plan(0);
-// });
+});

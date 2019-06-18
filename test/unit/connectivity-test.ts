@@ -1,62 +1,51 @@
-// import test from 'ava';
-// import sinon from 'sinon';
+import ConnectivityTest from '../../src/diagnostics/ConnectivityTest';
+import { Logger } from '../../src/types/interfaces';
 
-// import ConnectivityTest from '../../src/diagnostics/ConnectivityTest';
+describe('ConnectivityTest', () => {
+  let connectivityTest: ConnectivityTest | null;
+  const fakeLogger: Logger = { log () { }, error () { }, warn () { }, info () { } }; //tslint:disable-line
 
-// let connectivityTest;
+  afterEach(() => {
+    connectivityTest = null;
+  });
 
-// test.after(() => {
-//   connectivityTest = null;
-// });
+  describe('logIceServers()', () => {
+    test('should call logger.log and log iceServer.urls if they exist', () => {
+      const options = {
+        iceServers: [{ urls: ['https://chucknorris.com/'] }],
+        logger: fakeLogger
+      };
+      const loggerSpy = jest.spyOn(fakeLogger, 'log');
+      connectivityTest = new ConnectivityTest(options);
+      connectivityTest['logIceServers']();
+      expect(loggerSpy).toHaveBeenCalledWith(`Using ICE Server: ${options.iceServers[0].urls[0]}`);
+    });
 
-// test('logIceServers() should call logger.log and log iceServer.url if they exist', t => {
-//   const options = {
-//     iceServers: [
-//       {
-//         server1: 'stuff here'
-//       }
-//     ],
-//     logger: {
-//       log: sinon.stub()
-//     }
-//   };
-//   // connectivityTest = new ConnectivityTest(options);
-//   connectivityTest.logIceServers();
-//   t.is(options.logger.log.called, true);
-// });
+    test('should call logger.error if there is are no iceServers', () => {
+      const options = {
+        iceServers: [],
+        logger: fakeLogger
+      };
+      const loggerSpy = jest.spyOn(fakeLogger, 'error');
+      connectivityTest = new ConnectivityTest(options);
+      connectivityTest['logIceServers']();
+      expect(loggerSpy).toHaveBeenCalledWith('no ice servers provided');
+    });
+  });
 
-// test('logIceServers() should call logger.error is there is not any iceServers', t => {
-//   const options = {
-//     iceServers: [],
-//     logger: {
-//       error: sinon.stub()
-//     }
-//   };
-//   // connectivityTest = new ConnectivityTest(options);
-//   connectivityTest.logIceServers();
-//   t.is(options.logger.error.called, true);
-// });
+  describe('destroy()', () => {
+    test('should close peer connection', () => {
+      connectivityTest = new ConnectivityTest({});
+      connectivityTest['pc1'] = {
+        close: jest.fn()
+      } as any;
+      connectivityTest['pc2'] = {
+        close: jest.fn()
+      } as any;
 
-// test('logIceServers() should call logger.log if no options.iceServers property provided', t => {
-//   const options = {
-//     logger: {
-//       log: sinon.stub()
-//     }
-//   };
-//   // connectivityTest = new ConnectivityTest(options);
-//   connectivityTest.logIceServers();
-//   t.is(options.logger.log.called, true);
-// });
-
-// test('destroy() should close peer connection', t => {
-//   // connectivityTest = new ConnectivityTest({});
-//   connectivityTest.pc1 = {
-//     close: sinon.stub()
-//   };
-//   connectivityTest.pc2 = {
-//     close: sinon.stub()
-//   };
-//   connectivityTest.destroy();
-//   t.is(connectivityTest.pc1.close.called, true);
-//   t.is(connectivityTest.pc2.close.called, true);
-// });
+      connectivityTest.destroy();
+      expect(connectivityTest['pc1'].close).toHaveBeenCalled();
+      expect(connectivityTest['pc2'].close).toHaveBeenCalled();
+    });
+  });
+});

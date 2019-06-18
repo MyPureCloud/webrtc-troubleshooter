@@ -22,8 +22,8 @@ export default class DataChannelThroughputTest extends Test {
   private senderChannel: RTCDataChannel;
   private receiveChannel: RTCDataChannel ;
 
-  constructor () {
-    super(...arguments);
+  constructor (...args: any[]) {
+    super(...args);
     this.name = 'Data Throughput Test';
     this.testDurationSeconds = 5.0;
     this.sentPayloadBytes = 0;

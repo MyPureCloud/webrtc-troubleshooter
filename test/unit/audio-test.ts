@@ -1,18 +1,20 @@
-// import test from 'ava';
-// import sinon from 'sinon';
+import AudioTest from '../../src/diagnostics/AudioTest';
 
-// import AudioTest from '../../src/diagnostics/AudioTest';
+describe('AudioTest', () => {
+  let audioTest: AudioTest;
+  beforeEach(() => {
+    audioTest = new AudioTest();
+  });
 
-// test('start() should start localMedia', t => {
-//   const audioTest = new AudioTest();
-//   sinon.stub(audioTest.localMedia, 'start');
-//   audioTest.start();
-//   sinon.assert.calledOnce(audioTest.localMedia.start);
-// });
-
-// test('destroy() should stop localMedia', t => {
-//   const audioTest = new AudioTest();
-//   sinon.stub(audioTest.localMedia, 'stop');
-//   audioTest.destroy();
-//   sinon.assert.calledOnce(audioTest.localMedia.stop);
-// });
+  test('should start() localMedia', async () => {
+    const startSpy = jest.spyOn(audioTest['localMedia'], 'start').mockResolvedValue({} as never);
+    audioTest['resolve']('Need this to complete the test'); // tslint:disable-line
+    await audioTest.start();
+    expect(startSpy).toHaveBeenCalledTimes(1);
+  });
+  test('should stop() localMedia', () => {
+    const stopSpy = jest.spyOn(audioTest['localMedia'], 'stop').mockResolvedValue({} as never);
+    audioTest.destroy();
+    expect(stopSpy).toHaveBeenCalledTimes(1);
+  });
+});

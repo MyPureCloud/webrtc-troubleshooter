@@ -1,102 +1,105 @@
-// import test from 'ava';
-// import sinon from 'sinon';
+import PermissionsTest from '../../src/diagnostics/PermissionsTest';
+import { ObjectLiteral } from '../../src/types/interfaces';
 
-// import PermissionsTest from '../../src/diagnostics/PermissionsTest';
+declare var navigator: {
+  permissions: {
+    query: (options: ObjectLiteral) => Promise<any>
+  }
+} & Navigator;
 
-// test('start() should not use local media if permissions api is available', t => {
-//   const permissionsTest = new PermissionsTest();
-//   sinon.stub(permissionsTest.localMedia, 'start');
+function setPermissions (permissions) {
+  Object.defineProperty(navigator, 'permissions', { value: permissions, writable: false });
+}
 
-//   const savedPermissions = navigator.permissions;
-//   navigator.permissions = {
-//     query: sinon.stub().returns(Promise.resolve({ state: 'granted' }))
-//   };
+describe('PermissionsTest', () => {
+  describe('start()', () => {
+    let enumDevicesSpy: jest.SpyInstance;
+    beforeAll(() => {
+      enumDevicesSpy = jest.fn();
+      Object.defineProperty(navigator.mediaDevices, 'enumerateDevices', { value: enumDevicesSpy });
+    });
 
-//   permissionsTest.start();
-//   sinon.assert.notCalled(permissionsTest.localMedia.start);
-//   sinon.assert.called(navigator.permissions.query);
-//   navigator.permissions = savedPermissions;
-// });
+    test('should not use local media if permissions api is available', async () => {
+      const permissionsTest = new PermissionsTest(true);
+      const startSpy = jest.spyOn(permissionsTest['localMedia'], 'start');
+      const savedPermissions = navigator.permissions;
+      const querySpy = jest.fn().mockResolvedValueOnce({ state: 'granted' } as any);
+      setPermissions({ query: querySpy });
+      await permissionsTest.start();
+      expect(startSpy).not.toHaveBeenCalled();
+      expect(querySpy).toHaveBeenCalled();
+      setPermissions(savedPermissions);
+    });
 
-// test('start() should fail if there are no mic devices and is mic permissions test', async t => {
-//   const permissionsTest = new PermissionsTest();
-//   sinon.stub(permissionsTest.localMedia, 'start');
+    test('should fail if there are no mic devices and is mic permissions test', async () => {
+      const permissionsTest = new PermissionsTest(false);
+      const startSpy = jest.spyOn(permissionsTest['localMedia'], 'start');
+      const savedPermissions = navigator.permissions;
+      setPermissions(null);
+      enumDevicesSpy.mockResolvedValueOnce([
+        { kind: 'videoinput' }
+      ]);
 
-//   const savedPermissions = navigator.permissions;
-//   navigator.permissions = null;
+      try {
+        await permissionsTest.start();
+        fail('should not succeed');
+      } catch (err) {
+        expect(err.message).toBe('noDevice');
+        expect(startSpy).not.toHaveBeenCalled();
+      }
+      setPermissions(savedPermissions);
+    });
 
-//   navigator.mediaDevices.enumerateDevices = sinon.stub().returns(Promise.resolve([
-//     { kind: 'videoinput' }
-//   ]));
+    test('should fail if there are no camera devices and is camera permissions test', async () => {
+      const permissionsTest = new PermissionsTest(true);
+      const startSpy = jest.spyOn(permissionsTest['localMedia'], 'start');
+      const savedPermissions = navigator.permissions;
+      setPermissions(null);
+      enumDevicesSpy.mockResolvedValueOnce([
+        { kind: 'audioinput' }
+      ]);
 
-//   try {
-//     await permissionsTest.start();
-//     t.fail('should not succeed');
-//   } catch (err) {
-//     t.is(err.message, 'noDevice');
-//     sinon.assert.notCalled(permissionsTest.localMedia.start);
-//   }
-//   navigator.permissions = savedPermissions;
-// });
+      try {
+        await permissionsTest.start();
+        fail('should not succeed');
+      } catch (err) {
+        expect(err.message).toBe('noDevice');
+        expect(startSpy).not.toHaveBeenCalled();
+      }
+      setPermissions(savedPermissions);
+    });
 
-// test('start() should fail if there are no camera devices and is camera permissions test', async t => {
-//   const permissionsTest = new PermissionsTest(true);
-//   sinon.stub(permissionsTest.localMedia, 'start');
+    test('should use local media if permissions api is not available', async () => {
+      const permissionsTest = new PermissionsTest(false);
+      const startSpy = jest.spyOn(permissionsTest['localMedia'], 'start').mockImplementationOnce((options, cb) => cb(null, { getTracks: () => [] } as any));
+      const savedPermissions = navigator.permissions;
+      setPermissions(null);
+      enumDevicesSpy.mockResolvedValueOnce([
+        { kind: 'audioinput' }
+      ]);
+      await permissionsTest.start();
+      expect(startSpy).toHaveBeenCalled();
+      setPermissions(savedPermissions);
+    });
 
-//   const savedPermissions = navigator.permissions;
-//   navigator.permissions = null;
-
-//   navigator.mediaDevices.enumerateDevices = sinon.stub().returns(Promise.resolve([
-//     { kind: 'audioinput' }
-//   ]));
-
-//   try {
-//     await permissionsTest.start();
-//     t.fail('should not succeed');
-//   } catch (err) {
-//     t.is(err.message, 'noDevice');
-//     sinon.assert.notCalled(permissionsTest.localMedia.start);
-//   }
-//   navigator.permissions = savedPermissions;
-// });
-
-// test('start() should use local media if permissions api is not available', async t => {
-//   const permissionsTest = new PermissionsTest();
-//   sinon.stub(permissionsTest.localMedia, 'start').callsFake((options, cb) => cb(null, { getTracks: () => [] }));
-
-//   const savedPermissions = navigator.permissions;
-//   navigator.permissions = null;
-
-//   navigator.mediaDevices.enumerateDevices = sinon.stub().returns(Promise.resolve([
-//     { kind: 'audioinput' }
-//   ]));
-
-//   await permissionsTest.start();
-//   sinon.assert.called(permissionsTest.localMedia.start);
-
-//   navigator.permissions = savedPermissions;
-// });
-
-// test('start() should fail if permissions denied', async t => {
-//   const permissionsTest = new PermissionsTest();
-//   const fakeError = new Error();
-//   fakeError.name = 'NotAllowedError';
-//   sinon.stub(permissionsTest.localMedia, 'start').callsFake((options, cb) => cb(fakeError));
-
-//   const savedPermissions = navigator.permissions;
-//   navigator.permissions = null;
-
-//   navigator.mediaDevices.enumerateDevices = sinon.stub().returns(Promise.resolve([
-//     { kind: 'audioinput' }
-//   ]));
-
-//   try {
-//     await permissionsTest.start();
-//     t.fail('should not succeed');
-//   } catch (err) {
-//     sinon.assert.called(permissionsTest.localMedia.start);
-//     t.is(err.message, 'noDevicePermissions');
-//   }
-
-//   navigator.permissions = savedPermissions;
-// });
+    test('should fail if permissions denied', async () => {
+      const permissionsTest = new PermissionsTest(false);
+      const fakeError = new Error();
+      fakeError.name = 'NotAllowedError';
+      const startSpy = jest.spyOn(permissionsTest['localMedia'], 'start').mockImplementationOnce((options, cb) => cb(fakeError, null as any));
+      const savedPermissions = navigator.permissions;
+      setPermissions(null);
+      enumDevicesSpy.mockResolvedValueOnce([
+        { kind: 'audioinput' }
+      ]);
+      try {
+        await permissionsTest.start();
+        fail('should not succeed');
+      } catch (err) {
+        expect(err.message).toBe('noDevicePermissions');
+        expect(startSpy).toHaveBeenCalled();
+      }
+      setPermissions(savedPermissions);
+    });
+  });
+});

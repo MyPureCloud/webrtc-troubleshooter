@@ -80,7 +80,11 @@ Object.defineProperty(global, 'MediaStream', { value: MediaStream, writeable: tr
 
 let navigator = {
   mediaDevices: {
-    getUserMedia: constraints => Promise.resolve(new global.MediaStream(constraints))
+    getUserMedia: constraints => Promise.resolve(new global.MediaStream(constraints)),
+    enumeratedDevices: () => Promise.resolve([])
+  },
+  permissions: {
+    query: Promise.resolve({ state: 'granted' })
   },
   userAgent: 'NODE'
 };

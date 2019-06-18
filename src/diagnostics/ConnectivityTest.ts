@@ -10,8 +10,8 @@ export default class ConnectivityTest extends Test {
   private pc2: PeerConnection;
   private dataChannel: RTCDataChannel;
 
-  constructor () {
-    super(...arguments);
+  constructor (...args: any[]) {
+    super(...args);
     this.name = 'Connectivity Test';
   }
 
