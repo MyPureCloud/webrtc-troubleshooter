@@ -20,7 +20,7 @@ class Listener {
 
 let RTCTrackEvent = class extends Listener { };
 /* Object.defineProperty is so jest actually adds this to the global object */
-Object.defineProperty(global, 'RTCTrackEvent', { value: RTCTrackEvent, writeable: true, configurable: true });
+Object.defineProperty(global, 'RTCTrackEvent', { value: RTCTrackEvent, writable: true, configurable: true });
 
 let RTCDataChannel = class extends Listener {
   constructor (label) {
@@ -28,7 +28,7 @@ let RTCDataChannel = class extends Listener {
     this.label = label;
   }
 };
-Object.defineProperty(global, 'RTCDataChannel', { value: RTCDataChannel, writeable: true, configurable: true });
+Object.defineProperty(global, 'RTCDataChannel', { value: RTCDataChannel, writable: true, configurable: true });
 
 let RTCPeerConnection = class extends Listener {
   addTrack () { }
@@ -43,7 +43,7 @@ let RTCPeerConnection = class extends Listener {
   }
   close () { }
 };
-Object.defineProperty(global, 'RTCPeerConnection', { value: RTCPeerConnection, writeable: true, configurable: true });
+Object.defineProperty(global, 'RTCPeerConnection', { value: RTCPeerConnection, writable: true, configurable: true });
 
 let MediaTrack = class {
   constructor (kind) {
@@ -51,7 +51,7 @@ let MediaTrack = class {
   }
   stop () { }
 };
-Object.defineProperty(global, 'MediaTrack', { value: MediaTrack, writeable: true, configurable: true });
+Object.defineProperty(global, 'MediaTrack', { value: MediaTrack, writable: true, configurable: true });
 
 let MediaStream = class {
   constructor (constraints) {
@@ -76,7 +76,7 @@ let MediaStream = class {
     return this._tracks.filter(t => t.kind === 'video');
   }
 };
-Object.defineProperty(global, 'MediaStream', { value: MediaStream, writeable: true, configurable: true });
+Object.defineProperty(global, 'MediaStream', { value: MediaStream, writable: true, configurable: true });
 
 let navigator = {
   mediaDevices: {
@@ -88,6 +88,6 @@ let navigator = {
   },
   userAgent: 'NODE'
 };
-Object.defineProperty(global, 'navigator', { value: navigator, writeable: true, configurable: true });
+Object.defineProperty(global, 'navigator', { value: navigator, writable: true, configurable: true });
 
 global.window = global;

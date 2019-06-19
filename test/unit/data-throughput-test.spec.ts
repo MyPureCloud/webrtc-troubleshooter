@@ -6,7 +6,7 @@ describe('DataThroughPutTest', () => {
     dataThroughPutTest = new DataThroughPutTest({
       iceServers: [],
       logger: {
-        error: () => { } // tslint:disable-line
+        error: () => null
       }
     });
   });
@@ -76,7 +76,7 @@ describe('DataThroughPutTest', () => {
         logger: {
           log: jest.fn()
         },
-        resolve: () => { } // tslint:disable-line
+        resolve: () => null // tslint:disable-line
       };
       dataThroughPutTest['onMessageReceived'].call(
         context,

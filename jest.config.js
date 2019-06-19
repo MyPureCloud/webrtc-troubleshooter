@@ -4,7 +4,7 @@ module.exports = {
     '<rootDir>/test'
   ],
   testMatch: [
-    '<rootDir>/test/**/*test.(ts|js)'
+    '<rootDir>/test/**/*.spec.(ts|js)'
   ],
   testPathIgnorePatterns: [
     '<rootDir>/test/helpers/*'

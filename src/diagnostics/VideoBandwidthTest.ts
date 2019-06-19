@@ -40,8 +40,8 @@ export default class VideoBandwidthTest extends Test {
   private stats: any;
   private results: unknown;
 
-  constructor () {
-    super(...arguments);
+  constructor (...args: any[]) {
+    super(...args);
     this.name = 'Video Bandwidth Test';
     this.maxVideoBitrateKbps = 2000;
     this.durationMs = 40000;

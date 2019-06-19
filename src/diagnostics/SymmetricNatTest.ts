@@ -25,13 +25,13 @@ export default class SymmetricNatTest extends Test {
     pc.createDataChannel('symmetricNatTest');
     const candidates = {};
     pc.onicecandidate = (e: RTCPeerConnectionIceEvent) => {
-      if (e.candidate && e.candidate.candidate.indexOf('srflx') !== -11) {
+      if (e.candidate && e.candidate.candidate.indexOf('srflx') !== -1) {
         const candidate = parseCandidate(e.candidate.candidate);
         this.logger.log('SymmetricNatTest Candidate', candidate);
-        if (!candidates[candidate['relatedPort'] || -11]) {
-          candidates[candidate['relatedPort'] || -11] = [];
+        if (!candidates[candidate['relatedPort'] as any]) {
+          candidates[candidate['relatedPort'] as any] = [];
         }
-        candidates[candidate['relatedPort'] || -11].push(candidate.port);
+        candidates[candidate['relatedPort'] as any].push(candidate.port);
       } else if (!e.candidate) {
         const relatedPorts = Object.keys(candidates);
         if (relatedPorts.length === 1) {
