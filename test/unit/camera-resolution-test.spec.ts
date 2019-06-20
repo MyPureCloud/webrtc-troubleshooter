@@ -1,8 +1,8 @@
-import CameraResolutionTest from '../../src/diagnostics/CameraResolutionTest';
+import { CameraResolutionTest } from '../../src/diagnostics/CameraResolutionTest';
 import { Logger } from '../../src/types/interfaces';
 
 describe('CameraResolutionTest', () => {
-  const RESOLUTION = [320, 640];
+  const RESOLUTION: [number, number] = [320, 640];
   const DURATION = 30;
   const fakeLogger: Logger = { log () { }, error () { }, warn () { }, info () { } }; //tslint:disable-line
   let cameraResolutionTest: CameraResolutionTest;

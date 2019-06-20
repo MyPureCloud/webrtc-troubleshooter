@@ -1,5 +1,5 @@
 import AdvancedCameraTest from '../../src/diagnostics/AdvancedCameraTest';
-import CameraResolutionTest from '../../src/diagnostics/CameraResolutionTest';
+import { CameraResolutionTest } from '../../src/diagnostics/CameraResolutionTest';
 
 describe('AdvancedCameraTest', () => {
   it('should be a suite of 14 CameraResolutionTest tests', () => {

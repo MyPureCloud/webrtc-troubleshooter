@@ -1,5 +1,5 @@
 import TestSuite from '../utils/TestSuite';
-import CameraResolutionTest from './CameraResolutionTest';
+import { CameraResolutionTest, CameraResolutionTestResults } from './CameraResolutionTest';
 import { ObjectLiteral } from '../types/interfaces';
 
 /**
@@ -18,7 +18,7 @@ export default class AdvancedCameraTest extends TestSuite {
   constructor (options: ObjectLiteral) {
     super(...arguments);
     this.name = 'Advanced Video Test';
-    // this.tests = [];
+
     this.promise = new Promise((resolve, reject) => {
       this.deferred = { resolve, reject };
     });
@@ -43,7 +43,7 @@ export default class AdvancedCameraTest extends TestSuite {
   /**
    * Start the test
    */
-  public start (): Promise<any> {
+  public start (): Promise<CameraResolutionTestResults> {
     super.start().then((results) => {
       return this.deferred.resolve(results);
     }, (err) => {

@@ -7,12 +7,19 @@ import WebrtcCall from '../utils/WebrtcCall';
 import Test from '../utils/Test';
 import { ObjectLiteral } from '../types/interfaces';
 
+export interface CameraResolutionTestResults {
+  log: string[];
+  stats: unknown;
+  resolutions: number[][];
+  duration: number;
+}
+
 /**
  * Class to test camera resolution
  */
-export default class CameraResolutionTest extends Test {
+export class CameraResolutionTest extends Test {
 
-  private resolutions: number[][];
+  private resolutions: Array<[number, number]>;
   private duration: number;
   private log: any[];
   private currentResolution: number;
@@ -22,7 +29,7 @@ export default class CameraResolutionTest extends Test {
 
   private stats: RTCStatsReport[];
 
-  constructor (resolutions: number[][], options?: ObjectLiteral) {
+  constructor (resolutions: Array<[number, number]>, options?: ObjectLiteral) {
     super(options);
     this.name = `Camera resolution test ${JSON.stringify(resolutions)}`;
     this.resolutions = resolutions;
@@ -37,7 +44,7 @@ export default class CameraResolutionTest extends Test {
   /**
    * Start the test
    */
-  public start (): Promise<any> {
+  public start (): Promise<CameraResolutionTestResults> {
     super.start(); //tslint:disable-line
     const settings = {
       resolutions: this.resolutions,
@@ -61,7 +68,7 @@ export default class CameraResolutionTest extends Test {
   /**
    * Get the current results
    */
-  private getResults (): { log: string[], stats: unknown, resolutions: number[][], duration: number } {
+  private getResults (): CameraResolutionTestResults {
     return {
       log: this.log,
       stats: this.stats,
@@ -100,7 +107,7 @@ export default class CameraResolutionTest extends Test {
   /**
    * Start collecting userMedia
    */
-  private startGetUserMedia (resolution): Promise<any> {
+  private startGetUserMedia (resolution: [number, number]): Promise<any> {
     const constraints: MediaStreamConstraints = {
       audio: false,
       video: {
@@ -135,7 +142,7 @@ export default class CameraResolutionTest extends Test {
    * Check to see if current resolution is the last resolution.
    *  If yes, return results otherwise call `startGetUserMedia()`
    */
-  private maybeContinueGetUserMedia (): Promise<unknown> | { log: string[], stats: unknown, resolutions: number[][], duration: number } {
+  private maybeContinueGetUserMedia (): Promise<unknown> | CameraResolutionTestResults {
     if (this.currentResolution === this.resolutions.length) {
       return this.getResults();
     }
@@ -151,7 +158,7 @@ export default class CameraResolutionTest extends Test {
    * @param stream media stream
    * @param resolution current resolution
    */
-  private collectAndAnalyzeStats (stream: MediaStream, resolution: number[]): Promise<unknown> | undefined | { log: string[], stats: unknown, resolutions: number[][], duration: number } {
+  private collectAndAnalyzeStats (stream: MediaStream, resolution: number[]): Promise<unknown> | undefined | CameraResolutionTestResults {
     const tracks: MediaStreamTrack[] = stream.getVideoTracks();
     if (tracks.length < 1) {
       this.reportError('No video track in returned stream.');
