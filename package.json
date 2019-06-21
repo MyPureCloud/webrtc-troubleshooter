@@ -1,6 +1,6 @@
 {
   "name": "webrtc-troubleshoot",
-  "version": "10.2.1",
+  "version": "11.0.0",
   "description": "A way to add webrtc troubleshooting to your app",
   "main": "src/index.js",
   "types": "./dist/index.d.ts",
@@ -10,18 +10,14 @@
     "LICENSE"
   ],
   "license": "MIT",
-  "config": {
-    "report": "report --reporter=lcov --reporter=cobertura"
-  },
   "scripts": {
     "build": "webpack --env=prod --progress --profile --colors",
     "start": "concurrently --kill-others \"webpack --env=prod --profile --colors --watch\" \"stupid-server ./\"",
-    "test": "npm run lint && npm run unit-test && npm run report",
-    "test:watch": "jest --watch",
+    "test": "npm run lint && npm run unit-test",
+    "test:watch": "jest --watch --collectCoverage=false",
     "lint": "semistandard && npm run tslint",
     "tslint": "tslint --project . --config tslint.json",
-    "unit-test": "nyc --reporter=lcov --reporter=cobertura jest",
-    "report": "nyc report"
+    "unit-test": "jest"
   },
   "repository": "https://github.com/mypurecloud/webrtc-troubleshooter",
   "engines": {
@@ -40,7 +36,6 @@
     "browser-env": "^3.1.0",
     "concurrently": "^4.1.0",
     "jest": "^24.8.0",
-    "nyc": "^13.0.0",
     "semistandard": "^12.0.1",
     "stupid-server": "^0.2.5",
     "ts-jest": "^24.0.2",

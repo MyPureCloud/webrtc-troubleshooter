@@ -15,5 +15,15 @@ module.exports = {
   },
   setupFilesAfterEnv: [
     '<rootDir>/test/helpers/setup-browser-env.js'
-  ]
+  ],
+  collectCoverage: true,
+  collectCoverageFrom: [
+    '**/*.{js,jsx,ts,tsx}',
+    '!**/node_modules/**',
+    '!**/types/**'
+  ],
+  coverageReporters: [
+    'lcov', 'text'
+  ],
+  coverageDirectory: './coverage'
 };

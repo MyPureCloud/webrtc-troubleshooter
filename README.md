@@ -35,5 +35,4 @@ The tests now use [Jest](https://jestjs.io/)!
 > Test names must match the `*.spec.ts` or `*.spec.js` naming convention. This is configured in [jest.config.js](./jest.config.js)
 
 * `npm test` will run both linting, all the unit-test, and report coverage in text form in the command line.
-* `npm run test:watch` will run only the unit-tests and watch the files for changes. 
-* `npm run coverage` runs the code coverage report
+* `npm run test:watch` will run only the unit-tests and watch the files for changes (it also skips code coverage reporting). 
