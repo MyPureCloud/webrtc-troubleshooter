@@ -3,31 +3,36 @@
 [![Build Status](https://travis-ci.org/MyPureCloud/webrtc-troubleshooter.svg?branch=master)](https://travis-ci.org/MyPureCloud/webrtc-troubleshooter)
 [![Coverage Status](https://coveralls.io/repos/github/MyPureCloud/webrtc-troubleshooter/badge.svg?branch=master)](https://coveralls.io/github/MyPureCloud/webrtc-troubleshooter?branch=master)
 
+This provides diagnostic tests for basic WebRTC functionality. See the [test-page](./test-page/) directory for usage. 
 
-# Develop
+# Getting Started
 
 * `git clone` this repository
 * `npm install`
-* Serve with your favorite [stupid server](https://www.npmjs.com/package/stupid-server)
-* `npm test`
+* Run [unit-tests](#Testing) using `npm test`
+* [Develop](#Develop) against the diagnostic tests using `npm start` and navigating to [http://localhost:8080/test-page](http://localhost:8080/test-page)
 
-# Scripts 
 
-* Useful for running individual test files ~~`FILE=advanced-camera-test.js npm run unit-test-file` to run a single test file~~
-  * Personal favorite is with `watch` enabled: `npx ava --watch --fail-fast=false test/unit/video-bandwidth-test.js`
-  * Alternatively run `./node_modules/.bin/ava test/unit/advanced-camera-test.js` for an individual test
-* `npm run coverage` runs the code coverage report
-  * `npm test` will run both lint and all the unit-test and report coverage in text form in command line
+# Develop
+
+To develop diagnostic tests this repo has a utility [./test-page/index.html](./test-page/index.html) that pulls in the tests and runs them in the browser. For WebRTC connections, most of the tests force the use of `relay` since the tests make peer connections to the same host. 
+
 * `npm start` will run webpack with the `--watch` flag and serve the test-page using stupid server. 
   * This is super helpful when you are writing new tests. You will still need to refrash the browser to pick up any new changes, but at least webpack will rebuild the app when you save a file :) 
-
-# Test Page
 
 test-page/index.html
 for console output of 6 tests to ensure webrtc is properly functioning
 
-Here is a stringified version of google's STUN servers for quick reference: 
+Here is a stringified version of google's STUN servers for quick reference. Granted, you will still need an active TURN server for some of these tests to pass, but this will get the tests started. 
 
 ```
 [{"type":"stun","urls":"stun:stun.l.google.com:19302"}]
 ```
+
+# Testing
+The tests now use [Jest](https://jestjs.io/)!
+
+> Test names must match the `*.spec.ts` or `*.spec.js` naming convention. This is configured in [jest.config.js](./jest.config.js)
+
+* `npm test` will run both linting, all the unit-test, and report coverage in text form in the command line.
+* `npm run test:watch` will run only the unit-tests and watch the files for changes (it also skips code coverage reporting). 

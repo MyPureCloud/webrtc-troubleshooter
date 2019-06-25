@@ -1,0 +1,31 @@
+{
+  "compilerOptions": {
+    "module": "commonjs",
+    "target": "es6",
+    "outDir": "./dist",
+    "sourceMap": true,
+    "esModuleInterop": true,
+    "declaration": true,
+    "downlevelIteration": true,
+    "allowUnreachableCode": false,
+    "allowUnusedLabels": false,
+    "strictNullChecks": true,
+    // "allowJs": true,
+    // "alwaysStrict": true,
+    // "noImplicitAny": true,
+    // "noImplicitReturns": true,
+    // "noImplicitThis": true,
+    // "noFallthroughCasesInSwitch": true,
+    // "noUnusedLocals": true,
+    // "noUnusedParameters": true,
+    // "suppressExcessPropertyErrors": false,
+    // "suppressImplicitAnyIndexErrors": false,
+    // "strictFunctionTypes": true,
+    // "strictPropertyInitialization": true,
+    // "checkJs": true
+  },
+  "include": [
+    "./src/**/*",
+    "./test/**/*"
+  ]
+}

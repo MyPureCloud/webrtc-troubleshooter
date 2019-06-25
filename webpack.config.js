@@ -4,7 +4,7 @@ const path = require('path');
 
 module.exports = {
   target: 'web',
-  entry: './src/index.js',
+  entry: './src/index.ts',
   devtool: 'source-map',
   mode: process.env.MINIMIZE ? 'production' : 'development',
   optimization: {
@@ -16,14 +16,21 @@ module.exports = {
     library: 'WebrtcTroubleshooter',
     libraryTarget: 'umd'
   },
+  resolve: {
+    extensions: ['.ts', '.js', '.json']
+  },
   module: {
     rules: [
       {
         test: /\.js$/,
         loader: 'babel-loader',
         query: {
-          presets: ['env']
+          presets: ['@babel/preset-env']
         }
+      },
+      {
+        test: /\.ts$/,
+        loader: 'awesome-typescript-loader'
       }
     ]
   }

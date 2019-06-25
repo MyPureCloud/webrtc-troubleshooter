@@ -37,42 +37,46 @@ runButton.onclick = function startTroubleshooter () {
   if (audio) {
     const microphonePermissionsTest = new WebrtcTroubleshooter.PermissionsTest(false, mediaOptions);
     microphonePermissionsTest.promise.then(testCompleted.bind(null, microphonePermissionsTest, true), testCompleted.bind(null, microphonePermissionsTest, false));
+    testSuite.addTest(microphonePermissionsTest);
+
     const audioTest = new WebrtcTroubleshooter.AudioTest(mediaOptions);
     audioTest.promise.then(testCompleted.bind(null, audioTest, true), testCompleted.bind(null, audioTest, false));
+    testSuite.addTest(audioTest);
+
     const audioBandwidthTest = new WebrtcTroubleshooter.AudioBandwidthTest({ iceConfig: iceConfig, mediaOptions: mediaOptions });
     audioBandwidthTest.promise.then(testCompleted.bind(null, audioBandwidthTest, true), testCompleted.bind(null, audioBandwidthTest, false));
-
-    testSuite.addTest(microphonePermissionsTest);
-    testSuite.addTest(audioTest);
     testSuite.addTest(audioBandwidthTest);
   }
 
   if (video) {
     const cameraPermissionsTest = new WebrtcTroubleshooter.PermissionsTest(true, mediaOptions);
     cameraPermissionsTest.promise.then(testCompleted.bind(null, cameraPermissionsTest, true), testCompleted.bind(null, cameraPermissionsTest, false));
+    testSuite.addTest(cameraPermissionsTest);
+
     const videoTest = new WebrtcTroubleshooter.VideoTest(mediaOptions);
     videoTest.promise.then(testCompleted.bind(null, videoTest, true), testCompleted.bind(null, videoTest, false));
+    testSuite.addTest(videoTest);
+
     const advancedCameraTest = new WebrtcTroubleshooter.AdvancedCameraTest(mediaOptions);
     advancedCameraTest.promise.then(testCompleted.bind(null, advancedCameraTest, true), testCompleted.bind(null, advancedCameraTest, false));
+    testSuite.addTest(advancedCameraTest);
+
     const bandwidthTest = new WebrtcTroubleshooter.VideoBandwidthTest({ iceConfig: iceConfig, mediaOptions: mediaOptions });
     bandwidthTest.promise.then(testCompleted.bind(null, bandwidthTest, true), testCompleted.bind(null, bandwidthTest, false));
-
-    testSuite.addTest(cameraPermissionsTest);
-    testSuite.addTest(videoTest);
-    testSuite.addTest(advancedCameraTest);
     testSuite.addTest(bandwidthTest);
   }
 
   if (window.RTCPeerConnection) {
     const connectivityTest = new WebrtcTroubleshooter.ConnectivityTest(iceConfig);
     connectivityTest.promise.then(testCompleted.bind(null, connectivityTest, true), testCompleted.bind(null, connectivityTest, false));
+    testSuite.addTest(connectivityTest);
+
     const throughputTest = new WebrtcTroubleshooter.ThroughputTest(iceConfig);
     throughputTest.promise.then(testCompleted.bind(null, throughputTest, true), testCompleted.bind(null, throughputTest, false));
+    testSuite.addTest(throughputTest);
+
     const symmetricNatTest = new WebrtcTroubleshooter.SymmetricNatTest();
     symmetricNatTest.promise.then(testCompleted.bind(null, symmetricNatTest, true), testCompleted.bind(null, symmetricNatTest, false));
-
-    testSuite.addTest(connectivityTest);
-    testSuite.addTest(throughputTest);
     testSuite.addTest(symmetricNatTest);
   }
 

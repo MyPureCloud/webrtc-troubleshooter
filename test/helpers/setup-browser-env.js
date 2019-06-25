@@ -18,37 +18,42 @@ class Listener {
   }
 }
 
-global.RTCTrackEvent = class extends Listener {};
+let RTCTrackEvent = class extends Listener { };
+/* Object.defineProperty is so jest actually adds this to the global object */
+Object.defineProperty(global, 'RTCTrackEvent', { value: RTCTrackEvent, writable: true, configurable: true });
 
-global.RTCDataChannel = class extends Listener {
+let RTCDataChannel = class extends Listener {
   constructor (label) {
     super();
     this.label = label;
   }
 };
+Object.defineProperty(global, 'RTCDataChannel', { value: RTCDataChannel, writable: true, configurable: true });
 
-global.RTCPeerConnection = class extends Listener {
-  addTrack () {}
-  addStream () {}
+let RTCPeerConnection = class extends Listener {
+  addTrack () { }
+  addStream () { }
   createOffer () { return Promise.resolve(); }
-  setLocalDescription () {}
-  setRemoteDescription () {}
+  setLocalDescription () { }
+  setRemoteDescription () { }
   createAnswer () { return Promise.resolve(); }
   getStats () { return Promise.resolve(); }
   createDataChannel (label) {
     return new global.window.RTCDataChannel(label);
   }
-  close () {}
+  close () { }
 };
+Object.defineProperty(global, 'RTCPeerConnection', { value: RTCPeerConnection, writable: true, configurable: true });
 
-global.MediaTrack = class {
+let MediaTrack = class {
   constructor (kind) {
     this.kind = kind;
   }
-  stop () {}
+  stop () { }
 };
+Object.defineProperty(global, 'MediaTrack', { value: MediaTrack, writable: true, configurable: true });
 
-global.MediaStream = class {
+let MediaStream = class {
   constructor (constraints) {
     this._tracks = [];
     if (constraints.audio) {
@@ -71,12 +76,18 @@ global.MediaStream = class {
     return this._tracks.filter(t => t.kind === 'video');
   }
 };
+Object.defineProperty(global, 'MediaStream', { value: MediaStream, writable: true, configurable: true });
 
-global.navigator = {
+let navigator = {
   mediaDevices: {
-    getUserMedia: constraints => Promise.resolve(new global.MediaStream(constraints))
+    getUserMedia: constraints => Promise.resolve(new global.MediaStream(constraints)),
+    enumeratedDevices: () => Promise.resolve([])
+  },
+  permissions: {
+    query: Promise.resolve({ state: 'granted' })
   },
   userAgent: 'NODE'
 };
+Object.defineProperty(global, 'navigator', { value: navigator, writable: true, configurable: true });
 
 global.window = global;

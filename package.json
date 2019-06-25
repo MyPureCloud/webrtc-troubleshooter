@@ -1,39 +1,47 @@
 {
   "name": "webrtc-troubleshoot",
-  "version": "10.2.1",
+  "version": "11.0.0",
   "description": "A way to add webrtc troubleshooting to your app",
   "main": "src/index.js",
+  "types": "./dist/index.d.ts",
   "files": [
     "dist",
     "src",
     "LICENSE"
   ],
   "license": "MIT",
-  "config": {
-    "report": "report --reporter=lcov --reporter=cobertura"
-  },
   "scripts": {
     "build": "webpack --env=prod --progress --profile --colors",
-    "unit-test": "nyc --reporter=lcov --reporter=cobertura ava test/unit/*.js",
-    "test": "semistandard && npm run unit-test && npm run report",
-    "report": "nyc report",
-    "start": "concurrently --kill-others \"webpack --env=prod --profile --colors --watch\" \"stupid-server ./\""
+    "start": "concurrently --kill-others \"webpack --env=prod --profile --colors --watch\" \"stupid-server ./\"",
+    "test": "npm run lint && npm run unit-test",
+    "test:watch": "jest --watch --collectCoverage=false",
+    "lint": "semistandard && npm run tslint",
+    "tslint": "tslint --project . --config tslint.json",
+    "unit-test": "jest"
   },
   "repository": "https://github.com/mypurecloud/webrtc-troubleshooter",
   "engines": {
     "node": ">= 4.4.0"
   },
   "devDependencies": {
-    "ava": "^0.25.0",
-    "babel-core": "^6.25.0",
-    "babel-loader": "^7.1.1",
-    "babel-preset-env": "^1.6.1",
+    "@babel/core": "^7.4.5",
+    "@babel/preset-env": "^7.4.5",
+    "@types/jest": "^24.0.13",
+    "@types/node": "^12.0.2",
+    "@types/webrtc": "0.0.25",
+    "awesome-typescript-loader": "^5.2.1",
+    "babel-core": "^7.0.0-bridge.0",
+    "babel-jest": "^24.8.0",
+    "babel-loader": "^7.1.5",
     "browser-env": "^3.1.0",
     "concurrently": "^4.1.0",
-    "nyc": "^13.0.0",
+    "jest": "^24.8.0",
     "semistandard": "^12.0.1",
-    "sinon": "^2.3.8",
     "stupid-server": "^0.2.5",
+    "ts-jest": "^24.0.2",
+    "tslint": "^5.17.0",
+    "tslint-config-semistandard": "^8.0.0",
+    "typescript": "^3.4.5",
     "webpack": "^4.16.2",
     "webpack-cli": "^3.1.0",
     "webrtc-adapter": "^6.1.5"
@@ -45,29 +53,13 @@
   },
   "babel": {
     "presets": [
-      "env"
-    ]
-  },
-  "ava": {
-    "files": [
-      "!**/Ssim.js",
-      "!**/StatisticsAggregate.js",
-      "!**/VideoFrameChecker.js",
-      "!**/WebrtcCall.js"
-    ],
-    "concurrency": 5,
-    "failFast": true,
-    "failWithoutAssertions": false,
-    "tap": true,
-    "powerAssert": false,
-    "require": [
-      "babel-register",
-      "./test/helpers/setup-browser-env.js"
+      "@babel/preset-env"
     ]
   },
   "semistandard": {
     "ignore": [
-      "**/dist"
+      "**/dist",
+      "**/_test"
     ]
   }
 }
