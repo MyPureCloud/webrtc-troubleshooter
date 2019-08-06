@@ -16,13 +16,11 @@ declare var navigator: {
  */
 export default class PermissionsTest extends Test {
 
-  private isCamera: boolean;
   private localMedia: LocalMedia;
 
-  constructor (isCamera: boolean, options?: ObjectLiteral) {
+  constructor (private isCamera: boolean, private forceLegacyCheck: boolean, options?: ObjectLiteral) {
     super(options);
     this.name = isCamera ? 'Camera Permissions Test' : 'Microphone Permissions Test';
-    this.isCamera = isCamera;
     this.localMedia = new LocalMedia();
   }
 
@@ -33,7 +31,7 @@ export default class PermissionsTest extends Test {
     super.start(); // tslint:disable-line
 
     // use the permissions api if available
-    if (navigator.permissions) {
+    if (navigator.permissions && !this.forceLegacyCheck) {
       this.logger.info('querying using the permissions api');
 
       let promise: Promise<any>;
@@ -57,7 +55,7 @@ export default class PermissionsTest extends Test {
       });
     }
 
-    this.logger.info('no permissions api, trying to get media to check permissions');
+    this.logger.info('trying to get media to check permissions');
     const options = {
       video: this.isCamera,
       audio: !this.isCamera
