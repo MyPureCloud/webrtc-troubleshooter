@@ -20,7 +20,7 @@ describe('PermissionsTest', () => {
     });
 
     test('should not use local media if permissions api is available', async () => {
-      const permissionsTest = new PermissionsTest(true);
+      const permissionsTest = new PermissionsTest(true, false);
       const startSpy = jest.spyOn(permissionsTest['localMedia'], 'start');
       const savedPermissions = navigator.permissions;
       const querySpy = jest.fn().mockResolvedValueOnce({ state: 'granted' } as any);
@@ -32,7 +32,7 @@ describe('PermissionsTest', () => {
     });
 
     test('should fail if there are no mic devices and is mic permissions test', async () => {
-      const permissionsTest = new PermissionsTest(false);
+      const permissionsTest = new PermissionsTest(false, false);
       const startSpy = jest.spyOn(permissionsTest['localMedia'], 'start');
       const savedPermissions = navigator.permissions;
       setPermissions(null);
@@ -51,7 +51,7 @@ describe('PermissionsTest', () => {
     });
 
     test('should fail if there are no camera devices and is camera permissions test', async () => {
-      const permissionsTest = new PermissionsTest(true);
+      const permissionsTest = new PermissionsTest(true, false);
       const startSpy = jest.spyOn(permissionsTest['localMedia'], 'start');
       const savedPermissions = navigator.permissions;
       setPermissions(null);
@@ -70,7 +70,7 @@ describe('PermissionsTest', () => {
     });
 
     test('should use local media if permissions api is not available', async () => {
-      const permissionsTest = new PermissionsTest(false);
+      const permissionsTest = new PermissionsTest(false, false);
       const startSpy = jest.spyOn(permissionsTest['localMedia'], 'start').mockImplementationOnce((options, cb) => cb(null, { getTracks: () => [] } as any));
       const savedPermissions = navigator.permissions;
       setPermissions(null);
@@ -82,8 +82,22 @@ describe('PermissionsTest', () => {
       setPermissions(savedPermissions);
     });
 
+    test('should use local media if permissions api is available but using legacyCheck', async () => {
+      const permissionsTest = new PermissionsTest(false, true);
+      const startSpy = jest.spyOn(permissionsTest['localMedia'], 'start').mockImplementationOnce((options, cb) => cb(null, { getTracks: () => [] } as any));
+      const savedPermissions = navigator.permissions;
+      const querySpy = jest.fn().mockResolvedValueOnce({ state: 'granted' } as any);
+      setPermissions({ query: querySpy });
+      enumDevicesSpy.mockResolvedValueOnce([
+        { kind: 'audioinput' }
+      ]);
+      await permissionsTest.start();
+      expect(startSpy).toHaveBeenCalled();
+      setPermissions(savedPermissions);
+    });
+
     test('should fail if permissions denied', async () => {
-      const permissionsTest = new PermissionsTest(false);
+      const permissionsTest = new PermissionsTest(false, false);
       const fakeError = new Error();
       fakeError.name = 'NotAllowedError';
       const startSpy = jest.spyOn(permissionsTest['localMedia'], 'start').mockImplementationOnce((options, cb) => cb(fakeError, null as any));
