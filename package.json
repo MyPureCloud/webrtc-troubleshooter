@@ -10,6 +10,9 @@
     "LICENSE"
   ],
   "license": "MIT",
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/"
+  },
   "scripts": {
     "build": "webpack --env=prod --progress --profile --colors",
     "start": "concurrently --kill-others \"webpack --env=prod --profile --colors --watch\" \"stupid-server ./\"",
