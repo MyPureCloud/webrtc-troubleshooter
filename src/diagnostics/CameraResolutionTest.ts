@@ -238,7 +238,7 @@ export class CameraResolutionTest extends Test {
     const statsReport: StatsReport = {};
     const frameStats = frameChecker.frameStats;
 
-    stats.forEach((stat: RTCStatsReport) => {
+    stats.forEach((stat: any) => {
       if (stat.get('type') === 'ssrc') {
         // make sure to only capture stats after the encoder is setup.
         if (parseInt(stat.get('googFrameRateInput'), 10) > 0) {
@@ -289,7 +289,7 @@ export class CameraResolutionTest extends Test {
    * @param stats array of stats
    * @param statsCollectTime array of times for collecting the stats
    */
-  private extractEncoderSetupTime (stats: RTCStatsReport[], statsCollectTime): number {
+  private extractEncoderSetupTime (stats: any[], statsCollectTime): number {
     let res: string = '';
     let index = 0;
     stats.forEach((stat) => {
