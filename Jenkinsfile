@@ -22,14 +22,17 @@ webappPipeline {
         ]
     }
 
-    shouldTagOnRelease = { true }
+    shouldTagOnRelease = { false }
 
     postReleaseStep = {
-        sh("""
-            # patch to prep for the next version
-            npm version patch --no-git-tag-version
-            git commit -am "Prep next version"
-            git push origin HEAD:master --tags
-        """)
+        sshagent(credentials: [constants.credentials.github.inin_dev_evangelists]) {
+            sh("""
+                git tag v${version}
+                # patch to prep for the next version
+                npm version patch --no-git-tag-version
+                git commit -am "Prep next version"
+                git push origin HEAD:master --tags
+            """)
+        }
     }
 }
