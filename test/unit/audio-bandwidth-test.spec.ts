@@ -202,7 +202,7 @@ describe('AudioBandwidthTest', () => {
   });
 
   describe('getStats()', () => {
-    const fakeRTCStatsReport = {
+    const fakeRTCStatsReport: any = {
       forEach: function (callback) {
         callback(fakeRTCStatsReport.values);
       },
